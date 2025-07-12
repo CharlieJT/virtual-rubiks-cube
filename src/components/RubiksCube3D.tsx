@@ -27,6 +27,39 @@ const CubePiece = ({
 }: CubePieceProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
 
+  const cubeFaces = [
+    {
+      face: "front",
+      pos: [0, 0, 0.48],
+      rot: [0, 0, 0],
+    },
+    {
+      face: "back",
+      pos: [0, 0, -0.48],
+      rot: [0, Math.PI, 0],
+    },
+    {
+      face: "left",
+      pos: [-0.48, 0, 0],
+      rot: [0, -Math.PI / 2, 0],
+    },
+    {
+      face: "right",
+      pos: [0.48, 0, 0],
+      rot: [0, Math.PI / 2, 0],
+    },
+    {
+      face: "top",
+      pos: [0, 0.48, 0],
+      rot: [-Math.PI / 2, 0, 0],
+    },
+    {
+      face: "bottom",
+      pos: [0, -0.48, 0],
+      rot: [Math.PI / 2, 0, 0],
+    },
+  ] as const;
+
   useEffect(() => {
     if (meshRef.current && onMeshReady) {
       const [x, y, z] = position;
@@ -34,7 +67,7 @@ const CubePiece = ({
       const gridX = Math.round(x / 1.05 + 1);
       const gridY = Math.round(y / 1.05 + 1);
       const gridZ = Math.round(z / 1.05 + 1);
-      
+
       onMeshReady(meshRef.current, gridX, gridY, gridZ);
     }
   }, [position, onMeshReady]);
@@ -44,69 +77,18 @@ const CubePiece = ({
       <boxGeometry args={[0.95, 0.95, 0.95]} />
       <meshStandardMaterial color="#1a1a1a" />
 
-      {/* Front face */}
-      <mesh
-        position={[0, 0, 0.48]}
-        onPointerDown={(e) => onPointerDown?.(e, position, "front")}
-      >
-        <planeGeometry args={[0.9, 0.9]} />
-        <meshStandardMaterial color={colors.front} />
-      </mesh>
-
-      {/* Back face */}
-      <mesh
-        position={[0, 0, -0.48]}
-        rotation={[0, Math.PI, 0]}
-        onPointerDown={(e) => onPointerDown?.(e, position, "back")}
-        frustumCulled={false}
-      >
-        <planeGeometry args={[0.9, 0.9]} />
-        <meshStandardMaterial color={colors.back} />
-      </mesh>
-
-      {/* Left face */}
-      <mesh
-        position={[-0.48, 0, 0]}
-        rotation={[0, -Math.PI / 2, 0]}
-        onPointerDown={(e) => onPointerDown?.(e, position, "left")}
-        frustumCulled={false}
-      >
-        <planeGeometry args={[0.9, 0.9]} />
-        <meshStandardMaterial color={colors.left} />
-      </mesh>
-
-      {/* Right face */}
-      <mesh
-        position={[0.48, 0, 0]}
-        rotation={[0, Math.PI / 2, 0]}
-        onPointerDown={(e) => onPointerDown?.(e, position, "right")}
-        frustumCulled={false}
-      >
-        <planeGeometry args={[0.9, 0.9]} />
-        <meshStandardMaterial color={colors.right} />
-      </mesh>
-
-      {/* Top face */}
-      <mesh
-        position={[0, 0.48, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        onPointerDown={(e) => onPointerDown?.(e, position, "top")}
-        frustumCulled={false}
-      >
-        <planeGeometry args={[0.9, 0.9]} />
-        <meshStandardMaterial color={colors.top} />
-      </mesh>
-
-      {/* Bottom face */}
-      <mesh
-        position={[0, -0.48, 0]}
-        rotation={[Math.PI / 2, 0, 0]}
-        onPointerDown={(e) => onPointerDown?.(e, position, "bottom")}
-        frustumCulled={false}
-      >
-        <planeGeometry args={[0.9, 0.9]} />
-        <meshStandardMaterial color={colors.bottom} />
-      </mesh>
+      {cubeFaces.map(({ face, pos, rot }) => (
+        <mesh
+          key={face}
+          position={pos as [number, number, number]}
+          rotation={rot as [number, number, number]}
+          onPointerDown={(e) => onPointerDown?.(e, position, face)}
+          frustumCulled={false}
+        >
+          <planeGeometry args={[0.9, 0.9]} />
+          <meshStandardMaterial color={colors[face as keyof typeof colors]} />
+        </mesh>
+      ))}
     </mesh>
   );
 };

@@ -1,5 +1,3 @@
-import type { CubeMove } from "../types/cube";
-
 const moves = [
   "F",
   "f",

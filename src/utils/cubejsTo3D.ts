@@ -1,5 +1,4 @@
 import type { CubeState } from "../types/cube";
-import Cube from "cubejs";
 
 // Correct color mapping for your orientation
 const COLOR_MAP = {
