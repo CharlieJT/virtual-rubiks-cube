@@ -19,6 +19,20 @@ export class AnimationHelper {
     return this.locked;
   }
 
+  static lock(): void {
+    this.locked = true;
+  }
+
+  static unlock(): void {
+    this.locked = false;
+  }
+
+  static forceUnlock(): void {
+    // Emergency unlock - stops all tweens and unlocks
+    TWEEN.removeAll();
+    this.locked = false;
+  }
+
   static getMoveAxisAndDir(move: CubeMove): [THREE.Vector3, number] {
     // Clean the move and check for modifiers
     const isPrime = move.includes("'");
@@ -128,7 +142,15 @@ export class AnimationHelper {
     move: CubeMove,
     onComplete?: () => void
   ): TweenType | null {
-    this.locked = true;
+    if (this.locked) return null;
+
+    this.lock();
+
+    // Add timeout as fail-safe
+    const timeoutId = setTimeout(() => {
+      this.forceUnlock();
+      onComplete && onComplete();
+    }, 1000); // 1 second timeout
 
     // Get animation parameters for whole cube rotation
     const [axis, totalRotation] = this.getMoveAxisAndDir(move);
@@ -136,11 +158,8 @@ export class AnimationHelper {
     // Create tween animation for the entire parent group
     let currentRotation = 0;
 
-    // Create a new TWEEN group
-    const tweenGroup = new TWEEN.Group();
-
-    const tween = new TWEEN.Tween({ rotation: 0 }, tweenGroup)
-      .to({ rotation: totalRotation }, 250) // Simple timing
+    const tween = new TWEEN.Tween({ rotation: 0 })
+      .to({ rotation: totalRotation }, 250)
       .easing(TWEEN.Easing.Cubic.InOut)
       .onUpdate((obj) => {
         const deltaRotation = obj.rotation - currentRotation;
@@ -148,20 +167,12 @@ export class AnimationHelper {
         currentRotation = obj.rotation;
       })
       .onComplete(() => {
-        // For whole cube rotations, we need to reset the group rotation
-        // and let the cube state update handle the logical change
-        setTimeout(() => {
-          // Reset the parent group rotation
-          parentGroup.rotation.set(0, 0, 0);
-
-          this.locked = false;
-          onComplete && onComplete();
-        }, 16);
+        clearTimeout(timeoutId);
+        parentGroup.rotation.set(0, 0, 0);
+        this.unlock();
+        onComplete && onComplete();
       })
       .start();
-
-    // Store the tween group for updating
-    (tween as any)._group = tweenGroup;
 
     return tween;
   }
@@ -178,11 +189,10 @@ export class AnimationHelper {
     const cleanMove = move.replace(/['2]/g, "");
     const baseMove = cleanMove[0].toUpperCase();
     if (baseMove === "X" || baseMove === "Y" || baseMove === "Z") {
-      // For whole cube rotations, animate the entire parent group
       return this.animateWholeCube(parentGroup, move, onComplete);
     }
 
-    this.locked = true;
+    this.lock();
 
     // Find affected cubies
     const affectedCubies = cubies.filter((cubie) =>
@@ -190,11 +200,11 @@ export class AnimationHelper {
     );
 
     if (affectedCubies.length === 0) {
-      this.locked = false;
+      this.unlock();
       return null;
     }
 
-    // Create animation group
+    // Create animation group for ONLY the affected cubies
     const group = new THREE.Group();
     group.name = "AnimationGroup";
 
@@ -209,41 +219,41 @@ export class AnimationHelper {
     // Get animation parameters
     const [axis, totalRotation] = this.getMoveAxisAndDir(move);
 
-    // Create tween animation
-    let currentRotation = 0;
+    // Use requestAnimationFrame-based animation
+    const startTime = performance.now();
+    const duration = 100; // 100ms animation - fast and responsive
+    let animationId: number;
 
-    // Create a new TWEEN group to ensure proper management
-    const tweenGroup = new TWEEN.Group();
+    const animate = () => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
 
-    const tween = new TWEEN.Tween({ rotation: 0 }, tweenGroup)
-      .to({ rotation: totalRotation }, 250) // 250ms animation
-      .easing(TWEEN.Easing.Cubic.InOut)
-      .onUpdate((obj) => {
-        const deltaRotation = obj.rotation - currentRotation;
-        group.rotateOnAxis(axis.clone().normalize(), deltaRotation);
-        currentRotation = obj.rotation;
-      })
-      .onComplete(() => {
-        // Add a small delay to prevent color flicking
-        setTimeout(() => {
-          // Remove group and add cubies back to parent
-          parentGroup.remove(group);
+      // Linear easing - no curve, just direct progress
+      const currentRotation = totalRotation * progress;
 
-          affectedCubies.forEach((cubie) => {
-            // Reset the mesh to its original transform and add back to parent
-            parentGroup.add(cubie.mesh);
-          });
+      // Reset group rotation and apply current rotation
+      group.rotation.set(0, 0, 0);
+      group.rotateOnAxis(axis.clone().normalize(), currentRotation);
 
-          this.locked = false;
-          onComplete && onComplete();
-        }, 16); // One frame delay (60fps = 16ms) to let animation settle
-      })
-      .start();
+      if (progress < 1) {
+        animationId = requestAnimationFrame(animate);
+      } else {
+        // Animation completed - immediate cleanup
+        parentGroup.remove(group);
+        affectedCubies.forEach((cubie) => {
+          parentGroup.add(cubie.mesh);
+        });
 
-    // Store the tween group for updating
-    (tween as any)._group = tweenGroup;
+        // Call completion immediately - no delays
+        this.unlock();
+        onComplete && onComplete();
+      }
+    };
 
-    return tween;
+    animationId = requestAnimationFrame(animate);
+
+    // Return a fake tween object for compatibility
+    return { stop: () => cancelAnimationFrame(animationId) } as any;
   }
 }
 

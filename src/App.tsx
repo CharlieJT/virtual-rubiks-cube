@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import RubiksCube3D from "./components/RubiksCube3D";
@@ -6,6 +6,7 @@ import ControlPanel from "./components/ControlPanel";
 import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
+import { AnimationHelper } from "./utils/animationHelper";
 import type { Solution, CubeMove } from "./types/cube";
 
 const App = () => {
@@ -19,40 +20,65 @@ const App = () => {
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const handleScramble = () => {
+  // Simple debouncing with last move time
+  const lastMoveTimeRef = useRef(0);
+
+  const handleScramble = useCallback(() => {
     if (isAnimating) return;
+
+    setPendingMove(null);
+
     cubeRef.current.scramble();
     setCube3D(cubejsTo3D(cubeRef.current.getCube()));
     setIsScrambled(true);
     setSolution(null);
-  };
+  }, [isAnimating]);
 
-  const handleButtonMove = (move: string) => {
-    if (isAnimating) return;
-    setPendingMove(move as CubeMove);
-  };
+  const handleButtonMove = useCallback(
+    (move: string) => {
+      // Moderate debouncing - prevent rapid hammering but allow normal use
+      const now = Date.now();
+      if (
+        isAnimating ||
+        AnimationHelper.isLocked() ||
+        now - lastMoveTimeRef.current < 100
+      ) {
+        return;
+      }
+
+      lastMoveTimeRef.current = now;
+
+      // Just start the animation - update cube state after animation like before
+      setPendingMove(move as CubeMove);
+    },
+    [isAnimating]
+  );
 
   // Called by RubiksCube3D after animation completes
-  const handleMoveAnimationDone = (move: CubeMove) => {
+  const handleMoveAnimationDone = useCallback((move: CubeMove) => {
+    // Update cube state after animation completes
     cubeRef.current.move(move);
     setCube3D(cubejsTo3D(cubeRef.current.getCube()));
     setIsScrambled(true);
     setSolution(null);
     setPendingMove(null);
     setIsAnimating(false);
-  };
 
-  const handleStartAnimation = () => {
+    // Fail-safe unlock
+    AnimationHelper.unlock();
+  }, []);
+
+  const handleStartAnimation = useCallback(() => {
     setIsAnimating(true);
-  };
+  }, []);
 
-  const handleGenerateSolution = () => {
+  const handleGenerateSolution = useCallback(() => {
     setSolution(null);
-  };
+  }, []);
 
-  const handleSolve = async () => {
+  const handleSolve = useCallback(async () => {
     setIsSolving(false);
-  };
+  }, []);
 
   return (
     <div className="w-full h-full flex">
@@ -70,6 +96,7 @@ const App = () => {
             pendingMove={pendingMove}
             onMoveAnimationDone={handleMoveAnimationDone}
             onStartAnimation={handleStartAnimation}
+            isAnimating={isAnimating}
           />
           <OrbitControls
             enablePan={true}

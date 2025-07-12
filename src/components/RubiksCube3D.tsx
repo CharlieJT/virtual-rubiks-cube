@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import TWEEN from "@tweenjs/tween.js"; // Use default import
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
 
@@ -17,6 +16,7 @@ interface RubiksCube3DProps {
   pendingMove?: CubeMove | null;
   onMoveAnimationDone?: (move: CubeMove) => void;
   onStartAnimation?: () => void;
+  isAnimating?: boolean;
 }
 
 const CubePiece = ({
@@ -98,28 +98,22 @@ const RubiksCube3D = ({
   pendingMove,
   onMoveAnimationDone,
   onStartAnimation,
+  isAnimating,
 }: RubiksCube3DProps) => {
   const groupRef = useRef<THREE.Group>(null);
   const cubiesRef = useRef<AnimatedCubie[]>([]);
   const currentTweenRef = useRef<any>(null);
+  const cubeGenerationRef = useRef(0);
+  const meshesReadyRef = useRef(false);
   const dragInfo = useRef<{
     start: [number, number, number];
     face: string;
     pointer: [number, number];
   } | null>(null);
 
-  // Update TWEEN on every frame
+  // No longer need TWEEN updates since we're using requestAnimationFrame
   useFrame(() => {
-    if (currentTweenRef.current) {
-      // Only update the specific tween group if it exists
-      const tweenGroup = (currentTweenRef.current as any)?._group;
-      if (tweenGroup) {
-        tweenGroup.update();
-      }
-    } else {
-      // Update global TWEEN only when no specific tween is running
-      TWEEN.update();
-    }
+    // Empty - no TWEEN to update
   });
 
   // Handle pending moves
@@ -127,8 +121,10 @@ const RubiksCube3D = ({
     if (
       pendingMove &&
       !AnimationHelper.isLocked() &&
+      !isAnimating &&
       groupRef.current &&
-      cubiesRef.current.length === 27
+      cubiesRef.current.length === 27 &&
+      meshesReadyRef.current
     ) {
       onStartAnimation && onStartAnimation();
 
@@ -142,7 +138,7 @@ const RubiksCube3D = ({
         }
       );
     }
-  }, [pendingMove, onStartAnimation, onMoveAnimationDone]); // Remove cubeState dependency
+  }, [pendingMove, onStartAnimation, onMoveAnimationDone, isAnimating]);
 
   // Helper to map drag to move
   const getMove = (face: string, end: [number, number]): CubeMove | null => {
@@ -192,6 +188,7 @@ const RubiksCube3D = ({
       const move = getMove(dragInfo.current.face, [e.clientX, e.clientY]);
       if (move) {
         onStartAnimation && onStartAnimation();
+
         currentTweenRef.current = AnimationHelper.animate(
           cubiesRef.current,
           groupRef.current,
@@ -208,31 +205,61 @@ const RubiksCube3D = ({
     window.removeEventListener("pointerup", handlePointerUp);
   };
 
-  // Update cubies ref when cube state changes
+  // Update cubies ref when cube state changes - but not during animation
   useEffect(() => {
-    // Rebuild cubies array when cube state changes to ensure sync
-    cubiesRef.current = [];
-  }, [cubeState]);
+    // Only rebuild cubies array if not currently animating
+    if (!AnimationHelper.isLocked() && !isAnimating) {
+      // Clear the array to trigger rebuilding and increment generation
+      cubiesRef.current = [];
+      cubeGenerationRef.current += 1;
+      meshesReadyRef.current = false;
+    }
+  }, [cubeState, isAnimating]);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      // Clean up any running animations on component unmount
+      if (currentTweenRef.current) {
+        currentTweenRef.current = null;
+      }
+    };
+  }, []);
 
   const handleMeshReady = useCallback(
     (mesh: THREE.Mesh, x: number, y: number, z: number) => {
-      // Don't check for existing - always add since we rebuild the array on state changes
-      const cubie: AnimatedCubie = {
-        mesh: mesh,
-        originalPosition: new THREE.Vector3(
-          (x - 1) * 1.05,
-          (y - 1) * 1.05,
-          (z - 1) * 1.05
-        ),
-        x,
-        y,
-        z,
-      };
+      // Don't add if we already have this position in the current array
+      const existingIndex = cubiesRef.current.findIndex(
+        (cubie) => cubie.x === x && cubie.y === y && cubie.z === z
+      );
 
-      cubiesRef.current.push(cubie);
+      if (existingIndex !== -1) {
+        // Update existing cubie with new mesh reference
+        cubiesRef.current[existingIndex].mesh = mesh;
+      } else {
+        // Add new cubie
+        const cubie: AnimatedCubie = {
+          mesh: mesh,
+          originalPosition: new THREE.Vector3(
+            (x - 1) * 1.05,
+            (y - 1) * 1.05,
+            (z - 1) * 1.05
+          ),
+          x,
+          y,
+          z,
+        };
+
+        cubiesRef.current.push(cubie);
+      }
+
+      // Check if all meshes are ready
+      if (cubiesRef.current.length === 27) {
+        meshesReadyRef.current = true;
+      }
     },
-    [cubeState]
-  ); // Add cubeState as dependency
+    [] // Remove cubeState dependency to make this stable
+  );
 
   // Render cubies
   return (
