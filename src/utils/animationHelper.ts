@@ -75,13 +75,13 @@ export class AnimationHelper {
       baseDirection = -1; // Flipped: was 1, now -1 (S moves like F)
     } else if (baseMove === "X") {
       axis = new THREE.Vector3(1, 0, 0);
-      baseDirection = -1; // Flipped: whole cube rotation like R
+      baseDirection = 1; // Try positive direction instead of negative
     } else if (baseMove === "Y") {
       axis = new THREE.Vector3(0, 1, 0);
-      baseDirection = -1; // Flipped: whole cube rotation like U
+      baseDirection = 1; // Try positive direction instead of negative
     } else if (baseMove === "Z") {
       axis = new THREE.Vector3(0, 0, 1);
-      baseDirection = -1; // Flipped: whole cube rotation like F
+      baseDirection = 1; // Try positive direction instead of negative
     } else {
       // Default fallback
       axis = new THREE.Vector3(0, 1, 0);
@@ -149,27 +149,33 @@ export class AnimationHelper {
     // Get animation parameters for whole cube rotation
     const [axis, totalRotation] = this.getMoveAxisAndDir(move);
 
-    // Use requestAnimationFrame-based animation (same as regular moves)
+    // Pre-calculate normalized axis to avoid per-frame calculations
+    const normalizedAxis = axis.clone().normalize();
+
+    // Use requestAnimationFrame-based animation with delta tracking (same as regular moves)
     const startTime = performance.now();
-    const duration = 100; // Same duration as regular moves
+    const duration = 150; // Same duration as regular moves
     let animationId: number;
+    let currentRotationAmount = 0; // Track current rotation for delta calculation
 
     const animate = () => {
       const elapsed = performance.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Linear easing - same as regular moves
-      const currentRotation = totalRotation * progress;
-      
-      // Reset group rotation and apply current rotation
-      parentGroup.rotation.set(0, 0, 0);
-      parentGroup.rotateOnAxis(axis.clone().normalize(), currentRotation);
-      
+      const targetRotation = totalRotation * progress;
+      const deltaRotation = targetRotation - currentRotationAmount;
+
+      // Apply only the delta rotation (like sanqit-rubik does)
+      if (deltaRotation !== 0) {
+        parentGroup.rotateOnAxis(normalizedAxis, deltaRotation);
+        currentRotationAmount = targetRotation;
+      }
+
       if (progress < 1) {
         animationId = requestAnimationFrame(animate);
       } else {
         // Animation completed
-        parentGroup.rotation.set(0, 0, 0);
         this.unlock();
         onComplete && onComplete();
       }
@@ -223,21 +229,28 @@ export class AnimationHelper {
     // Get animation parameters
     const [axis, totalRotation] = this.getMoveAxisAndDir(move);
 
-    // Use requestAnimationFrame-based animation
+    // Pre-calculate normalized axis to avoid per-frame calculations
+    const normalizedAxis = axis.clone().normalize();
+
+    // Use requestAnimationFrame-based animation with delta tracking like sanqit-rubik
     const startTime = performance.now();
-    const duration = 100; // 100ms animation - fast and responsive
+    const duration = 150; // 150ms animation
     let animationId: number;
+    let currentRotationAmount = 0; // Track current rotation for delta calculation
 
     const animate = () => {
       const elapsed = performance.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
 
       // Linear easing - no curve, just direct progress
-      const currentRotation = totalRotation * progress;
+      const targetRotation = totalRotation * progress;
+      const deltaRotation = targetRotation - currentRotationAmount;
 
-      // Reset group rotation and apply current rotation
-      group.rotation.set(0, 0, 0);
-      group.rotateOnAxis(axis.clone().normalize(), currentRotation);
+      // Apply only the delta rotation (like sanqit-rubik does)
+      if (deltaRotation !== 0) {
+        group.rotateOnAxis(normalizedAxis, deltaRotation);
+        currentRotationAmount = targetRotation;
+      }
 
       if (progress < 1) {
         animationId = requestAnimationFrame(animate);

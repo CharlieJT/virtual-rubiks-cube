@@ -19,13 +19,18 @@ export interface CubeState {
 }
 
 export type CubeFace = "F" | "B" | "L" | "R" | "U" | "D";
+export type SliceMove = "M" | "E" | "S";
+export type WholeCubeMove = "x" | "y" | "z";
 export type CubeMove =
   | CubeFace
   | `${CubeFace}'`
   | `${CubeFace}2`
-  | "M"
-  | "M'"
-  | "M2";
+  | SliceMove
+  | `${SliceMove}'`
+  | `${SliceMove}2`
+  | WholeCubeMove
+  | `${WholeCubeMove}'`
+  | `${WholeCubeMove}2`;
 
 export interface RubiksCubeState {
   cubes: CubeState[][][]; // 3x3x3 array of cube states

@@ -56,11 +56,25 @@ const App = () => {
 
   // Called by RubiksCube3D after animation completes
   const handleMoveAnimationDone = useCallback((move: CubeMove) => {
-    // Update cube state after animation completes
-    cubeRef.current.move(move);
-    setCube3D(cubejsTo3D(cubeRef.current.getCube()));
-    setIsScrambled(true);
-    setSolution(null);
+    // Handle whole cube rotations differently - they should only rotate the view, not change cube state
+    const isWholeCubeRotation =
+      move === "x" ||
+      move === "x'" ||
+      move === "y" ||
+      move === "y'" ||
+      move === "z" ||
+      move === "z'";
+
+    if (!isWholeCubeRotation) {
+      // For regular moves (F, B, L, R, U, D, M, E, S), update cube state
+      cubeRef.current.move(move);
+      setCube3D(cubejsTo3D(cubeRef.current.getCube()));
+      setIsScrambled(true);
+      setSolution(null);
+    }
+    // For whole cube rotations (x, y, z), we don't update the cube state
+    // The visual rotation persists, but the logical state remains unchanged
+
     setPendingMove(null);
     setIsAnimating(false);
 
@@ -88,9 +102,9 @@ const App = () => {
           camera={{ position: [5, 5, 5], fov: 60 }}
           className="bg-gradient-to-br from-slate-900 to-slate-700"
         >
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[10, 10, 5]} intensity={1} />
-          <pointLight position={[-10, -10, -5]} intensity={0.5} />
+          {/* Lighting setup similar to sanqit-rubik project */}
+          <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
+          <ambientLight intensity={0.9} color="#eeeeee" />
           <RubiksCube3D
             cubeState={cube3D}
             pendingMove={pendingMove}

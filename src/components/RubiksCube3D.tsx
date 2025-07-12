@@ -1,5 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
@@ -27,39 +26,6 @@ const CubePiece = ({
 }: CubePieceProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
 
-  const cubeFaces = [
-    {
-      face: "front",
-      pos: [0, 0, 0.48],
-      rot: [0, 0, 0],
-    },
-    {
-      face: "back",
-      pos: [0, 0, -0.48],
-      rot: [0, Math.PI, 0],
-    },
-    {
-      face: "left",
-      pos: [-0.48, 0, 0],
-      rot: [0, -Math.PI / 2, 0],
-    },
-    {
-      face: "right",
-      pos: [0.48, 0, 0],
-      rot: [0, Math.PI / 2, 0],
-    },
-    {
-      face: "top",
-      pos: [0, 0.48, 0],
-      rot: [-Math.PI / 2, 0, 0],
-    },
-    {
-      face: "bottom",
-      pos: [0, -0.48, 0],
-      rot: [Math.PI / 2, 0, 0],
-    },
-  ] as const;
-
   useEffect(() => {
     if (meshRef.current && onMeshReady) {
       const [x, y, z] = position;
@@ -72,23 +38,45 @@ const CubePiece = ({
     }
   }, [position, onMeshReady]);
 
-  return (
-    <mesh ref={meshRef} position={position}>
-      <boxGeometry args={[0.95, 0.95, 0.95]} />
-      <meshStandardMaterial color="#1a1a1a" />
+  // Create materials array using useMemo that updates when colors change
+  const materials = useMemo(() => {
+    // BoxGeometry material mapping (based on Three.js documentation):
+    // 0: Right face (+X), 1: Left face (-X), 2: Top face (+Y),
+    // 3: Bottom face (-Y), 4: Front face (+Z), 5: Back face (-Z)
+    return [
+      new THREE.MeshPhongMaterial({ color: colors.right }), // 0: Right face (+X)
+      new THREE.MeshPhongMaterial({ color: colors.left }), // 1: Left face (-X)
+      new THREE.MeshPhongMaterial({ color: colors.top }), // 2: Top face (+Y)
+      new THREE.MeshPhongMaterial({ color: colors.bottom }), // 3: Bottom face (-Y)
+      new THREE.MeshPhongMaterial({ color: colors.front }), // 4: Front face (+Z)
+      new THREE.MeshPhongMaterial({ color: colors.back }), // 5: Back face (-Z)
+    ];
+  }, [
+    colors.right,
+    colors.left,
+    colors.top,
+    colors.bottom,
+    colors.front,
+    colors.back,
+  ]);
 
-      {cubeFaces.map(({ face, pos, rot }) => (
-        <mesh
-          key={face}
-          position={pos as [number, number, number]}
-          rotation={rot as [number, number, number]}
-          onPointerDown={(e) => onPointerDown?.(e, position, face)}
-          frustumCulled={false}
-        >
-          <planeGeometry args={[0.9, 0.9]} />
-          <meshStandardMaterial color={colors[face as keyof typeof colors]} />
-        </mesh>
-      ))}
+  return (
+    <mesh
+      ref={meshRef}
+      position={position}
+      material={materials}
+      onPointerDown={(e) => {
+        // Determine which face was clicked - simplified for now
+        onPointerDown?.(e, position, "front");
+      }}
+    >
+      <boxGeometry args={[0.95, 0.95, 0.95]} />
+
+      {/* Add wireframe like sanqit-rubik project */}
+      <lineSegments>
+        <edgesGeometry args={[new THREE.BoxGeometry(0.95, 0.95, 0.95)]} />
+        <lineBasicMaterial color="#000000" linewidth={1} />
+      </lineSegments>
     </mesh>
   );
 };
@@ -110,11 +98,6 @@ const RubiksCube3D = ({
     face: string;
     pointer: [number, number];
   } | null>(null);
-
-  // No longer need TWEEN updates since we're using requestAnimationFrame
-  useFrame(() => {
-    // Empty - no TWEEN to update
-  });
 
   // Handle pending moves
   useEffect(() => {
