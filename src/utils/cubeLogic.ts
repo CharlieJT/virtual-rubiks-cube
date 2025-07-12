@@ -1,28 +1,25 @@
 import type { CubeMove, Solution, CubeState } from "../types/cube";
 
-// Rubik's cube colors
 export const CUBE_COLORS = {
   WHITE: "#ffffff",
   YELLOW: "#ffff00",
   RED: "#ff0000",
-  ORANGE: "#ff6500",
+  ORANGE: "#ff9600",
   BLUE: "#0000ff",
   GREEN: "#00ff00",
-  BLACK: "#1a1a1a", // Internal faces
+  BLACK: "#1a1a1a",
 };
 
-// Standard cube face configuration
 export const FACE_COLORS = {
-  F: CUBE_COLORS.RED, // Front
-  B: CUBE_COLORS.ORANGE, // Back
-  L: CUBE_COLORS.BLUE, // Left
-  R: CUBE_COLORS.GREEN, // Right
-  U: CUBE_COLORS.WHITE, // Up (Top)
-  D: CUBE_COLORS.YELLOW, // Down (Bottom)
+  F: CUBE_COLORS.RED,
+  B: CUBE_COLORS.ORANGE,
+  L: CUBE_COLORS.BLUE,
+  R: CUBE_COLORS.GREEN,
+  U: CUBE_COLORS.WHITE,
+  D: CUBE_COLORS.YELLOW,
 };
 
-// Initialize solved cube state
-export function createSolvedCube(): CubeState[][][] {
+export const createSolvedCube = (): CubeState[][][] => {
   const cubes: CubeState[][][] = [];
 
   for (let x = 0; x < 3; x++) {
@@ -47,10 +44,9 @@ export function createSolvedCube(): CubeState[][][] {
   }
 
   return cubes;
-}
+};
 
-// Generate random scramble
-export function generateScramble(length: number = 20): CubeMove[] {
+export const generateScramble = (length: number = 20): CubeMove[] => {
   const moves: CubeMove[] = ["F", "B", "L", "R", "U", "D", "M"];
   const modifiers = ["", "'", "2"];
   const scramble: CubeMove[] = [];
@@ -62,13 +58,9 @@ export function generateScramble(length: number = 20): CubeMove[] {
   }
 
   return scramble;
-}
+};
 
-// Basic solver (simplified Kociemba algorithm representation)
-export function solveCube(_cubeState: unknown): Solution {
-  // This is a simplified solver for demonstration
-  // In a real implementation, you'd use the Kociemba algorithm or similar
-
+export const solveCube = (_cubeState: unknown): Solution => {
   const solution: Solution = {
     steps: [
       { move: "F", description: "Rotate front face clockwise" },
@@ -83,11 +75,10 @@ export function solveCube(_cubeState: unknown): Solution {
   };
 
   return solution;
-}
+};
 
-// Helper to deep clone the cube state
-function cloneCubeState(cubes: CubeState[][][]): CubeState[][][] {
-  return cubes.map((x) =>
+const cloneCubeState = (cubes: CubeState[][][]): CubeState[][][] =>
+  cubes.map((x) =>
     x.map((y) =>
       y.map((cube) => ({
         position: { ...cube.position },
@@ -96,78 +87,89 @@ function cloneCubeState(cubes: CubeState[][][]): CubeState[][][] {
       }))
     )
   );
-}
 
-// Apply a single move to the cube state (only U, U', U2, L, L', L2, F, F', F2 for demo)
-export function applyMove(
+type Axis = "x" | "y" | "z";
+
+const getLayerSelector = (
+  move: CubeMove
+): { axis: Axis; index: number } | null => {
+  switch (move[0]) {
+    case "U":
+      return { axis: "y", index: 2 };
+    case "D":
+      return { axis: "y", index: 0 };
+    case "L":
+      return { axis: "x", index: 0 };
+    case "R":
+      return { axis: "x", index: 2 };
+    case "F":
+      return { axis: "z", index: 2 };
+    case "B":
+      return { axis: "z", index: 0 };
+    default:
+      return null;
+  }
+};
+
+const getTurns = (move: CubeMove): number => {
+  if (move.endsWith("2")) return 2;
+  if (move.endsWith("'")) return 3;
+  return 1;
+};
+
+const rotateMatrix = <T>(matrix: T[][], turns: number): T[][] => {
+  let result = matrix;
+  for (let t = 0; t < turns; t++) {
+    result = result[0].map((_, i) => result.map((row) => row[i]).reverse());
+  }
+  return result;
+};
+
+export const applyMove = (
   cubes: CubeState[][][],
   move: CubeMove
-): CubeState[][][] {
+): CubeState[][][] => {
   const newCubes = cloneCubeState(cubes);
-  if (move.startsWith("U")) {
-    // U = rotate y=2 layer (top) clockwise
-    const y = 2;
-    let turns = move.endsWith("2") ? 2 : 1;
-    if (move.endsWith("'")) turns = 3;
-    for (let t = 0; t < turns; t++) {
-      const temp = [
-        [newCubes[0][y][0], newCubes[1][y][0], newCubes[2][y][0]],
-        [newCubes[0][y][1], newCubes[1][y][1], newCubes[2][y][1]],
-        [newCubes[0][y][2], newCubes[1][y][2], newCubes[2][y][2]],
-      ];
-      for (let x = 0; x < 3; x++)
-        for (let z = 0; z < 3; z++) {
-          newCubes[x][y][z] = temp[2 - z][x];
-        }
-    }
-    return newCubes;
-  } else if (move.startsWith("L")) {
-    // L = rotate x=0 layer (left) clockwise
-    const x = 0;
-    let turns = move.endsWith("2") ? 2 : 1;
-    if (move.endsWith("'")) turns = 3;
-    for (let t = 0; t < turns; t++) {
-      const temp = [
-        [newCubes[x][0][0], newCubes[x][1][0], newCubes[x][2][0]],
-        [newCubes[x][0][1], newCubes[x][1][1], newCubes[x][2][1]],
-        [newCubes[x][0][2], newCubes[x][1][2], newCubes[x][2][2]],
-      ];
-      for (let y = 0; y < 3; y++)
-        for (let z = 0; z < 3; z++) {
-          newCubes[x][y][z] = temp[2 - z][y];
-        }
-    }
-    return newCubes;
-  } else if (move.startsWith("F")) {
-    // F = rotate z=2 layer (front) clockwise
-    const z = 2;
-    let turns = move.endsWith("2") ? 2 : 1;
-    if (move.endsWith("'")) turns = 3;
-    for (let t = 0; t < turns; t++) {
-      const temp = [
-        [newCubes[0][0][z], newCubes[1][0][z], newCubes[2][0][z]],
-        [newCubes[0][1][z], newCubes[1][1][z], newCubes[2][1][z]],
-        [newCubes[0][2][z], newCubes[1][2][z], newCubes[2][2][z]],
-      ];
-      for (let x = 0; x < 3; x++)
-        for (let y = 0; y < 3; y++) {
-          newCubes[x][y][z] = temp[2 - y][x];
-        }
-    }
-    return newCubes;
-  }
-  // (Other moves can be implemented similarly)
-  return newCubes;
-}
+  const layer = getLayerSelector(move);
+  if (!layer) return newCubes;
 
-// Apply a sequence of moves
-export function applyMoves(
+  const turns = getTurns(move);
+
+  // Extract the 3x3 layer matrix
+  let matrix: CubeState[][];
+  if (layer.axis === "x") {
+    matrix = Array.from({ length: 3 }, (_, y) =>
+      Array.from({ length: 3 }, (_, z) => newCubes[layer.index][y][z])
+    );
+    const rotated = rotateMatrix(matrix, turns);
+    for (let y = 0; y < 3; y++)
+      for (let z = 0; z < 3; z++) newCubes[layer.index][y][z] = rotated[y][z];
+  } else if (layer.axis === "y") {
+    matrix = Array.from({ length: 3 }, (_, x) =>
+      Array.from({ length: 3 }, (_, z) => newCubes[x][layer.index][z])
+    );
+    const rotated = rotateMatrix(matrix, turns);
+    for (let x = 0; x < 3; x++)
+      for (let z = 0; z < 3; z++) newCubes[x][layer.index][z] = rotated[x][z];
+  } else if (layer.axis === "z") {
+    matrix = Array.from({ length: 3 }, (_, x) =>
+      Array.from({ length: 3 }, (_, y) => newCubes[x][y][layer.index])
+    );
+    const rotated = rotateMatrix(matrix, turns);
+    for (let x = 0; x < 3; x++)
+      for (let y = 0; y < 3; y++) newCubes[x][y][layer.index] = rotated[x][y];
+  }
+
+  return newCubes;
+};
+
+export const applyMoves = (
   cubes: CubeState[][][],
   moves: CubeMove[]
-): CubeState[][][] {
+): CubeState[][][] => {
   let state = cubes;
   for (const move of moves) {
     state = applyMove(state, move);
   }
   return state;
-}
+};

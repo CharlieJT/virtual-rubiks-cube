@@ -1,4 +1,3 @@
-// Rubik's Cube types and interfaces
 export interface CubePosition {
   x: number;
   y: number;
@@ -33,7 +32,7 @@ export type CubeMove =
   | `${WholeCubeMove}2`;
 
 export interface RubiksCubeState {
-  cubes: CubeState[][][]; // 3x3x3 array of cube states
+  cubes: CubeState[][][];
   isScrambled: boolean;
   isSolving: boolean;
 }

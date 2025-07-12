@@ -5,7 +5,7 @@ export class CubeJSWrapper {
 
   constructor() {
     this.cube = new Cube();
-    this.cube.move(""); // initialize
+    this.cube.move("");
   }
 
   reset() {
@@ -14,7 +14,6 @@ export class CubeJSWrapper {
   }
 
   getState() {
-    // Returns the current state as a string (useful for rendering)
     return this.cube.asString();
   }
 
@@ -33,6 +32,4 @@ export class CubeJSWrapper {
   getCube() {
     return this.cube;
   }
-
-  // You can add more helper methods as needed
 }

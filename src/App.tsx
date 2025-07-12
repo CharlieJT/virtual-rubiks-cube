@@ -20,7 +20,6 @@ const App = () => {
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Simple debouncing with last move time
   const lastMoveTimeRef = useRef(0);
 
   const handleScramble = useCallback(() => {
@@ -36,7 +35,6 @@ const App = () => {
 
   const handleButtonMove = useCallback(
     (move: string) => {
-      // Moderate debouncing - prevent rapid hammering but allow normal use
       const now = Date.now();
       if (
         isAnimating ||
@@ -48,15 +46,12 @@ const App = () => {
 
       lastMoveTimeRef.current = now;
 
-      // Just start the animation - update cube state after animation like before
       setPendingMove(move as CubeMove);
     },
     [isAnimating]
   );
 
-  // Called by RubiksCube3D after animation completes
   const handleMoveAnimationDone = useCallback((move: CubeMove) => {
-    // Handle whole cube rotations differently - they should only rotate the view, not change cube state
     const isWholeCubeRotation =
       move === "x" ||
       move === "x'" ||
@@ -66,19 +61,15 @@ const App = () => {
       move === "z'";
 
     if (!isWholeCubeRotation) {
-      // For regular moves (F, B, L, R, U, D, M, E, S), update cube state
       cubeRef.current.move(move);
       setCube3D(cubejsTo3D(cubeRef.current.getCube()));
       setIsScrambled(true);
       setSolution(null);
     }
-    // For whole cube rotations (x, y, z), we don't update the cube state
-    // The visual rotation persists, but the logical state remains unchanged
 
     setPendingMove(null);
     setIsAnimating(false);
 
-    // Fail-safe unlock
     AnimationHelper.unlock();
   }, []);
 
@@ -96,13 +87,11 @@ const App = () => {
 
   return (
     <div className="w-full h-full flex">
-      {/* 3D Canvas */}
       <div className="flex-1 relative">
         <Canvas
           camera={{ position: [5, 5, 5], fov: 60 }}
           className="bg-gradient-to-br from-slate-900 to-slate-700"
         >
-          {/* Lighting setup similar to sanqit-rubik project */}
           <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
           <ambientLight intensity={0.9} color="#eeeeee" />
           <RubiksCube3D
@@ -116,13 +105,13 @@ const App = () => {
             enablePan={true}
             enableZoom={true}
             enableRotate={true}
+            enableDamping={false}
             minDistance={3}
             maxDistance={15}
             minPolarAngle={0}
             maxPolarAngle={Math.PI}
           />
         </Canvas>
-        {/* Overlay title */}
         <div className="absolute top-4 left-4 z-10">
           <h1 className="text-4xl font-bold text-white drop-shadow-lg">
             Virtual Rubik's Cube
@@ -132,7 +121,6 @@ const App = () => {
           </p>
         </div>
       </div>
-      {/* Control Panel */}
       <div className="w-80 p-6 flex flex-col items-center">
         <MoveButtonsPanel onMove={handleButtonMove} />
         <ControlPanel
