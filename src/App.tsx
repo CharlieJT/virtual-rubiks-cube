@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import RubiksCube3D from "./components/RubiksCube3D";
+import RubiksCube3D from "./components/RubiksCube3D_Simple";
 import ControlPanel from "./components/ControlPanel";
 import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
@@ -19,6 +19,8 @@ const App = () => {
   const [solution, setSolution] = useState<Solution | null>(null);
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [orbitControlsEnabled, setOrbitControlsEnabled] = useState(true);
+  const orbitControlsRef = useRef<any>(null);
 
   const lastMoveTimeRef = useRef(0);
 
@@ -73,6 +75,15 @@ const App = () => {
     AnimationHelper.unlock();
   }, []);
 
+  const handleOrbitControlsChange = useCallback((enabled: boolean) => {
+    console.log("OrbitControls", enabled ? "enabled" : "disabled");
+    setOrbitControlsEnabled(enabled);
+    // Also directly disable the controls if we have a ref
+    if (orbitControlsRef.current) {
+      orbitControlsRef.current.enabled = enabled;
+    }
+  }, []);
+
   const handleStartAnimation = useCallback(() => {
     setIsAnimating(true);
   }, []);
@@ -100,8 +111,12 @@ const App = () => {
             onMoveAnimationDone={handleMoveAnimationDone}
             onStartAnimation={handleStartAnimation}
             isAnimating={isAnimating}
+            onOrbitControlsChange={handleOrbitControlsChange}
+            onDragMove={handleButtonMove}
           />
           <OrbitControls
+            ref={orbitControlsRef}
+            enabled={orbitControlsEnabled}
             enablePan={true}
             enableZoom={true}
             enableRotate={true}
@@ -121,7 +136,7 @@ const App = () => {
           </p>
         </div>
       </div>
-      <div className="w-80 p-6 flex flex-col items-center">
+      {/* <div className="w-80 p-6 flex flex-col items-center">
         <MoveButtonsPanel onMove={handleButtonMove} />
         <ControlPanel
           onScramble={handleScramble}
@@ -131,7 +146,7 @@ const App = () => {
           isScrambled={isScrambled}
           isSolving={isSolving}
         />
-      </div>
+      </div> */}
     </div>
   );
 };
