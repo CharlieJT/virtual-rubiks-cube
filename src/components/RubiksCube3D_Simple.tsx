@@ -10,15 +10,15 @@ import { getPieceType, getVisibleColors } from "../utils/cubeMapping";
 const POSITION_MOVE_MAPPING = {
   // Corner pieces - 8 corners × 3 visible faces each = 24 entries
   corner_RUF_right: { up: "F'", down: "F", left: "U", right: "U'" },
-  corner_RUF_top: { up: "R", down: "R'", left: "F'", right: "F" }, //  DONE
-  corner_RUF_front: { up: "R", down: "R'", left: "U", right: "U'" }, //  DONE
+  corner_RUF_top: { up: "R", down: "R'", left: "F'", right: "F" },
+  corner_RUF_front: { up: "R", down: "R'", left: "U", right: "U'" },
 
   corner_LUF_left: { up: "F", down: "F'", left: "U", right: "U'" },
   corner_LUF_top: { up: "L'", down: "L", left: "F'", right: "F" },
   corner_LUF_front: { up: "L'", down: "L", left: "U", right: "U'" },
 
   corner_RUB_right: { up: "B", down: "B'", left: "U", right: "U'" },
-  corner_RUB_top: { up: "R", down: "R'", left: "B", right: "B'" }, //  DONE
+  corner_RUB_top: { up: "R", down: "R'", left: "B", right: "B'" },
   corner_RUB_back: { up: "R'", down: "R", left: "U", right: "U'" },
 
   corner_LUB_left: { up: "B'", down: "B", left: "U", right: "U'" },
@@ -26,7 +26,7 @@ const POSITION_MOVE_MAPPING = {
   corner_LUB_back: { up: "L", down: "L'", left: "U", right: "U'" },
 
   corner_RDF_right: { up: "F'", down: "F", left: "D'", right: "D" },
-  corner_RDF_bottom: { up: "R", down: "R'", left: "F", right: "F'" }, //  DONE
+  corner_RDF_bottom: { up: "R", down: "R'", left: "F", right: "F'" },
   corner_RDF_front: { up: "R", down: "R'", left: "D'", right: "D" },
 
   corner_LDF_left: { up: "F", down: "F'", left: "D'", right: "D" },
@@ -34,7 +34,7 @@ const POSITION_MOVE_MAPPING = {
   corner_LDF_front: { up: "L'", down: "L", left: "D'", right: "D" },
 
   corner_RDB_right: { up: "B", down: "B'", left: "D'", right: "D" },
-  corner_RDB_bottom: { up: "R", down: "R'", left: "B'", right: "B" }, //  DONE
+  corner_RDB_bottom: { up: "R", down: "R'", left: "B'", right: "B" },
   corner_RDB_back: { up: "R'", down: "R", left: "D'", right: "D" },
 
   corner_LDB_left: { up: "B'", down: "B", left: "D'", right: "D" },
