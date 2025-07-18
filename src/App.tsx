@@ -7,7 +7,7 @@ import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
 import { AnimationHelper } from "./utils/animationHelper";
-import type { Solution, CubeMove } from "./types/cube";
+import type { CubeMove } from "./types/cube";
 
 const App = () => {
   const cubeRef = useRef(new CubeJSWrapper());
@@ -15,8 +15,9 @@ const App = () => {
     cubejsTo3D(cubeRef.current.getCube())
   );
   const [isScrambled, setIsScrambled] = useState(false);
-  const [isSolving, setIsSolving] = useState(false);
-  const [solution, setSolution] = useState<Solution | null>(null);
+  // State for future solve functionality
+  // const [isSolving, setIsSolving] = useState(false);
+  // const [solution, setSolution] = useState<Solution | null>(null);
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [orbitControlsEnabled, setOrbitControlsEnabled] = useState(true);
@@ -32,7 +33,6 @@ const App = () => {
     cubeRef.current.scramble();
     setCube3D(cubejsTo3D(cubeRef.current.getCube()));
     setIsScrambled(true);
-    setSolution(null);
   }, [isAnimating]);
 
   const handleButtonMove = useCallback(
@@ -63,20 +63,25 @@ const App = () => {
       move === "z'";
 
     if (!isWholeCubeRotation) {
+      // Execute the move in the logical state
       cubeRef.current.move(move);
+      
+      // Immediately update the visual representation with the new colors
+      // Important: This must happen synchronously before the meshes are repositioned
+      // to avoid color flickering
       setCube3D(cubejsTo3D(cubeRef.current.getCube()));
       setIsScrambled(true);
-      setSolution(null);
     }
 
+    // Reset animation state
     setPendingMove(null);
     setIsAnimating(false);
-
-    AnimationHelper.unlock();
+    
+    // AnimationHelper will call unlock() in its own completion handler
   }, []);
 
   const handleOrbitControlsChange = useCallback((enabled: boolean) => {
-    console.log("OrbitControls", enabled ? "enabled" : "disabled");
+
     setOrbitControlsEnabled(enabled);
     // Also directly disable the controls if we have a ref
     if (orbitControlsRef.current) {
@@ -88,13 +93,14 @@ const App = () => {
     setIsAnimating(true);
   }, []);
 
-  const handleGenerateSolution = useCallback(() => {
-    setSolution(null);
-  }, []);
-
-  const handleSolve = useCallback(async () => {
-    setIsSolving(false);
-  }, []);
+  // Functions for future implementation of solve functionality
+  // const handleGenerateSolution = useCallback(() => {
+  //   setSolution(null);
+  // }, []);
+  //
+  // const handleSolve = useCallback(async () => {
+  //   setIsSolving(false);
+  // }, []);
 
   return (
     <div className="w-full h-full flex">

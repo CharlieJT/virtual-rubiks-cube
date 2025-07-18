@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
-import { getPieceType, getVisibleColors } from "../utils/cubeMapping";
+// Removed unused imports
 
 // Position-based move mapping - static mapping for each piece position + face + swipe direction
 const POSITION_MOVE_MAPPING = {
@@ -270,6 +270,8 @@ const RubiksCube3D = ({
         groupRef.current,
         pendingMove,
         () => {
+          // Update logical state first
+          // The actual visual update will be synchronized in AnimationHelper
           onMoveAnimationDone && onMoveAnimationDone(pendingMove);
           currentTweenRef.current = null;
         }
@@ -328,24 +330,26 @@ const RubiksCube3D = ({
 
       // Animation complete - execute the final move
       if (progress >= 1) {
-        // Execute the final move through the move system BEFORE cleaning up
-        // This ensures the move gets registered in the logical state
         if (dragState.finalMove && onMoveAnimationDone) {
           // Store the move to be executed
           const moveToExecute = dragState.finalMove as CubeMove;
-
-          // Then cleanup drag state to restore meshes to main group
-          cleanupDragState();
-
-          // Finally execute the move - this will update the cube colors correctly
+          
+          // First call onMoveAnimationDone to update the logical cube state (colors)
           onMoveAnimationDone(moveToExecute);
+          
+          // Then clean up visual state after the logical state has been updated
+          // Add a small delay to ensure React has time to update materials with new colors
+          setTimeout(() => {
+            cleanupDragState();
+            // Reset snapping state
+            trackingStateRef.current.isSnapping = false;
+          }, 0);
         } else {
           // No final move, just cleanup
           cleanupDragState();
+          // Reset snapping state
+          trackingStateRef.current.isSnapping = false;
         }
-
-        // Reset snapping state
-        trackingStateRef.current.isSnapping = false;
       }
     }
   });
@@ -452,15 +456,11 @@ const RubiksCube3D = ({
 
       lastHoveredPieceRef.current = pieceId;
 
-      const pieceType = getPieceType(gridPos);
-      const visibleColors = getVisibleColors(cubieState.colors, gridPos);
+      // Don't need to use these anymore since we removed the console.log
+      // const pieceType = getPieceType(gridPos);
+      // const visibleColors = getVisibleColors(cubieState.colors, gridPos);
 
-      console.log({
-        face: faceName,
-        colour: faceColor,
-        piece: visibleColors.join("/"),
-        pieceType: pieceType,
-      });
+
     },
     [cubeState]
   );
@@ -679,12 +679,7 @@ const RubiksCube3D = ({
       finalMove: "",
     };
 
-    console.log("Mouse Down:", {
-      uniquePieceId,
-      gridPosition: gridPos,
-      clickedFace,
-      piecePosition: pos,
-    });
+
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
@@ -695,15 +690,21 @@ const RubiksCube3D = ({
     // Clean up drag group if it exists
     const dragGroup = trackingStateRef.current.dragGroup;
     if (dragGroup && groupRef.current) {
+      // Ensure we keep a reference to the drag group during cleanup
+      // so that the cube doesn't appear to "jump"
+      const tempGroup = dragGroup;
+      trackingStateRef.current.dragGroup = null;
+      
       // Get all meshes from drag group
       const meshesToMove: THREE.Mesh[] = [];
-      dragGroup.traverse((child) => {
+      tempGroup.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           meshesToMove.push(child);
         }
       });
 
       // Move meshes back to main group at their original positions
+      // This is now performed in a single synchronized operation
       meshesToMove.forEach((mesh) => {
         // Find the corresponding cubie to get original position
         const cubie = trackingStateRef.current.affectedCubies.find(
@@ -711,7 +712,7 @@ const RubiksCube3D = ({
         );
         if (cubie) {
           // Remove from drag group
-          dragGroup.remove(mesh);
+          tempGroup.remove(mesh);
 
           // Add back to main group at original position
           groupRef.current!.add(mesh);
@@ -723,7 +724,7 @@ const RubiksCube3D = ({
       });
 
       // Remove empty drag group
-      groupRef.current.remove(dragGroup);
+      groupRef.current.remove(tempGroup);
     }
 
     // Reset animation state properties
@@ -731,7 +732,7 @@ const RubiksCube3D = ({
     trackingStateRef.current.snapAnimationStartTime = 0;
     trackingStateRef.current.snapStartRotation = 0;
     trackingStateRef.current.snapTargetRotation = 0;
-
+    
     // Re-enable orbit controls
     onOrbitControlsChange?.(true);
     AnimationHelper.unlock();
@@ -770,8 +771,8 @@ const RubiksCube3D = ({
     const affectedCubies = getAffectedCubiesForMove(moveType);
     trackingStateRef.current.affectedCubies = affectedCubies;
 
-    // Get the rotation axis and direction from AnimationHelper
-    const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+    // Get the rotation axis from AnimationHelper
+    const [axis] = AnimationHelper.getMoveAxisAndDir(
       suggestedMove as CubeMove
     );
     trackingStateRef.current.rotationAxis = axis.clone();
@@ -798,19 +799,8 @@ const RubiksCube3D = ({
     groupRef.current.add(dragGroup);
     trackingStateRef.current.dragGroup = dragGroup;
 
-    console.log("Starting drag animation:", {
-      suggestedMove,
-      moveType,
-      affectedCubiesCount: affectedCubies.length,
-      affectedCubies: affectedCubies.map((c) => ({ x: c.x, y: c.y, z: c.z })),
-      rotationAxis: axis,
-      totalRotation,
-    });
-
     // Lock animations during drag (orbit controls already disabled in handlePointerDown)
     AnimationHelper.lock();
-
-    console.log("Locked move for drag:", suggestedMove);
   };
 
   // Helper function to update drag rotation
@@ -874,18 +864,7 @@ const RubiksCube3D = ({
       }
     }
 
-    console.log("Rotation calculation details:", {
-      move: suggestedMove,
-      baseMove,
-      lockedDirection,
-      rawRotationAmount: rotationAmount,
-      afterDirectionAdjustment: adjustedRotation,
-      expectedDirection,
-      beforeFinalAdjustment: adjustedRotation,
-      isPrimeMove: suggestedMove.includes("'"),
-      isF_Move: baseMove === "F",
-      skipExpectedDirection: baseMove === "F",
-    });
+
 
     // Special correction for specific moves that are rotating in the wrong direction
     // Only apply visual correction - don't affect the logical move execution
@@ -929,16 +908,7 @@ const RubiksCube3D = ({
     // Don't clamp rotation - allow unlimited rotation for multiple turns
     trackingStateRef.current.currentRotation = adjustedRotation;
 
-    console.log("Drag progress:", {
-      move: suggestedMove,
-      baseMove,
-      direction: lockedDirection,
-      rawRotation: rotationAmount,
-      expectedDirection,
-      adjustedRotation,
-      progress:
-        ((Math.abs(adjustedRotation) / (Math.PI / 2)) * 100).toFixed(1) + "%",
-    });
+
   };
 
   // Helper function to finalize drag with smooth snapping transition
@@ -989,57 +959,7 @@ const RubiksCube3D = ({
       currentRotation = -currentRotation;
     }
 
-    console.log("Final move calculation:", {
-      baseMove,
-      lockedDirection,
-      suggestedMove,
-      rawRotation: trackingStateRef.current.currentRotation,
-      correctedRotation: currentRotation,
-      correctionApplied:
-        (baseMove === "U" &&
-          (lockedDirection === "left" || lockedDirection === "right")) ||
-        (baseMove === "B" &&
-          (lockedDirection === "left" || lockedDirection === "right")) ||
-        (baseMove === "D" &&
-          (lockedDirection === "left" || lockedDirection === "right")) ||
-        (baseMove === "E" &&
-          (lockedDirection === "left" || lockedDirection === "right")) ||
-        (baseMove === "S" &&
-          (lockedDirection === "left" || lockedDirection === "right")) ||
-        (baseMove === "F" &&
-          !suggestedMove.includes("'") &&
-          (lockedDirection === "left" ||
-            lockedDirection === "right" ||
-            lockedDirection === "up" ||
-            lockedDirection === "down")) ||
-        (baseMove === "F" &&
-          suggestedMove.includes("'") &&
-          (lockedDirection === "left" || lockedDirection === "right")) ||
-        ((baseMove === "U" ||
-          baseMove === "D" ||
-          baseMove === "E" ||
-          baseMove === "S") &&
-          (lockedDirection === "up" || lockedDirection === "down")),
-      shouldApplyCorrection: {
-        isU: baseMove === "U",
-        isHorizontal: lockedDirection === "left" || lockedDirection === "right",
-        isR: baseMove === "R",
-        isVertical: lockedDirection === "up" || lockedDirection === "down",
-        isB: baseMove === "B",
-        isD: baseMove === "D",
-        isE: baseMove === "E",
-        isS: baseMove === "S",
-        isTopBottomMove:
-          (baseMove === "U" ||
-            baseMove === "D" ||
-            baseMove === "E" ||
-            baseMove === "S") &&
-          (lockedDirection === "up" || lockedDirection === "down"),
-        clickedFace: trackingStateRef.current.clickedFace,
-        isF: baseMove === "F",
-        isFPrime: suggestedMove.includes("'"),
-      },
-    });
+
 
     // For U move, apply specific corrections to make the snapping animation correct
     // This only affects the visual transition, not the actual move executed
@@ -1047,9 +967,6 @@ const RubiksCube3D = ({
       // For U moves, invert the rotation for correct snapping animation
       // This is a universal fix that makes U moves snap correctly from all faces
       currentRotation = -currentRotation;
-      console.log(
-        `Applied U move snapping correction for ${lockedDirection} direction from ${trackingStateRef.current.clickedFace} face`
-      );
     }
 
     // Handle F and F' moves separately since they have different transition behaviors
@@ -1057,108 +974,38 @@ const RubiksCube3D = ({
       const isFPrime = suggestedMove.includes("'");
       const fromFace = trackingStateRef.current.clickedFace;
       const isFromSideFace = fromFace === "left" || fromFace === "right";
-      const isHorizontalSwipe =
-        lockedDirection === "left" || lockedDirection === "right";
 
       // Specific case for F' from side faces - don't apply any correction
       if (isFPrime && isFromSideFace) {
-        console.log(
-          `F' from side face - keeping original rotation direction for proper snapping`
-        );
         // No correction needed for F' from side faces
       }
       // For all other F moves, invert the rotation
       else {
         currentRotation = -currentRotation;
-        console.log(
-          `Applied standard F${
-            isFPrime ? "'" : ""
-          } transition correction from ${fromFace} with ${lockedDirection} swipe`
-        );
       }
 
-      // Add detailed debug info
-      console.log("F move transition details:", {
-        isPrime: isFPrime,
-        clickedFace: fromFace,
-        isFromSideFace: isFromSideFace,
-        swipeDirection: lockedDirection,
-        isHorizontalSwipe: isHorizontalSwipe,
-        rotationAngle: ((currentRotation * 180) / Math.PI).toFixed(1) + "°",
-      });
+
     }
 
     // Face-specific fix for S moves
     if (baseMove === "S") {
-      const isPrime = suggestedMove.includes("'");
-      const fromFace = trackingStateRef.current.clickedFace;
-      const isFromSideFace = fromFace === "left" || fromFace === "right";
-      const isFromTopBottom = fromFace === "top" || fromFace === "bottom";
+      // Always invert rotation for S moves
+      currentRotation = -currentRotation;
 
-      // For S moves from side faces (left/right), we NEED to invert the rotation for transition
-      // This is the opposite of what we do during dragging
-      if (isFromSideFace) {
-        // Invert rotation for proper transition from side faces
-        currentRotation = -currentRotation;
-        console.log(
-          `Applied S${
-            isPrime ? "'" : ""
-          } move correction for side face ${fromFace} with ${lockedDirection} swipe`
-        );
-      }
-      // For top/bottom/front/back faces, also invert the rotation
-      else {
-        currentRotation = -currentRotation;
-        console.log(
-          `Applied S${
-            isPrime ? "'" : ""
-          } move correction from ${fromFace} face with ${lockedDirection} swipe`
-        );
-      }
 
-      // Add detailed debug info for S moves
-      console.log("S move transition details:", {
-        isPrime,
-        clickedFace: fromFace,
-        isFromSideFace,
-        isFromTopBottom,
-        swipeDirection: lockedDirection,
-        rotationAngle: ((currentRotation * 180) / Math.PI).toFixed(1) + "°",
-      });
     }
 
     // Comprehensive fix for E moves from all faces
     if (baseMove === "E") {
-      const isPrime = suggestedMove.includes("'");
-      const fromFace = trackingStateRef.current.clickedFace;
-      const isFromSideFace = fromFace === "left" || fromFace === "right";
-      const isFromFrontBack = fromFace === "front" || fromFace === "back";
-      const isFromTopBottom = fromFace === "top" || fromFace === "bottom";
-
       // Always invert rotation for E moves, regardless of which face we're coming from
       // This ensures consistent behavior for transitions
       currentRotation = -currentRotation;
-      console.log(
-        `Applied universal E${
-          isPrime ? "'" : ""
-        } move correction from ${fromFace} face with ${lockedDirection} swipe`
-      );
 
-      // Add detailed debug info for E moves
-      console.log("E move transition details:", {
-        isPrime,
-        clickedFace: fromFace,
-        isFromSideFace,
-        isFromFrontBack,
-        isFromTopBottom,
-        swipeDirection: lockedDirection,
-        rotationAngle: ((currentRotation * 180) / Math.PI).toFixed(1) + "°",
-      });
+
     }
 
     // Fix for M moves during transition
     if (baseMove === "M") {
-      const isPrime = suggestedMove.includes("'");
       const fromFace = trackingStateRef.current.clickedFace;
       const isFromFrontBack = fromFace === "front" || fromFace === "back";
 
@@ -1167,85 +1014,35 @@ const RubiksCube3D = ({
       if (isFromFrontBack) {
         // Invert rotation for proper transition from front/back faces
         currentRotation = -currentRotation;
-        console.log(
-          `Applied M${
-            isPrime ? "'" : ""
-          } move correction for front/back face ${fromFace} with ${lockedDirection} swipe`
-        );
       }
 
-      // Add detailed debug info for M moves
-      console.log("M move transition details:", {
-        isPrime,
-        clickedFace: fromFace,
-        isFromFrontBack,
-        swipeDirection: lockedDirection,
-        rotationAngle: ((currentRotation * 180) / Math.PI).toFixed(1) + "°",
-      });
+
     }
 
     // Fix for all D and D' moves from all faces
     if (baseMove === "D") {
       // Universal fix for D/D' moves from any face and any swipe direction
       // This ensures consistent transition behavior
-      const isDPrime = suggestedMove.includes("'");
-      const fromFace = trackingStateRef.current.clickedFace;
 
       // Always invert the rotation for D moves
       currentRotation = -currentRotation;
-      console.log(
-        `Applied universal D${
-          isDPrime ? "'" : ""
-        } move snapping correction from ${fromFace} face with ${lockedDirection} swipe`
-      );
 
-      // Add detailed debug info for D moves
-      console.log("D move transition details:", {
-        isPrime: isDPrime,
-        clickedFace: fromFace,
-        swipeDirection: lockedDirection,
-        isHorizontal: lockedDirection === "left" || lockedDirection === "right",
-        isVertical: lockedDirection === "up" || lockedDirection === "down",
-        rotationAngle: ((currentRotation * 180) / Math.PI).toFixed(1) + "°",
-      });
+
     }
 
     // Fix for B and B' moves from top and bottom faces
     if (baseMove === "B") {
-      const isBPrime = suggestedMove.includes("'");
       const fromFace = trackingStateRef.current.clickedFace;
       const isFromTopBottomFace = fromFace === "top" || fromFace === "bottom";
-      const isVerticalSwipe =
-        lockedDirection === "up" || lockedDirection === "down";
 
       // Universal fix for B and B' moves from top/bottom faces
       if (isFromTopBottomFace) {
         // Invert the rotation for proper transition from top/bottom faces
         currentRotation = -currentRotation;
-        console.log(
-          `Applied B${
-            isBPrime ? "'" : ""
-          } move correction from ${fromFace} face with ${lockedDirection} swipe`
-        );
       }
       // For B moves from side faces, they already work correctly so we don't need to change anything
-      else {
-        console.log(
-          `B${
-            isBPrime ? "'" : ""
-          } from ${fromFace} face - no transition correction needed`
-        );
-      }
 
-      // Add detailed debug info
-      console.log("B move transition details:", {
-        isPrime: isBPrime,
-        clickedFace: fromFace,
-        isFromTopBottomFace,
-        swipeDirection: lockedDirection,
-        isVerticalSwipe,
-        rotationAngle: ((currentRotation * 180) / Math.PI).toFixed(1) + "°",
-      });
+
     }
 
     const snapIncrement = Math.PI / 2; // 90 degrees
@@ -1260,35 +1057,18 @@ const RubiksCube3D = ({
     const normalizedSteps = rotationSteps % 4;
     const absSteps = Math.abs(normalizedSteps);
 
+    // Keep the original suggested move in most cases to maintain visual/logical consistency
     if (absSteps === 0) {
       finalMove = ""; // No move
     } else if (absSteps === 1) {
-      // Single rotation - the direction depends on the actual rotation direction
-      // For prime moves, we want to execute the prime move when the rotation is in the "expected" direction
-      const wasPrimeMove = suggestedMove.includes("'");
-
-      // The key insight: if we detected a prime move, and the user dragged in the direction
-      // that would naturally execute that prime move, then we should execute the prime move
-      // The sign of normalizedSteps tells us the direction of rotation after corrections
-
-      if (wasPrimeMove) {
-        // For prime moves, execute the prime move as intended
-        finalMove = baseMove + "'";
-      } else {
-        // For normal moves, execute the normal move as intended
-        finalMove = baseMove;
-      }
+      finalMove = suggestedMove;
     } else if (absSteps === 2) {
       finalMove = baseMove + "2"; // Double move
     } else if (absSteps === 3) {
       // 3 steps = 1 step in opposite direction
-      const wasPrimeMove = suggestedMove.includes("'");
-
-      if (wasPrimeMove) {
-        // 3 steps of a prime move = 1 step of normal move
+      if (suggestedMove.includes("'")) {
         finalMove = baseMove;
       } else {
-        // 3 steps of a normal move = 1 step of prime move
         finalMove = baseMove + "'";
       }
     }
@@ -1305,14 +1085,11 @@ const RubiksCube3D = ({
       trackingStateRef.current.snapTargetRotation = 0;
       trackingStateRef.current.finalMove = "";
 
-      console.log("Starting return animation to original position");
+
       return;
     }
 
-    // Log the final move without modifying it
-    console.log(
-      `Executing move: ${finalMove} from ${trackingStateRef.current.clickedFace} face with ${lockedDirection} direction`
-    );
+
 
     // Create smooth transition from current rotation to snapped rotation
     trackingStateRef.current.isDragging = false;
@@ -1324,23 +1101,7 @@ const RubiksCube3D = ({
     trackingStateRef.current.snapTargetRotation = snappedRotation;
     trackingStateRef.current.finalMove = finalMove as CubeMove;
 
-    console.log("Finalized drag with snapping:", {
-      suggestedMove,
-      wasPrimeMove: suggestedMove.includes("'"),
-      baseMove,
-      lockedDirection,
-      clickedFace: trackingStateRef.current.clickedFace,
-      currentRotation: ((currentRotation * 180) / Math.PI).toFixed(1) + "°",
-      snappedRotation: ((snappedRotation * 180) / Math.PI).toFixed(1) + "°",
-      rotationSteps,
-      normalizedSteps,
-      absSteps,
-      finalMove: finalMove || "No move",
-      animationDuration: trackingStateRef.current.snapAnimationDuration,
-      isU_TopBottom:
-        baseMove === "U" &&
-        (lockedDirection === "up" || lockedDirection === "down"),
-    });
+
   };
 
   const handlePointerMove = (e: PointerEvent) => {
@@ -1374,13 +1135,7 @@ const RubiksCube3D = ({
       const suggestedMove =
         POSITION_MOVE_MAPPING[positionKey]?.[swipeDirection];
 
-      console.log("Move selection:", {
-        positionKey,
-        swipeDirection,
-        suggestedMove,
-        dragVector: { x: dragVector.x, y: dragVector.y },
-        normalizedDrag: { x: normalizedDrag.x, y: normalizedDrag.y },
-      });
+
 
       // Start drag animation if not already started
       if (!trackingStateRef.current.hasStartedDrag && suggestedMove) {
@@ -1415,19 +1170,7 @@ const RubiksCube3D = ({
         }
       }
 
-      console.log("Swipe Detected:", {
-        uniquePieceId: trackingStateRef.current.uniquePieceId,
-        clickedFace: trackingStateRef.current.clickedFace,
-        swipeDirection,
-        suggestedMove,
-        isDragging: trackingStateRef.current.isDragging,
-        lockedDirection: trackingStateRef.current.lockedDirection,
-        dragDistance: Math.round(dragDistance),
-        dragVector: {
-          x: Math.round(dragVector.x),
-          y: Math.round(dragVector.y),
-        },
-      });
+
     }
   };
 
@@ -1458,36 +1201,16 @@ const RubiksCube3D = ({
       const dragDistance = dragVector.length();
 
       if (dragDistance >= 10) {
-        const normalizedDrag = dragVector.clone().normalize();
-
-        // Determine final swipe direction
-        let swipeDirection: SwipeDirection = "up";
-        if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
-          swipeDirection = normalizedDrag.x > 0 ? "right" : "left";
-        } else {
-          swipeDirection = normalizedDrag.y > 0 ? "down" : "up";
-        }
-
-        // Get the suggested move from our new mapping
-        const positionKey = trackingStateRef.current
-          .uniquePieceId as PositionMoveKey;
-        const suggestedMove =
-          POSITION_MOVE_MAPPING[positionKey]?.[swipeDirection];
-
-        console.log("Final Swipe Result:", {
-          uniquePieceId: trackingStateRef.current.uniquePieceId,
-          clickedFace: trackingStateRef.current.clickedFace,
-          swipeDirection,
-          suggestedMove,
-          totalDistance: Math.round(dragDistance),
-          // Now we have the actual move to execute!
-          moveToExecute: suggestedMove,
-        });
-      } else {
-        console.log("Click only (no swipe):", {
-          uniquePieceId: trackingStateRef.current.uniquePieceId,
-          clickedFace: trackingStateRef.current.clickedFace,
-        });
+        // Code previously used for logging, removed since we don't need it anymore
+        // const normalizedDrag = dragVector.clone().normalize();
+        // let swipeDirection: SwipeDirection = "up";
+        // if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
+        //   swipeDirection = normalizedDrag.x > 0 ? "right" : "left";
+        // } else {
+        //   swipeDirection = normalizedDrag.y > 0 ? "down" : "up";
+        // }
+        // const positionKey = trackingStateRef.current.uniquePieceId as PositionMoveKey;
+        // const suggestedMove = POSITION_MOVE_MAPPING[positionKey]?.[swipeDirection];
       }
     }
 
