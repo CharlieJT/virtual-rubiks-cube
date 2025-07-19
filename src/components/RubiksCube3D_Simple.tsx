@@ -1,9 +1,12 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import React from "react";
+import { useThree } from "@react-three/fiber";
+import { logFaceOrientation, cubeScreenAxes } from "../utils/cubeScreenAxes";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
+import swapMoveIfBottomClicked from "../utils/swapMoveIfBottomClicked";
 // Removed unused imports
 
 // Position-based move mapping - static mapping for each piece position + face + swipe direction
@@ -66,13 +69,13 @@ const POSITION_MOVE_MAPPING = {
   edge_RDS_right: { up: "S'", down: "S", left: "D'", right: "D" },
   edge_RDS_bottom: { up: "R", down: "R'", left: "S", right: "S'" },
 
-  edge_MDB_bottom: { up: "M''", down: "M", left: "B''", right: "B" },
-  edge_MDB_back: { up: "M", down: "M''", left: "D'", right: "D" },
+  edge_MDB_bottom: { up: "M'", down: "M", left: "B'", right: "B" },
+  edge_MDB_back: { up: "M", down: "M'", left: "D'", right: "D" },
 
   edge_LDS_left: { up: "S", down: "S'", left: "D'", right: "D" },
   edge_LDS_bottom: { up: "L'", down: "L", left: "S", right: "S'" },
 
-  edge_LUS_top: { up: "L''", down: "L", left: "S'", right: "S" },
+  edge_LUS_top: { up: "L'", down: "L", left: "S'", right: "S" },
   edge_LUS_left: { up: "S", down: "S'", left: "U", right: "U'" },
 
   edge_RUS_top: { up: "R", down: "R'", left: "S'", right: "S" },
@@ -105,6 +108,34 @@ interface DragState {
   lockedMoveType: string; // The move type that was locked in (F, R, U, etc.)
   lockedIsPrime: boolean; // Whether the locked move is prime or not
   hasLockedDirection: boolean; // Whether direction has been locked
+}
+
+export interface TrackingStateRef {
+  isTracking: boolean;
+  startPosition: THREE.Vector2;
+  currentPosition: THREE.Vector2;
+  cubiePosition: [number, number, number];
+  clickedFace: string;
+  uniquePieceId: string;
+  // Drag state
+  isDragging: boolean;
+  lockedMoveType: string;
+  lockedDirection: SwipeDirection;
+  initialSwipeDirection: SwipeDirection;
+  dragGroup: THREE.Group | null;
+  affectedCubies: AnimatedCubie[];
+  rotationAxis: THREE.Vector3;
+  currentRotation: number;
+  hasStartedDrag: boolean;
+  // Snapping animation state
+  isSnapping: boolean;
+  snapAnimationStartTime: number;
+  snapAnimationDuration: number;
+  snapStartRotation: number;
+  snapTargetRotation: number;
+  finalMove: CubeMove | "";
+  _axisLock?: "vertical" | "horizontal";
+  _initialDragDirection?: SwipeDirection;
 }
 
 interface CubePieceProps {
@@ -279,6 +310,8 @@ const RubiksCube3D = ({
     }
   }, [pendingMove, onStartAnimation, onMoveAnimationDone, isAnimating]);
 
+  const { camera, gl } = useThree();
+
   useFrame(() => {
     AnimationHelper.update();
 
@@ -297,6 +330,13 @@ const RubiksCube3D = ({
           rotation
         );
       }
+    }
+
+    // Only log orientation values while dragging
+    if (trackingStateRef.current.isDragging && groupRef.current) {
+      logFaceOrientation(new THREE.Vector3(0, 0, 1), groupRef.current, camera, {
+        domElement: gl.domElement,
+      });
     }
 
     // Update snapping animation if active
@@ -333,10 +373,10 @@ const RubiksCube3D = ({
         if (dragState.finalMove && onMoveAnimationDone) {
           // Store the move to be executed
           const moveToExecute = dragState.finalMove as CubeMove;
-          
+
           // First call onMoveAnimationDone to update the logical cube state (colors)
           onMoveAnimationDone(moveToExecute);
-          
+
           // Then clean up visual state after the logical state has been updated
           // Add a small delay to ensure React has time to update materials with new colors
           setTimeout(() => {
@@ -459,8 +499,6 @@ const RubiksCube3D = ({
       // Don't need to use these anymore since we removed the console.log
       // const pieceType = getPieceType(gridPos);
       // const visibleColors = getVisibleColors(cubieState.colors, gridPos);
-
-
     },
     [cubeState]
   );
@@ -537,31 +575,7 @@ const RubiksCube3D = ({
   };
 
   // Enhanced position tracking with drag mechanics
-  const trackingStateRef = useRef<{
-    isTracking: boolean;
-    startPosition: THREE.Vector2;
-    currentPosition: THREE.Vector2;
-    cubiePosition: [number, number, number];
-    clickedFace: string;
-    uniquePieceId: string;
-    // Drag state
-    isDragging: boolean;
-    lockedMoveType: string;
-    lockedDirection: SwipeDirection;
-    initialSwipeDirection: SwipeDirection;
-    dragGroup: THREE.Group | null;
-    affectedCubies: AnimatedCubie[];
-    rotationAxis: THREE.Vector3;
-    currentRotation: number;
-    hasStartedDrag: boolean;
-    // Snapping animation state
-    isSnapping: boolean;
-    snapAnimationStartTime: number;
-    snapAnimationDuration: number;
-    snapStartRotation: number;
-    snapTargetRotation: number;
-    finalMove: CubeMove | "";
-  }>({
+  const trackingStateRef = useRef<TrackingStateRef>({
     isTracking: false,
     startPosition: new THREE.Vector2(),
     currentPosition: new THREE.Vector2(),
@@ -584,6 +598,8 @@ const RubiksCube3D = ({
     snapStartRotation: 0,
     snapTargetRotation: 0,
     finalMove: "",
+    _axisLock: undefined,
+    _initialDragDirection: undefined,
   });
 
   // Generate unique piece identifier based on grid position and face
@@ -679,8 +695,6 @@ const RubiksCube3D = ({
       finalMove: "",
     };
 
-
-
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
   };
@@ -694,7 +708,6 @@ const RubiksCube3D = ({
       // so that the cube doesn't appear to "jump"
       const tempGroup = dragGroup;
       trackingStateRef.current.dragGroup = null;
-      
       // Get all meshes from drag group
       const meshesToMove: THREE.Mesh[] = [];
       tempGroup.traverse((child) => {
@@ -732,7 +745,7 @@ const RubiksCube3D = ({
     trackingStateRef.current.snapAnimationStartTime = 0;
     trackingStateRef.current.snapStartRotation = 0;
     trackingStateRef.current.snapTargetRotation = 0;
-    
+
     // Re-enable orbit controls
     onOrbitControlsChange?.(true);
     AnimationHelper.unlock();
@@ -759,8 +772,38 @@ const RubiksCube3D = ({
   ) => {
     if (!groupRef.current || trackingStateRef.current.hasStartedDrag) return;
 
-    // Lock the move and direction
-    trackingStateRef.current.lockedMoveType = suggestedMove;
+    // For U move from the back face, always swap U/U'
+    let moveToLock = suggestedMove;
+    if (
+      trackingStateRef.current.clickedFace === "left" &&
+      groupRef.current &&
+      camera &&
+      gl
+    ) {
+      // Use cubeScreenAxes to get left axis in screen space
+      const axes = cubeScreenAxes(groupRef.current, camera);
+      // The left axis is axes.x (screen space)
+      // Camera direction in world space
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      // Get left axis in world space
+      const leftWorld = new THREE.Vector3(-1, 0, 0).applyQuaternion(
+        groupRef.current.quaternion
+      );
+      const dot = leftWorld.dot(camDir);
+      // Also check screenVec magnitude
+      const screenVec = axes.x;
+      const screenMag = Math.sqrt(
+        screenVec.x * screenVec.x + screenVec.y * screenVec.y
+      );
+
+      // Head-on if dot < -0.7, screenMag < 0.13, and screenVec.y < 0
+      if (dot < -0.7 && screenMag < 0.13 && screenVec.y < 0) {
+        if (suggestedMove === "U") moveToLock = "U'";
+        else if (suggestedMove === "U'") moveToLock = "U";
+      }
+    }
+    trackingStateRef.current.lockedMoveType = moveToLock;
     trackingStateRef.current.lockedDirection = swipeDirection;
     trackingStateRef.current.initialSwipeDirection = swipeDirection;
     trackingStateRef.current.isDragging = true;
@@ -772,9 +815,7 @@ const RubiksCube3D = ({
     trackingStateRef.current.affectedCubies = affectedCubies;
 
     // Get the rotation axis from AnimationHelper
-    const [axis] = AnimationHelper.getMoveAxisAndDir(
-      suggestedMove as CubeMove
-    );
+    const [axis] = AnimationHelper.getMoveAxisAndDir(suggestedMove as CubeMove);
     trackingStateRef.current.rotationAxis = axis.clone();
 
     // Create a new group for dragging
@@ -803,24 +844,103 @@ const RubiksCube3D = ({
     AnimationHelper.lock();
   };
 
-  // Helper function to update drag rotation
   const updateDragRotation = (dragVector: THREE.Vector2) => {
     if (!trackingStateRef.current.isDragging) return;
 
     const sensitivity = 0.006;
     const lockedDirection = trackingStateRef.current.lockedDirection;
     const suggestedMove = trackingStateRef.current.lockedMoveType;
+    const initialDir = trackingStateRef.current._initialDragDirection;
 
     // Calculate rotation amount based on drag direction
     let rotationAmount = 0;
-    if (lockedDirection === "left" || lockedDirection === "right") {
+    if (initialDir === "left" || initialDir === "right") {
       rotationAmount = dragVector.x * sensitivity;
     } else {
       rotationAmount = dragVector.y * sensitivity;
     }
 
+    const group = groupRef.current;
+    if (group) {
+      const faceNormal = new THREE.Vector3(0, 0, 1);
+      const worldPos = group?.getWorldPosition(new THREE.Vector3());
+      const normalWorld = faceNormal.clone().applyQuaternion(group.quaternion);
+      const faceWorld = worldPos.clone().add(normalWorld);
+      const ndcWorld = faceWorld.clone().project(camera);
+      const ndcOrigin = worldPos.clone().project(camera);
+      const screenVec = new THREE.Vector2(
+        ndcWorld.x - ndcOrigin.x,
+        ndcWorld.y - ndcOrigin.y
+      );
+
+      const checkedDirection = ["left", "right", "back"];
+
+      // Log if camera is above or below the cube
+      const cameraPos = camera.position;
+      const isBelow = cameraPos.y < worldPos.y;
+      const clickedFace = trackingStateRef.current.clickedFace;
+
+      // Assuming you have access to camera and groupRef.current (the cube group)
+      const cubeWorldPos = group.getWorldPosition(new THREE.Vector3());
+
+      // Vector from cube center to camera
+      const viewVector = cameraPos.clone().sub(cubeWorldPos).normalize();
+
+      // Determine which axis the camera is closest to
+      const axes = [
+        { name: "front", vec: new THREE.Vector3(0, 0, 1) },
+        { name: "back", vec: new THREE.Vector3(0, 0, -1) },
+        { name: "right", vec: new THREE.Vector3(1, 0, 0) },
+        { name: "left", vec: new THREE.Vector3(-1, 0, 0) },
+      ];
+
+      let maxDot = -Infinity;
+      let cameraFacing = "";
+      axes.forEach(({ name, vec }) => {
+        const dot = viewVector.dot(vec);
+        if (dot > maxDot) {
+          maxDot = dot;
+          cameraFacing = name;
+        }
+      });
+
+      const swipeDir = trackingStateRef.current.initialSwipeDirection;
+
+      const isUDEMove = ["U", "U'", "D", "D'", "E", "E'"].includes(
+        suggestedMove
+      );
+      const isCheckedFace = checkedDirection.includes(clickedFace);
+      const isRelevantUDMove = isUDEMove && isCheckedFace;
+
+      const isTop = clickedFace === "top";
+      const isBottom = clickedFace === "bottom";
+      const isLeftOrRightSwipe = swipeDir === "left" || swipeDir === "right";
+      const isUpOrDownSwipe = swipeDir === "up" || swipeDir === "down";
+
+      if (isRelevantUDMove && groupRef.current && camera) {
+        if (screenVec.y > 0 !== isBelow) {
+          rotationAmount = -rotationAmount;
+        }
+      } else if (
+        (isTop &&
+          ((cameraFacing === "left" &&
+            ((screenVec.y < 0 && isLeftOrRightSwipe) || screenVec.y >= 0)) ||
+            (cameraFacing === "back" && isUpOrDownSwipe) ||
+            (cameraFacing === "right" &&
+              screenVec.y < 0 &&
+              isUpOrDownSwipe))) ||
+        (isBottom &&
+          ((cameraFacing === "right" &&
+            (screenVec.y < 0 || (screenVec.y >= 0 && isLeftOrRightSwipe))) ||
+            (cameraFacing === "back" && isUpOrDownSwipe) ||
+            (cameraFacing === "left" && screenVec.y > 0 && isUpOrDownSwipe)))
+      ) {
+        rotationAmount = -rotationAmount;
+      }
+    }
+
     // Get the actual rotation direction from AnimationHelper
-    const [, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+    const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
       suggestedMove as CubeMove
     );
     const expectedDirection = Math.sign(totalRotation);
@@ -864,12 +984,10 @@ const RubiksCube3D = ({
       }
     }
 
-
-
     // Special correction for specific moves that are rotating in the wrong direction
-    // Only apply visual correction - don't affect the logical move execution
-    // Be more specific about which moves need correction based on both move and direction
+    // Fix for U move when dragging from the back face
     if (
+      (baseMove === "U" && trackingStateRef.current.clickedFace === "back") ||
       (baseMove === "U" &&
         (lockedDirection === "left" || lockedDirection === "right")) ||
       (baseMove === "B" &&
@@ -884,10 +1002,6 @@ const RubiksCube3D = ({
           trackingStateRef.current.clickedFace === "left" ||
           trackingStateRef.current.clickedFace === "right"
         )) ||
-      // M moves should NOT be inverted during drag from front/back
-      // (baseMove === "M" &&
-      //   (trackingStateRef.current.clickedFace === "front" ||
-      //   trackingStateRef.current.clickedFace === "back")) ||
       (baseMove === "F" &&
         !suggestedMove.includes("'") &&
         (lockedDirection === "left" ||
@@ -897,8 +1011,6 @@ const RubiksCube3D = ({
       (baseMove === "F" &&
         suggestedMove.includes("'") &&
         (lockedDirection === "left" || lockedDirection === "right")) ||
-      // Add correction for D and E moves from top/bottom
-      // Note: We exclude U from top/bottom corrections
       ((baseMove === "D" || baseMove === "E") &&
         (lockedDirection === "up" || lockedDirection === "down"))
     ) {
@@ -907,8 +1019,6 @@ const RubiksCube3D = ({
 
     // Don't clamp rotation - allow unlimited rotation for multiple turns
     trackingStateRef.current.currentRotation = adjustedRotation;
-
-
   };
 
   // Helper function to finalize drag with smooth snapping transition
@@ -959,8 +1069,6 @@ const RubiksCube3D = ({
       currentRotation = -currentRotation;
     }
 
-
-
     // For U move, apply specific corrections to make the snapping animation correct
     // This only affects the visual transition, not the actual move executed
     if (baseMove === "U") {
@@ -983,16 +1091,12 @@ const RubiksCube3D = ({
       else {
         currentRotation = -currentRotation;
       }
-
-
     }
 
     // Face-specific fix for S moves
     if (baseMove === "S") {
       // Always invert rotation for S moves
       currentRotation = -currentRotation;
-
-
     }
 
     // Comprehensive fix for E moves from all faces
@@ -1000,8 +1104,6 @@ const RubiksCube3D = ({
       // Always invert rotation for E moves, regardless of which face we're coming from
       // This ensures consistent behavior for transitions
       currentRotation = -currentRotation;
-
-
     }
 
     // Fix for M moves during transition
@@ -1015,19 +1117,11 @@ const RubiksCube3D = ({
         // Invert rotation for proper transition from front/back faces
         currentRotation = -currentRotation;
       }
-
-
     }
 
-    // Fix for all D and D' moves from all faces
+    // Universal fix for D and D' moves from any face and any swipe direction
     if (baseMove === "D") {
-      // Universal fix for D/D' moves from any face and any swipe direction
-      // This ensures consistent transition behavior
-
-      // Always invert the rotation for D moves
       currentRotation = -currentRotation;
-
-
     }
 
     // Fix for B and B' moves from top and bottom faces
@@ -1041,8 +1135,6 @@ const RubiksCube3D = ({
         currentRotation = -currentRotation;
       }
       // For B moves from side faces, they already work correctly so we don't need to change anything
-
-
     }
 
     const snapIncrement = Math.PI / 2; // 90 degrees
@@ -1073,6 +1165,8 @@ const RubiksCube3D = ({
       }
     }
 
+    finalMove = swapMoveIfBottomClicked(finalMove, trackingStateRef);
+
     // If no rotation happened, animate back to original position
     if (absSteps === 0) {
       // Create smooth transition back to zero rotation
@@ -1085,11 +1179,8 @@ const RubiksCube3D = ({
       trackingStateRef.current.snapTargetRotation = 0;
       trackingStateRef.current.finalMove = "";
 
-
       return;
     }
-
-
 
     // Create smooth transition from current rotation to snapped rotation
     trackingStateRef.current.isDragging = false;
@@ -1100,12 +1191,72 @@ const RubiksCube3D = ({
       trackingStateRef.current.currentRotation;
     trackingStateRef.current.snapTargetRotation = snappedRotation;
     trackingStateRef.current.finalMove = finalMove as CubeMove;
-
-
   };
 
   const handlePointerMove = (e: PointerEvent) => {
     if (!trackingStateRef.current.isTracking) return;
+
+    // --- LOGGING: Drag gesture and move mapping ---
+    // Log drag start, direction, and mapping
+    if (!trackingStateRef.current.hasStartedDrag) {
+      const currentPos = new THREE.Vector2(e.clientX, e.clientY);
+      const dragVector = currentPos
+        .clone()
+        .sub(trackingStateRef.current.startPosition);
+      const dragDistance = dragVector.length();
+      if (dragDistance >= 2) {
+        const normalizedDrag = dragVector.clone().normalize();
+        let dragDirection: SwipeDirection = "up";
+        if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
+          dragDirection = normalizedDrag.x > 0 ? "right" : "left";
+        } else {
+          dragDirection = normalizedDrag.y > 0 ? "down" : "up";
+        }
+        const positionKey = trackingStateRef.current
+          .uniquePieceId as PositionMoveKey;
+        let moveDirection: SwipeDirection = dragDirection;
+        if (
+          trackingStateRef.current.clickedFace === "top" ||
+          trackingStateRef.current.clickedFace === "bottom"
+        ) {
+          // Use cubeScreenAxes to get front axis in screen space
+          if (groupRef.current && camera) {
+            const axes = cubeScreenAxes(groupRef.current, camera);
+            // Determine which direction the front axis points
+            let frontScreenDirection: SwipeDirection = "up";
+            if (Math.abs(axes.z.x) > Math.abs(axes.z.y)) {
+              frontScreenDirection = axes.z.x > 0 ? "right" : "left";
+            } else {
+              frontScreenDirection = axes.z.y > 0 ? "up" : "down";
+            }
+            const directions: SwipeDirection[] = [
+              "down",
+              "left",
+              "up",
+              "right",
+            ];
+            const dragIdx = directions.indexOf(dragDirection);
+            const frontIdx = directions.indexOf(frontScreenDirection);
+            const relativeIdx = (dragIdx - frontIdx + 4) % 4;
+            moveDirection = directions[relativeIdx];
+          }
+        }
+        const suggestedMove =
+          POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
+        console.log(
+          "[Drag] Piece:",
+          positionKey,
+          "Face:",
+          trackingStateRef.current.clickedFace,
+          "Drag direction:",
+          dragDirection,
+          "Mapped direction:",
+          moveDirection,
+          "Suggested move:",
+          suggestedMove
+        );
+      }
+    }
 
     const currentPos = new THREE.Vector2(e.clientX, e.clientY);
     trackingStateRef.current.currentPosition = currentPos;
@@ -1115,62 +1266,132 @@ const RubiksCube3D = ({
       .sub(trackingStateRef.current.startPosition);
     const dragDistance = dragVector.length();
 
-    // Only process if we've moved at least 10px
-    if (dragDistance >= 10) {
+    // Only process if we've moved at least 2px
+    if (dragDistance >= 2) {
       const normalizedDrag = dragVector.clone().normalize();
+      const directions: SwipeDirection[] = ["down", "left", "up", "right"];
 
-      // Determine swipe direction
-      let swipeDirection: SwipeDirection = "up";
-      if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
-        // Horizontal swipe
-        swipeDirection = normalizedDrag.x > 0 ? "right" : "left";
-      } else {
-        // Vertical swipe
-        swipeDirection = normalizedDrag.y > 0 ? "down" : "up";
-      }
+      // If drag has not started, determine move direction and lock initial drag direction
+      if (!trackingStateRef.current.hasStartedDrag) {
+        // Determine swipe direction in screen space
+        let dragDirection: SwipeDirection = "up";
+        if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
+          dragDirection = normalizedDrag.x > 0 ? "right" : "left";
+        } else {
+          dragDirection = normalizedDrag.y > 0 ? "down" : "up";
+        }
 
-      // Get the suggested move from our new mapping
-      const positionKey = trackingStateRef.current
-        .uniquePieceId as PositionMoveKey;
-      const suggestedMove =
-        POSITION_MOVE_MAPPING[positionKey]?.[swipeDirection];
+        // Only remap drag direction for top & bottom faces
+        let moveDirection: SwipeDirection = dragDirection;
+        if (
+          trackingStateRef.current.clickedFace === "top" ||
+          trackingStateRef.current.clickedFace === "bottom"
+        ) {
+          // Use cubeScreenAxes to get front axis in screen space
+          if (groupRef.current && camera) {
+            const axes = cubeScreenAxes(groupRef.current, camera);
+            let frontScreenDirection: SwipeDirection = "up";
+            if (Math.abs(axes.z.x) > Math.abs(axes.z.y)) {
+              frontScreenDirection = axes.z.x > 0 ? "right" : "left";
+            } else {
+              frontScreenDirection = axes.z.y > 0 ? "up" : "down";
+            }
+            const dragIdx = directions.indexOf(dragDirection);
+            const frontIdx = directions.indexOf(frontScreenDirection);
+            const relativeIdx = (dragIdx - frontIdx + 4) % 4;
+            moveDirection = directions[relativeIdx];
+          }
+        }
 
+        // Get the suggested move from our mapping using the moveDirection
+        const positionKey = trackingStateRef.current
+          .uniquePieceId as PositionMoveKey;
+        const suggestedMove =
+          POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
 
+        // Lock initial drag direction for all faces
+        trackingStateRef.current._initialDragDirection = dragDirection;
 
-      // Start drag animation if not already started
-      if (!trackingStateRef.current.hasStartedDrag && suggestedMove) {
-        startDragAnimation(suggestedMove, swipeDirection);
+        // Start drag animation if not already started
+        if (suggestedMove) {
+          startDragAnimation(suggestedMove, moveDirection);
+        }
       }
 
       // Update drag rotation if we're dragging
       if (trackingStateRef.current.isDragging) {
-        // Check if current swipe direction is allowed (same as locked or opposite)
-        const allowedDirection = trackingStateRef.current.lockedDirection;
-        const oppositeDirection = getOppositeDirection(allowedDirection);
-
-        if (
-          swipeDirection === allowedDirection ||
-          swipeDirection === oppositeDirection
-        ) {
-          // Update the drag rotation
-          updateDragRotation(dragVector);
-        } else {
-          // Constrain movement to the locked axis
-          let constrainedVector = dragVector.clone();
-
-          if (allowedDirection === "left" || allowedDirection === "right") {
-            // Lock to horizontal movement
-            constrainedVector.y = 0;
+        // Use both axes and sign of drag movement, corrected for cube orientation
+        const initialDir = trackingStateRef.current._initialDragDirection;
+        let projectedVector = dragVector.clone();
+        let dragAmount = 0;
+        let axisScreenSign = 1;
+        if (groupRef.current && camera && gl) {
+          // For left/right, use X axis; for up/down, use Y axis
+          let axisVec =
+            initialDir === "left" || initialDir === "right"
+              ? new THREE.Vector3(1, 0, 0)
+              : new THREE.Vector3(0, 1, 0);
+          axisVec.applyQuaternion(groupRef.current.quaternion);
+          const worldPos = groupRef.current.getWorldPosition(
+            new THREE.Vector3()
+          );
+          const axisPos = worldPos.clone().add(axisVec);
+          const ndcWorld = axisPos.clone().project(camera);
+          const ndcOrigin = worldPos.clone().project(camera);
+          const screenVec = new THREE.Vector2(
+            ndcWorld.x - ndcOrigin.x,
+            ndcWorld.y - ndcOrigin.y
+          );
+          // For left/right, compare X; for up/down, compare Y
+          if (initialDir === "left" || initialDir === "right") {
+            axisScreenSign = screenVec.x >= 0 ? 1 : -1;
           } else {
-            // Lock to vertical movement
-            constrainedVector.x = 0;
+            axisScreenSign = screenVec.y >= 0 ? 1 : -1;
           }
-
-          updateDragRotation(constrainedVector);
         }
+        if (initialDir === "left" || initialDir === "right") {
+          dragAmount = dragVector.x;
+        } else {
+          dragAmount = dragVector.y;
+        }
+
+        // Improved: drag direction should always match user's gesture, regardless of orientation
+        // Project drag vector onto the projected axis direction in screen space
+        if (groupRef.current && camera && gl) {
+          let axisVec =
+            initialDir === "left" || initialDir === "right"
+              ? new THREE.Vector3(1, 0, 0)
+              : new THREE.Vector3(0, 1, 0);
+          axisVec.applyQuaternion(groupRef.current.quaternion);
+          const worldPos = groupRef.current.getWorldPosition(
+            new THREE.Vector3()
+          );
+          const axisPos = worldPos.clone().add(axisVec);
+          const ndcWorld = axisPos.clone().project(camera);
+          const ndcOrigin = worldPos.clone().project(camera);
+          const screenAxis = new THREE.Vector2(
+            ndcWorld.x - ndcOrigin.x,
+            ndcWorld.y - ndcOrigin.y
+          ).normalize();
+          const dragScreen = new THREE.Vector2(
+            dragVector.x,
+            dragVector.y
+          ).normalize();
+          // The sign is determined by the dot product
+          const sign = dragScreen.dot(screenAxis) >= 0 ? 1 : -1;
+          dragAmount = dragVector.length() * sign;
+        }
+
+        // Create a vector with only the relevant axis
+        if (initialDir === "left" || initialDir === "right") {
+          projectedVector.x = dragAmount;
+          projectedVector.y = 0;
+        } else {
+          projectedVector.y = dragAmount;
+          projectedVector.x = 0;
+        }
+        updateDragRotation(projectedVector);
       }
-
-
     }
   };
 

@@ -186,6 +186,33 @@ const RubiksCube3D = ({
   useFrame(() => {
     AnimationHelper.update();
 
+    // Log orientation values for the front face (0, 0, 1)
+    // You can change the normal to track other faces
+    // If you need to log face orientation, implement or import logFaceOrientation from a valid module.
+    // The following block is commented out due to missing module:
+    /*
+    if (groupRef.current) {
+      // Use the main group as the cube mesh
+      // You may need to adjust camera/renderer references as needed
+      const camera =
+        groupRef.current.parent && groupRef.current.parent.camera
+          ? groupRef.current.parent.camera
+          : null;
+      const renderer =
+        groupRef.current.parent && groupRef.current.parent.renderer
+          ? groupRef.current.parent.renderer
+          : null;
+      if (camera && renderer) {
+        logFaceOrientation(
+          new THREE.Vector3(0, 0, 1),
+          groupRef.current,
+          camera,
+          renderer
+        );
+      }
+    }
+    */
+
     if (dragStateRef.current.isActive && dragStateRef.current.dragGroup) {
       updateDragRotation();
     }
@@ -544,15 +571,6 @@ const RubiksCube3D = ({
       Math.round(totalRotation / (Math.PI / 2)) * (Math.PI / 2);
     const finalRotation = snapRotation - totalRotation;
 
-    console.log(
-      "Drag ended - totalRotation:",
-      totalRotation,
-      "snapRotation:",
-      snapRotation,
-      "finalRotation:",
-      finalRotation
-    );
-
     if (
       Math.abs(finalRotation) > 0.01 &&
       dragStateRef.current.rotationAxis.length() > 0
@@ -574,12 +592,10 @@ const RubiksCube3D = ({
           }
         })
         .onComplete(() => {
-          console.log("Snap animation completed");
           finalizeDrag();
         })
         .start();
     } else {
-      console.log("No snap needed, finalizing directly");
       finalizeDrag();
     }
   };
