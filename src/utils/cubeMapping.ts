@@ -48,12 +48,11 @@ export let PIECE_MOVE_MAPPING: Record<string, any> = {
 export const getColorName = (hexColor: string): string => {
   const colorMap: { [key: string]: string } = {
     "#ff0000": "red",
-    "#00ff00": "green",
-    "#0000ff": "blue",
+    "#2cdd5a": "green",
+    "#6279f7": "blue",
     "#ffff00": "yellow",
     "#ffffff": "white",
-    "#ffa500": "orange",
-    "#ff9600": "orange", // Additional orange variant
+    "#ff9600": "orange",
   };
   const result = colorMap[hexColor.toLowerCase()];
   if (!result) {
