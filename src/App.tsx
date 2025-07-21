@@ -1,13 +1,13 @@
 import { useRef, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import RubiksCube3D from "./components/RubiksCube3D";
+import RubiksCube3D from "./components/RubiksCube3D_Simple";
 import ControlPanel from "./components/ControlPanel";
 import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
 import { AnimationHelper } from "./utils/animationHelper";
-import type { Solution, CubeMove } from "./types/cube";
+import type { CubeMove } from "./types/cube";
 
 const App = () => {
   const cubeRef = useRef(new CubeJSWrapper());
@@ -15,10 +15,13 @@ const App = () => {
     cubejsTo3D(cubeRef.current.getCube())
   );
   const [isScrambled, setIsScrambled] = useState(false);
-  const [isSolving, setIsSolving] = useState(false);
-  const [solution, setSolution] = useState<Solution | null>(null);
+  // State for future solve functionality
+  // const [isSolving, setIsSolving] = useState(false);
+  // const [solution, setSolution] = useState<Solution | null>(null);
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [orbitControlsEnabled, setOrbitControlsEnabled] = useState(true);
+  const orbitControlsRef = useRef<any>(null);
 
   const lastMoveTimeRef = useRef(0);
 
@@ -30,7 +33,6 @@ const App = () => {
     cubeRef.current.scramble();
     setCube3D(cubejsTo3D(cubeRef.current.getCube()));
     setIsScrambled(true);
-    setSolution(null);
   }, [isAnimating]);
 
   const handleButtonMove = useCallback(
@@ -61,29 +63,44 @@ const App = () => {
       move === "z'";
 
     if (!isWholeCubeRotation) {
+      // Execute the move in the logical state
       cubeRef.current.move(move);
+      
+      // Immediately update the visual representation with the new colors
+      // Important: This must happen synchronously before the meshes are repositioned
+      // to avoid color flickering
       setCube3D(cubejsTo3D(cubeRef.current.getCube()));
       setIsScrambled(true);
-      setSolution(null);
     }
 
+    // Reset animation state
     setPendingMove(null);
     setIsAnimating(false);
+    
+    // AnimationHelper will call unlock() in its own completion handler
+  }, []);
 
-    AnimationHelper.unlock();
+  const handleOrbitControlsChange = useCallback((enabled: boolean) => {
+
+    setOrbitControlsEnabled(enabled);
+    // Also directly disable the controls if we have a ref
+    if (orbitControlsRef.current) {
+      orbitControlsRef.current.enabled = enabled;
+    }
   }, []);
 
   const handleStartAnimation = useCallback(() => {
     setIsAnimating(true);
   }, []);
 
-  const handleGenerateSolution = useCallback(() => {
-    setSolution(null);
-  }, []);
-
-  const handleSolve = useCallback(async () => {
-    setIsSolving(false);
-  }, []);
+  // Functions for future implementation of solve functionality
+  // const handleGenerateSolution = useCallback(() => {
+  //   setSolution(null);
+  // }, []);
+  //
+  // const handleSolve = useCallback(async () => {
+  //   setIsSolving(false);
+  // }, []);
 
   return (
     <div className="w-full h-full flex">
@@ -100,8 +117,12 @@ const App = () => {
             onMoveAnimationDone={handleMoveAnimationDone}
             onStartAnimation={handleStartAnimation}
             isAnimating={isAnimating}
+            onOrbitControlsChange={handleOrbitControlsChange}
+            onDragMove={handleButtonMove}
           />
           <OrbitControls
+            ref={orbitControlsRef}
+            enabled={orbitControlsEnabled}
             enablePan={true}
             enableZoom={true}
             enableRotate={true}
@@ -121,7 +142,7 @@ const App = () => {
           </p>
         </div>
       </div>
-      <div className="w-80 p-6 flex flex-col items-center">
+      {/* <div className="w-80 p-6 flex flex-col items-center">
         <MoveButtonsPanel onMove={handleButtonMove} />
         <ControlPanel
           onScramble={handleScramble}
@@ -131,7 +152,7 @@ const App = () => {
           isScrambled={isScrambled}
           isSolving={isSolving}
         />
-      </div>
+      </div> */}
     </div>
   );
 };
