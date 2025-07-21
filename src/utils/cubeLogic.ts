@@ -5,8 +5,8 @@ export const CUBE_COLORS = {
   YELLOW: "#ffff00",
   RED: "#ff0000",
   ORANGE: "#ff9600",
-  BLUE: "#0000ff",
-  GREEN: "#00ff00",
+  BLUE: "#6279f7",
+  GREEN: "#2cdd5a",
   BLACK: "#1a1a1a",
 };
 
