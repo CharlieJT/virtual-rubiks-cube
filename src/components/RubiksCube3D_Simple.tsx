@@ -7,6 +7,7 @@ import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
 import swapMoveIfBottomClicked from "../utils/swapMoveIfBottomClicked";
+import { RoundedBoxGeometry } from "three-stdlib";
 // Removed unused imports
 
 // Position-based move mapping - static mapping for each piece position + face + swipe direction
@@ -200,22 +201,22 @@ const CubePiece = React.memo(
     ]);
 
     const EDGE_GEOMETRIES = [
-      ...[0.495, -0.495].flatMap((y) =>
-        [0.495, -0.495].map((z) => ({
+      ...[0.5, -0.5].flatMap((y) =>
+        [0.5, -0.5].map((z) => ({
           pos: [0, y, z],
-          args: [0.95, 0.04, 0.04],
+          args: [1.08, 0.094, 0.094],
         }))
       ),
-      ...[0.495, -0.495].flatMap((y) =>
-        [0.495, -0.495].map((x) => ({
+      ...[0.5, -0.5].flatMap((y) =>
+        [0.5, -0.5].map((x) => ({
           pos: [x, y, 0],
-          args: [0.04, 0.04, 0.95],
+          args: [0.094, 0.094, 1.08],
         }))
       ),
-      ...[0.495, -0.495].flatMap((x) =>
-        [0.495, -0.495].map((z) => ({
+      ...[0.5, -0.5].flatMap((x) =>
+        [0.5, -0.5].map((z) => ({
           pos: [x, 0, z],
-          args: [0.04, 0.95, 0.04],
+          args: [0.094, 1.08, 0.094],
         }))
       ),
     ];
@@ -227,10 +228,7 @@ const CubePiece = React.memo(
         material={materials}
         onPointerDown={(e) => {
           e.stopPropagation();
-
-          // Get intersection point from the event
           const intersectionPoint = e.point || new THREE.Vector3();
-
           onPointerDown?.(e, position, intersectionPoint);
         }}
         onPointerMove={(e) => {
@@ -241,7 +239,8 @@ const CubePiece = React.memo(
           e.stopPropagation();
         }}
       >
-        <boxGeometry args={[0.95, 0.95, 0.95]} />
+        {/* Use RoundedBoxGeometry for rounded corners */}
+        <primitive object={new RoundedBoxGeometry(1.11, 1.11, 1.11, 4, 0.13)} />
 
         {EDGE_GEOMETRIES.map((edge, i) => (
           <mesh key={i} position={edge.pos as [number, number, number]}>

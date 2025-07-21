@@ -3,8 +3,8 @@ import type { CubeState } from "../types/cube";
 const COLOR_MAP = {
   U: "#ffffff",
   D: "#ffff00",
-  F: "#00ff00",
-  B: "#0000ff",
+  F: "#2cdd5a",
+  B: "#6279f7",
   R: "#ff0000",
   L: "#ff9600",
 };
