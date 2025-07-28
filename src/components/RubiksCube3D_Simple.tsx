@@ -838,7 +838,7 @@ const RubiksCube3D = ({
   const updateDragRotation = (dragVector: THREE.Vector2) => {
     if (!trackingStateRef.current.isDragging) return;
 
-    const sensitivity = 0.007;
+    const sensitivity = 0.004;
     const lockedDirection = trackingStateRef.current.lockedDirection;
     const suggestedMove = trackingStateRef.current.lockedMoveType;
     const initialDir = trackingStateRef.current._initialDragDirection;
@@ -1020,21 +1020,38 @@ const RubiksCube3D = ({
 
     // Calculate final snap position based on drag amount and velocity (flick)
     let currentRotation = trackingStateRef.current.currentRotation;
-    const baseMove = trackingStateRef.current.lockedMoveType.replace(/['2]/g, "");
+    const baseMove = trackingStateRef.current.lockedMoveType.replace(
+      /['2]/g,
+      ""
+    );
     const lockedDirection = trackingStateRef.current.lockedDirection;
     const suggestedMove = trackingStateRef.current.lockedMoveType;
 
     // --- Apply all the same visual corrections as before ---
     if (
-      (baseMove === "U" && (lockedDirection === "left" || lockedDirection === "right")) ||
-      (baseMove === "B" && (lockedDirection === "left" || lockedDirection === "right")) ||
-      (baseMove === "D" && (lockedDirection === "left" || lockedDirection === "right")) ||
-      (baseMove === "E" && (lockedDirection === "left" || lockedDirection === "right")) ||
+      (baseMove === "U" &&
+        (lockedDirection === "left" || lockedDirection === "right")) ||
+      (baseMove === "B" &&
+        (lockedDirection === "left" || lockedDirection === "right")) ||
+      (baseMove === "D" &&
+        (lockedDirection === "left" || lockedDirection === "right")) ||
+      (baseMove === "E" &&
+        (lockedDirection === "left" || lockedDirection === "right")) ||
       baseMove === "S" ||
-      (baseMove === "M" && (trackingStateRef.current.clickedFace === "front" || trackingStateRef.current.clickedFace === "back")) ||
-      (baseMove === "F" && !suggestedMove.includes("'") && (lockedDirection === "left" || lockedDirection === "right" || lockedDirection === "up" || lockedDirection === "down")) ||
-      (baseMove === "F" && suggestedMove.includes("'") && (lockedDirection === "left" || lockedDirection === "right")) ||
-      ((baseMove === "D" || baseMove === "E" || baseMove === "S") && (lockedDirection === "up" || lockedDirection === "down"))
+      (baseMove === "M" &&
+        (trackingStateRef.current.clickedFace === "front" ||
+          trackingStateRef.current.clickedFace === "back")) ||
+      (baseMove === "F" &&
+        !suggestedMove.includes("'") &&
+        (lockedDirection === "left" ||
+          lockedDirection === "right" ||
+          lockedDirection === "up" ||
+          lockedDirection === "down")) ||
+      (baseMove === "F" &&
+        suggestedMove.includes("'") &&
+        (lockedDirection === "left" || lockedDirection === "right")) ||
+      ((baseMove === "D" || baseMove === "E" || baseMove === "S") &&
+        (lockedDirection === "up" || lockedDirection === "down"))
     ) {
       currentRotation = -currentRotation;
     }
@@ -1083,12 +1100,16 @@ const RubiksCube3D = ({
     // If velocity is above threshold, bias the snap in the drag direction
     if (Math.abs(velocity) > velocityThreshold) {
       // Carry the rotation further in the direction of the flick
-      const carry = Math.sign(currentRotation) * Math.min(Math.abs(velocity) / 1200, maxCarry) * snapIncrement;
+      const carry =
+        Math.sign(currentRotation) *
+        Math.min(Math.abs(velocity) / 1200, maxCarry) *
+        snapIncrement;
       snapTarget += carry;
     }
 
     // Snap to the nearest slot (with flick carry if velocity is high)
-    const snappedRotation = Math.round(snapTarget / snapIncrement) * snapIncrement;
+    const snappedRotation =
+      Math.round(snapTarget / snapIncrement) * snapIncrement;
 
     // Determine the final move based on snapped rotation
     let finalMove = "";
@@ -1117,7 +1138,8 @@ const RubiksCube3D = ({
       trackingStateRef.current.isSnapping = true;
       trackingStateRef.current.snapAnimationStartTime = Date.now();
       trackingStateRef.current.snapAnimationDuration = 150;
-      trackingStateRef.current.snapStartRotation = trackingStateRef.current.currentRotation;
+      trackingStateRef.current.snapStartRotation =
+        trackingStateRef.current.currentRotation;
       trackingStateRef.current.snapTargetRotation = 0;
       trackingStateRef.current.finalMove = "";
       return;
@@ -1127,7 +1149,8 @@ const RubiksCube3D = ({
     trackingStateRef.current.isSnapping = true;
     trackingStateRef.current.snapAnimationStartTime = Date.now();
     trackingStateRef.current.snapAnimationDuration = 200;
-    trackingStateRef.current.snapStartRotation = trackingStateRef.current.currentRotation;
+    trackingStateRef.current.snapStartRotation =
+      trackingStateRef.current.currentRotation;
     trackingStateRef.current.snapTargetRotation = snappedRotation;
     trackingStateRef.current.finalMove = finalMove as CubeMove;
   };
