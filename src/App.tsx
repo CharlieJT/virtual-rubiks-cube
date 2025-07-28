@@ -2,8 +2,8 @@ import { useRef, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import RubiksCube3D from "./components/RubiksCube3D_Simple";
-import ControlPanel from "./components/ControlPanel";
-import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
+// import ControlPanel from "./components/ControlPanel";
+// import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
 import { AnimationHelper } from "./utils/animationHelper";
@@ -14,7 +14,7 @@ const App = () => {
   const [cube3D, setCube3D] = useState(() =>
     cubejsTo3D(cubeRef.current.getCube())
   );
-  const [isScrambled, setIsScrambled] = useState(false);
+  // const [isScrambled, setIsScrambled] = useState(false);
   // State for future solve functionality
   // const [isSolving, setIsSolving] = useState(false);
   // const [solution, setSolution] = useState<Solution | null>(null);
@@ -25,15 +25,15 @@ const App = () => {
 
   const lastMoveTimeRef = useRef(0);
 
-  const handleScramble = useCallback(() => {
-    if (isAnimating) return;
+  // const handleScramble = useCallback(() => {
+  //   if (isAnimating) return;
 
-    setPendingMove(null);
+  //   setPendingMove(null);
 
-    cubeRef.current.scramble();
-    setCube3D(cubejsTo3D(cubeRef.current.getCube()));
-    setIsScrambled(true);
-  }, [isAnimating]);
+  //   cubeRef.current.scramble();
+  //   setCube3D(cubejsTo3D(cubeRef.current.getCube()));
+  //   setIsScrambled(true);
+  // }, [isAnimating]);
 
   const handleButtonMove = useCallback(
     (move: string) => {
@@ -65,7 +65,7 @@ const App = () => {
     if (!isWholeCubeRotation) {
       // Execute the move in the logical state
       cubeRef.current.move(move);
-      
+
       // Immediately update the visual representation with the new colors
       // Important: This must happen synchronously before the meshes are repositioned
       // to avoid color flickering
@@ -76,12 +76,11 @@ const App = () => {
     // Reset animation state
     setPendingMove(null);
     setIsAnimating(false);
-    
+
     // AnimationHelper will call unlock() in its own completion handler
   }, []);
 
   const handleOrbitControlsChange = useCallback((enabled: boolean) => {
-
     setOrbitControlsEnabled(enabled);
     // Also directly disable the controls if we have a ref
     if (orbitControlsRef.current) {
