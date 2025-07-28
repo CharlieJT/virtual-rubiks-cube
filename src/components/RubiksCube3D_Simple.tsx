@@ -1204,34 +1204,6 @@ const RubiksCube3D = ({
           dragDirection = normalizedDrag.y > 0 ? "down" : "up";
         }
 
-        let moveDirection: SwipeDirection = dragDirection;
-        if (
-          trackingStateRef.current.clickedFace === "top" ||
-          trackingStateRef.current.clickedFace === "bottom"
-        ) {
-          // Use cubeScreenAxes to get front axis in screen space
-          if (groupRef.current && camera) {
-            const axes = cubeScreenAxes(groupRef.current, camera);
-            // Determine which direction the front axis points
-            let frontScreenDirection: SwipeDirection = "up";
-            if (Math.abs(axes.z.x) > Math.abs(axes.z.y)) {
-              frontScreenDirection = axes.z.x > 0 ? "right" : "left";
-            } else {
-              frontScreenDirection = axes.z.y > 0 ? "up" : "down";
-            }
-            const directions: SwipeDirection[] = [
-              "down",
-              "left",
-              "up",
-              "right",
-            ];
-            const dragIdx = directions.indexOf(dragDirection);
-            const frontIdx = directions.indexOf(frontScreenDirection);
-            const relativeIdx = (dragIdx - frontIdx + 4) % 4;
-            moveDirection = directions[relativeIdx];
-          }
-        }
-
         // console.log(
         //   "[Drag] Piece:",
         //   positionKey,
