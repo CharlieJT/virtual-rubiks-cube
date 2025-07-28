@@ -1302,31 +1302,6 @@ const RubiksCube3D = ({
         const initialDir = trackingStateRef.current._initialDragDirection;
         let projectedVector = dragVector.clone();
         let dragAmount = 0;
-        let axisScreenSign = 1;
-        if (groupRef.current && camera && gl) {
-          // For left/right, use X axis; for up/down, use Y axis
-          let axisVec =
-            initialDir === "left" || initialDir === "right"
-              ? new THREE.Vector3(1, 0, 0)
-              : new THREE.Vector3(0, 1, 0);
-          axisVec.applyQuaternion(groupRef.current.quaternion);
-          const worldPos = groupRef.current.getWorldPosition(
-            new THREE.Vector3()
-          );
-          const axisPos = worldPos.clone().add(axisVec);
-          const ndcWorld = axisPos.clone().project(camera);
-          const ndcOrigin = worldPos.clone().project(camera);
-          const screenVec = new THREE.Vector2(
-            ndcWorld.x - ndcOrigin.x,
-            ndcWorld.y - ndcOrigin.y
-          );
-          // For left/right, compare X; for up/down, compare Y
-          if (initialDir === "left" || initialDir === "right") {
-            axisScreenSign = screenVec.x >= 0 ? 1 : -1;
-          } else {
-            axisScreenSign = screenVec.y >= 0 ? 1 : -1;
-          }
-        }
         if (initialDir === "left" || initialDir === "right") {
           dragAmount = dragVector.x;
         } else {
