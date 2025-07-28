@@ -1203,8 +1203,7 @@ const RubiksCube3D = ({
         } else {
           dragDirection = normalizedDrag.y > 0 ? "down" : "up";
         }
-        const positionKey = trackingStateRef.current
-          .uniquePieceId as PositionMoveKey;
+
         let moveDirection: SwipeDirection = dragDirection;
         if (
           trackingStateRef.current.clickedFace === "top" ||
@@ -1232,8 +1231,7 @@ const RubiksCube3D = ({
             moveDirection = directions[relativeIdx];
           }
         }
-        const suggestedMove =
-          POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
+
         // console.log(
         //   "[Drag] Piece:",
         //   positionKey,
