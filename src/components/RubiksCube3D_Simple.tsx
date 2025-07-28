@@ -1018,137 +1018,91 @@ const RubiksCube3D = ({
       return;
     }
 
-    // Calculate final snap position based on drag amount
+    // Calculate final snap position based on drag amount and velocity (flick)
     let currentRotation = trackingStateRef.current.currentRotation;
-    const baseMove = trackingStateRef.current.lockedMoveType.replace(
-      /['2]/g,
-      ""
-    );
-
-    // Reverse the visual correction for specific moves when calculating the final move
-    // This ensures the logical move matches the intended direction
+    const baseMove = trackingStateRef.current.lockedMoveType.replace(/['2]/g, "");
     const lockedDirection = trackingStateRef.current.lockedDirection;
     const suggestedMove = trackingStateRef.current.lockedMoveType;
+
+    // --- Apply all the same visual corrections as before ---
     if (
-      (baseMove === "U" &&
-        (lockedDirection === "left" || lockedDirection === "right")) ||
-      (baseMove === "B" &&
-        (lockedDirection === "left" || lockedDirection === "right")) ||
-      (baseMove === "D" &&
-        (lockedDirection === "left" || lockedDirection === "right")) ||
-      (baseMove === "E" &&
-        (lockedDirection === "left" || lockedDirection === "right")) ||
-      // For S moves, always invert in finalize
+      (baseMove === "U" && (lockedDirection === "left" || lockedDirection === "right")) ||
+      (baseMove === "B" && (lockedDirection === "left" || lockedDirection === "right")) ||
+      (baseMove === "D" && (lockedDirection === "left" || lockedDirection === "right")) ||
+      (baseMove === "E" && (lockedDirection === "left" || lockedDirection === "right")) ||
       baseMove === "S" ||
-      // M moves need inversion from front/back
-      (baseMove === "M" &&
-        (trackingStateRef.current.clickedFace === "front" ||
-          trackingStateRef.current.clickedFace === "back")) ||
-      (baseMove === "F" &&
-        !suggestedMove.includes("'") &&
-        (lockedDirection === "left" ||
-          lockedDirection === "right" ||
-          lockedDirection === "up" ||
-          lockedDirection === "down")) ||
-      (baseMove === "F" &&
-        suggestedMove.includes("'") &&
-        (lockedDirection === "left" || lockedDirection === "right")) ||
-      // Add reverse correction for D, E, S moves from top/bottom (excluding U)
-      ((baseMove === "D" || baseMove === "E" || baseMove === "S") &&
-        (lockedDirection === "up" || lockedDirection === "down"))
+      (baseMove === "M" && (trackingStateRef.current.clickedFace === "front" || trackingStateRef.current.clickedFace === "back")) ||
+      (baseMove === "F" && !suggestedMove.includes("'") && (lockedDirection === "left" || lockedDirection === "right" || lockedDirection === "up" || lockedDirection === "down")) ||
+      (baseMove === "F" && suggestedMove.includes("'") && (lockedDirection === "left" || lockedDirection === "right")) ||
+      ((baseMove === "D" || baseMove === "E" || baseMove === "S") && (lockedDirection === "up" || lockedDirection === "down"))
     ) {
       currentRotation = -currentRotation;
     }
-
-    // For U move, apply specific corrections to make the snapping animation correct
-    // This only affects the visual transition, not the actual move executed
     if (baseMove === "U") {
-      // For U moves, invert the rotation for correct snapping animation
-      // This is a universal fix that makes U moves snap correctly from all faces
       currentRotation = -currentRotation;
     }
-
-    // Handle F and F' moves separately since they have different transition behaviors
     if (baseMove === "F") {
       const isFPrime = suggestedMove.includes("'");
       const fromFace = trackingStateRef.current.clickedFace;
       const isFromSideFace = fromFace === "left" || fromFace === "right";
-
-      // Specific case for F' from side faces - don't apply any correction
-      if (isFPrime && isFromSideFace) {
-        // No correction needed for F' from side faces
-      }
-      // For all other F moves, invert the rotation
-      else {
+      if (!(isFPrime && isFromSideFace)) {
         currentRotation = -currentRotation;
       }
     }
-
-    // Face-specific fix for S moves
     if (baseMove === "S") {
-      // Always invert rotation for S moves
       currentRotation = -currentRotation;
     }
-
-    // Comprehensive fix for E moves from all faces
     if (baseMove === "E") {
-      // Always invert rotation for E moves, regardless of which face we're coming from
-      // This ensures consistent behavior for transitions
       currentRotation = -currentRotation;
     }
-
-    // Fix for M moves during transition
     if (baseMove === "M") {
       const fromFace = trackingStateRef.current.clickedFace;
       const isFromFrontBack = fromFace === "front" || fromFace === "back";
-
-      // For M moves from front/back faces, we NEED to invert the rotation for transition
-      // This is the opposite of what we do during dragging (where we don't invert)
       if (isFromFrontBack) {
-        // Invert rotation for proper transition from front/back faces
         currentRotation = -currentRotation;
       }
     }
-
-    // Universal fix for D and D' moves from any face and any swipe direction
     if (baseMove === "D") {
       currentRotation = -currentRotation;
     }
-
-    // Fix for B and B' moves from top and bottom faces
     if (baseMove === "B") {
       const fromFace = trackingStateRef.current.clickedFace;
       const isFromTopBottomFace = fromFace === "top" || fromFace === "bottom";
-
-      // Universal fix for B and B' moves from top/bottom faces
       if (isFromTopBottomFace) {
-        // Invert the rotation for proper transition from top/bottom faces
         currentRotation = -currentRotation;
       }
-      // For B moves from side faces, they already work correctly so we don't need to change anything
     }
 
+    // --- Flick logic: adjust snap based on velocity ---
     const snapIncrement = Math.PI / 2; // 90 degrees
-    const snappedRotation =
-      Math.round(currentRotation / snapIncrement) * snapIncrement;
+    let snapTarget = currentRotation;
+    const velocity = trackingStateRef.current.dragVelocity || 0;
+    const velocityThreshold = 600; // px/sec, tune as needed
+    const maxCarry = 1.0; // max extra fraction of a turn to carry
+
+    // If velocity is above threshold, bias the snap in the drag direction
+    if (Math.abs(velocity) > velocityThreshold) {
+      // Carry the rotation further in the direction of the flick
+      const carry = Math.sign(currentRotation) * Math.min(Math.abs(velocity) / 1200, maxCarry) * snapIncrement;
+      snapTarget += carry;
+    }
+
+    // Snap to the nearest slot (with flick carry if velocity is high)
+    const snappedRotation = Math.round(snapTarget / snapIncrement) * snapIncrement;
 
     // Determine the final move based on snapped rotation
     let finalMove = "";
     const rotationSteps = Math.round(snappedRotation / snapIncrement);
-
-    // Handle multiple rotations (allow negative and positive values)
     const normalizedSteps = rotationSteps % 4;
     const absSteps = Math.abs(normalizedSteps);
 
-    // Keep the original suggested move in most cases to maintain visual/logical consistency
     if (absSteps === 0) {
-      finalMove = ""; // No move
+      finalMove = "";
     } else if (absSteps === 1) {
       finalMove = suggestedMove;
     } else if (absSteps === 2) {
-      finalMove = baseMove + "2"; // Double move
+      finalMove = baseMove + "2";
     } else if (absSteps === 3) {
-      // 3 steps = 1 step in opposite direction
       if (suggestedMove.includes("'")) {
         finalMove = baseMove;
       } else {
@@ -1158,28 +1112,22 @@ const RubiksCube3D = ({
 
     finalMove = swapMoveIfBottomClicked(finalMove, trackingStateRef);
 
-    // If no rotation happened, animate back to original position
     if (absSteps === 0) {
-      // Create smooth transition back to zero rotation
       trackingStateRef.current.isDragging = false;
       trackingStateRef.current.isSnapping = true;
       trackingStateRef.current.snapAnimationStartTime = Date.now();
-      trackingStateRef.current.snapAnimationDuration = 150; // Shorter duration for return animation
-      trackingStateRef.current.snapStartRotation =
-        trackingStateRef.current.currentRotation;
+      trackingStateRef.current.snapAnimationDuration = 150;
+      trackingStateRef.current.snapStartRotation = trackingStateRef.current.currentRotation;
       trackingStateRef.current.snapTargetRotation = 0;
       trackingStateRef.current.finalMove = "";
-
       return;
     }
 
-    // Create smooth transition from current rotation to snapped rotation
     trackingStateRef.current.isDragging = false;
     trackingStateRef.current.isSnapping = true;
     trackingStateRef.current.snapAnimationStartTime = Date.now();
-    trackingStateRef.current.snapAnimationDuration = 200; // 200ms for the animation
-    trackingStateRef.current.snapStartRotation =
-      trackingStateRef.current.currentRotation;
+    trackingStateRef.current.snapAnimationDuration = 200;
+    trackingStateRef.current.snapStartRotation = trackingStateRef.current.currentRotation;
     trackingStateRef.current.snapTargetRotation = snappedRotation;
     trackingStateRef.current.finalMove = finalMove as CubeMove;
   };
