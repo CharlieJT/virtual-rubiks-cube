@@ -1363,7 +1363,7 @@ const RubiksCube3D = ({
       const times = trackingStateRef.current.dragTimestamps;
       const positions = trackingStateRef.current.dragPositions;
       if (times.length >= 2 && positions.length >= 2) {
-        const dt = (times[times.length - 1] - times[0]) / 750; // seconds
+        const dt = (times[times.length - 1] - times[0]) / 800; // seconds
         const dp = positions[times.length - 1].clone().sub(positions[0]);
         const velocity = dt > 0 ? dp.length() / dt : 0; // px/sec
         trackingStateRef.current.dragVelocity = velocity;
