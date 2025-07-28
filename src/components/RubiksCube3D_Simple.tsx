@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import React from "react";
 import { useThree } from "@react-three/fiber";
-import { logFaceOrientation, cubeScreenAxes } from "../utils/cubeScreenAxes";
+import { cubeScreenAxes } from "../utils/cubeScreenAxes";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
@@ -329,13 +329,6 @@ const RubiksCube3D = ({
           rotation
         );
       }
-    }
-
-    // Only log orientation values while dragging
-    if (trackingStateRef.current.isDragging && groupRef.current) {
-      logFaceOrientation(new THREE.Vector3(0, 0, 1), groupRef.current, camera, {
-        domElement: gl.domElement,
-      });
     }
 
     // Update snapping animation if active
@@ -750,20 +743,6 @@ const RubiksCube3D = ({
     AnimationHelper.unlock();
   };
 
-  // Helper function to get opposite direction
-  const getOppositeDirection = (direction: SwipeDirection): SwipeDirection => {
-    switch (direction) {
-      case "up":
-        return "down";
-      case "down":
-        return "up";
-      case "left":
-        return "right";
-      case "right":
-        return "left";
-    }
-  };
-
   // Helper function to start drag animation
   const startDragAnimation = (
     suggestedMove: string,
@@ -939,7 +918,7 @@ const RubiksCube3D = ({
     }
 
     // Get the actual rotation direction from AnimationHelper
-    const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+    const [_, totalRotation] = AnimationHelper.getMoveAxisAndDir(
       suggestedMove as CubeMove
     );
     const expectedDirection = Math.sign(totalRotation);

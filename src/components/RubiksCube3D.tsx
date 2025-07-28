@@ -186,33 +186,6 @@ const RubiksCube3D = ({
   useFrame(() => {
     AnimationHelper.update();
 
-    // Log orientation values for the front face (0, 0, 1)
-    // You can change the normal to track other faces
-    // If you need to log face orientation, implement or import logFaceOrientation from a valid module.
-    // The following block is commented out due to missing module:
-    /*
-    if (groupRef.current) {
-      // Use the main group as the cube mesh
-      // You may need to adjust camera/renderer references as needed
-      const camera =
-        groupRef.current.parent && groupRef.current.parent.camera
-          ? groupRef.current.parent.camera
-          : null;
-      const renderer =
-        groupRef.current.parent && groupRef.current.parent.renderer
-          ? groupRef.current.parent.renderer
-          : null;
-      if (camera && renderer) {
-        logFaceOrientation(
-          new THREE.Vector3(0, 0, 1),
-          groupRef.current,
-          camera,
-          renderer
-        );
-      }
-    }
-    */
-
     if (dragStateRef.current.isActive && dragStateRef.current.dragGroup) {
       updateDragRotation();
     }

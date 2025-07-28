@@ -70,7 +70,7 @@ const App = () => {
       // Important: This must happen synchronously before the meshes are repositioned
       // to avoid color flickering
       setCube3D(cubejsTo3D(cubeRef.current.getCube()));
-      setIsScrambled(true);
+      // setIsScrambled(true);
     }
 
     // Reset animation state

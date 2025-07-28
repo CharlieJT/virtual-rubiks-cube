@@ -1,33 +1,5 @@
 import * as THREE from "three";
 
-export function logFaceOrientation(
-  faceNormal: THREE.Vector3,
-  group: THREE.Group,
-  camera: THREE.Camera,
-  opts?: { domElement?: HTMLElement }
-) {
-  // Example: log the orientation of a face normal in screen space
-  const worldPos = group.getWorldPosition(new THREE.Vector3());
-  const normalWorld = faceNormal.clone().applyQuaternion(group.quaternion);
-  const faceWorld = worldPos.clone().add(normalWorld);
-  const ndcWorld = faceWorld.clone().project(camera);
-  const ndcOrigin = worldPos.clone().project(camera);
-  const screenVec = new THREE.Vector2(
-    ndcWorld.x - ndcOrigin.x,
-    ndcWorld.y - ndcOrigin.y
-  );
-  // if (opts?.domElement) {
-  //   // Optionally log pixel coordinates
-  //   const width = opts.domElement.clientWidth;
-  //   const height = opts.domElement.clientHeight;
-  //   const px = ((ndcWorld.x + 1) / 2) * width;
-  //   const py = ((-ndcWorld.y + 1) / 2) * height;
-  //   console.log("Face normal screen px:", px, py, "screenVec:", screenVec);
-  // } else {
-  //   console.log("Face normal screenVec:", screenVec);
-  // }
-}
-
 export function cubeScreenAxes(group: THREE.Group, camera: THREE.Camera) {
   // Returns { x: Vector2, y: Vector2, z: Vector2 } in screen space
   const worldPos = group.getWorldPosition(new THREE.Vector3());
