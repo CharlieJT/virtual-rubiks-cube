@@ -1298,10 +1298,7 @@ const RubiksCube3D = ({
           const sign = dragScreen.dot(screenAxis) >= 0 ? 1 : -1;
           dragAmount = dragVector.length() * sign;
         }
-        // Smooth swap between move and opposite move
-        if (trackingStateRef.current._moveSwapped) {
-          dragAmount = -dragAmount;
-        }
+
         if (initialDir === "left" || initialDir === "right") {
           projectedVector.x = dragAmount;
           projectedVector.y = 0;
