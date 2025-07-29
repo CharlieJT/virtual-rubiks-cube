@@ -137,6 +137,7 @@ export interface TrackingStateRef {
   finalMove: CubeMove | "";
   _axisLock?: "vertical" | "horizontal";
   _initialDragDirection?: SwipeDirection;
+  _allowedMoves?: string[];
 }
 
 interface CubePieceProps {
@@ -1158,79 +1159,17 @@ const RubiksCube3D = ({
   const handlePointerMove = (e: PointerEvent) => {
     if (!trackingStateRef.current.isTracking) return;
 
-    // --- LOGGING: Drag gesture and move mapping ---
-    // Log drag start, direction, and mapping
-    if (!trackingStateRef.current.hasStartedDrag) {
-      const currentPos = new THREE.Vector2(e.clientX, e.clientY);
-      const dragVector = currentPos
-        .clone()
-        .sub(trackingStateRef.current.startPosition);
-      const dragDistance = dragVector.length();
-      if (dragDistance >= 2) {
-        const normalizedDrag = dragVector.clone().normalize();
-        let dragDirection: SwipeDirection = "up";
-        if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
-          dragDirection = normalizedDrag.x > 0 ? "right" : "left";
-        } else {
-          dragDirection = normalizedDrag.y > 0 ? "down" : "up";
-        }
-        const positionKey = trackingStateRef.current
-          .uniquePieceId as PositionMoveKey;
-        let moveDirection: SwipeDirection = dragDirection;
-        if (
-          trackingStateRef.current.clickedFace === "top" ||
-          trackingStateRef.current.clickedFace === "bottom"
-        ) {
-          // Use cubeScreenAxes to get front axis in screen space
-          if (groupRef.current && camera) {
-            const axes = cubeScreenAxes(groupRef.current, camera);
-            // Determine which direction the front axis points
-            let frontScreenDirection: SwipeDirection = "up";
-            if (Math.abs(axes.z.x) > Math.abs(axes.z.y)) {
-              frontScreenDirection = axes.z.x > 0 ? "right" : "left";
-            } else {
-              frontScreenDirection = axes.z.y > 0 ? "up" : "down";
-            }
-            const directions: SwipeDirection[] = [
-              "down",
-              "left",
-              "up",
-              "right",
-            ];
-            const dragIdx = directions.indexOf(dragDirection);
-            const frontIdx = directions.indexOf(frontScreenDirection);
-            const relativeIdx = (dragIdx - frontIdx + 4) % 4;
-            moveDirection = directions[relativeIdx];
-          }
-        }
-        const suggestedMove =
-          POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
-        console.log(
-          "[Drag] Piece:",
-          positionKey,
-          "Face:",
-          trackingStateRef.current.clickedFace,
-          "Drag direction:",
-          dragDirection,
-          "Mapped direction:",
-          moveDirection,
-          "Suggested move:",
-          suggestedMove
-        );
-      }
-    }
-
+    // --- Flexible drag direction logic ---
     const currentPos = new THREE.Vector2(e.clientX, e.clientY);
     trackingStateRef.current.currentPosition = currentPos;
 
-    // --- Flick gesture: record drag positions and timestamps ---
+    // Flick gesture: record drag positions and timestamps
     if (
       trackingStateRef.current.dragTimestamps &&
       trackingStateRef.current.dragPositions
     ) {
       trackingStateRef.current.dragTimestamps.push(Date.now());
       trackingStateRef.current.dragPositions.push(currentPos.clone());
-      // Keep only the last 5 points for velocity calculation
       if (trackingStateRef.current.dragTimestamps.length > 5) {
         trackingStateRef.current.dragTimestamps.shift();
         trackingStateRef.current.dragPositions.shift();
@@ -1241,57 +1180,88 @@ const RubiksCube3D = ({
       .clone()
       .sub(trackingStateRef.current.startPosition);
     const dragDistance = dragVector.length();
-
-    // Only process if we've moved at least 2px
-    if (dragDistance >= 2) {
+    if (dragDistance >= 1) {
       const normalizedDrag = dragVector.clone().normalize();
-      const directions: SwipeDirection[] = ["down", "left", "up", "right"];
+      let dragDirection: SwipeDirection = "up";
+      if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
+        dragDirection = normalizedDrag.x > 0 ? "right" : "left";
+      } else {
+        dragDirection = normalizedDrag.y > 0 ? "down" : "up";
+      }
 
-      // If drag has not started, determine move direction and lock initial drag direction
-      if (!trackingStateRef.current.hasStartedDrag) {
-        // Determine swipe direction in screen space
-        let dragDirection: SwipeDirection = "up";
-        if (Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y)) {
-          dragDirection = normalizedDrag.x > 0 ? "right" : "left";
-        } else {
-          dragDirection = normalizedDrag.y > 0 ? "down" : "up";
-        }
-
-        // Only remap drag direction for top & bottom faces
-        let moveDirection: SwipeDirection = dragDirection;
-        if (
-          trackingStateRef.current.clickedFace === "top" ||
-          trackingStateRef.current.clickedFace === "bottom"
-        ) {
-          // Use cubeScreenAxes to get front axis in screen space
-          if (groupRef.current && camera) {
-            const axes = cubeScreenAxes(groupRef.current, camera);
-            let frontScreenDirection: SwipeDirection = "up";
-            if (Math.abs(axes.z.x) > Math.abs(axes.z.y)) {
-              frontScreenDirection = axes.z.x > 0 ? "right" : "left";
-            } else {
-              frontScreenDirection = axes.z.y > 0 ? "up" : "down";
-            }
-            const dragIdx = directions.indexOf(dragDirection);
-            const frontIdx = directions.indexOf(frontScreenDirection);
-            const relativeIdx = (dragIdx - frontIdx + 4) % 4;
-            moveDirection = directions[relativeIdx];
+      // Only remap drag direction for top & bottom faces
+      let moveDirection: SwipeDirection = dragDirection;
+      if (
+        trackingStateRef.current.clickedFace === "top" ||
+        trackingStateRef.current.clickedFace === "bottom"
+      ) {
+        if (groupRef.current && camera) {
+          const axes = cubeScreenAxes(groupRef.current, camera);
+          let frontScreenDirection: SwipeDirection = "up";
+          if (Math.abs(axes.z.x) > Math.abs(axes.z.y)) {
+            frontScreenDirection = axes.z.x > 0 ? "right" : "left";
+          } else {
+            frontScreenDirection = axes.z.y > 0 ? "up" : "down";
           }
+          const directions: SwipeDirection[] = ["down", "left", "up", "right"];
+          const dragIdx = directions.indexOf(dragDirection);
+          const frontIdx = directions.indexOf(frontScreenDirection);
+          const relativeIdx = (dragIdx - frontIdx + 4) % 4;
+          moveDirection = directions[relativeIdx];
         }
+      }
 
-        // Get the suggested move from our mapping using the moveDirection
-        const positionKey = trackingStateRef.current
-          .uniquePieceId as PositionMoveKey;
-        const suggestedMove =
-          POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
+      // Get the suggested move from our mapping using the moveDirection
+      const positionKey = trackingStateRef.current
+        .uniquePieceId as PositionMoveKey;
+      const suggestedMove = POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
 
-        // Lock initial drag direction for all faces
+      // Only allow original move and its opposite during drag
+      if (!trackingStateRef.current.hasStartedDrag) {
+        // Start drag animation with initial move
         trackingStateRef.current._initialDragDirection = dragDirection;
-
-        // Start drag animation if not already started
+        trackingStateRef.current._allowedMoves = [];
         if (suggestedMove) {
+          // Determine the opposite move
+          let oppositeMove = "";
+          if (suggestedMove.endsWith("'")) {
+            oppositeMove = suggestedMove.replace("'", "");
+          } else {
+            oppositeMove = suggestedMove + "'";
+          }
+          trackingStateRef.current._allowedMoves = [
+            suggestedMove,
+            oppositeMove,
+          ];
           startDragAnimation(suggestedMove, moveDirection);
         }
+      } else {
+        // Only allow swapping between original and opposite move
+        if (
+          suggestedMove &&
+          trackingStateRef.current._allowedMoves?.includes(suggestedMove)
+        ) {
+          if (suggestedMove !== trackingStateRef.current.lockedMoveType) {
+            trackingStateRef.current.lockedMoveType = suggestedMove;
+            trackingStateRef.current.lockedDirection = moveDirection;
+            const moveType = suggestedMove.replace(/['2]/g, "");
+            trackingStateRef.current.affectedCubies =
+              getAffectedCubiesForMove(moveType);
+            const [axis] = AnimationHelper.getMoveAxisAndDir(
+              suggestedMove as CubeMove
+            );
+            trackingStateRef.current.rotationAxis = axis.clone();
+            // Reset drag start position to current position for smooth swap
+            trackingStateRef.current.startPosition =
+              trackingStateRef.current.currentPosition.clone();
+            // Also reset drag timestamps/positions for velocity calculation
+            trackingStateRef.current.dragTimestamps = [Date.now()];
+            trackingStateRef.current.dragPositions = [
+              trackingStateRef.current.currentPosition.clone(),
+            ];
+          }
+        }
+        // Ignore any other move directions during drag
       }
 
       // Update drag rotation if we're dragging
@@ -1305,9 +1275,6 @@ const RubiksCube3D = ({
         } else {
           dragAmount = dragVector.y;
         }
-
-        // Improved: drag direction should always match user's gesture, regardless of orientation
-        // Project drag vector onto the projected axis direction in screen space
         if (groupRef.current && camera && gl) {
           let axisVec =
             initialDir === "left" || initialDir === "right"
@@ -1328,12 +1295,13 @@ const RubiksCube3D = ({
             dragVector.x,
             dragVector.y
           ).normalize();
-          // The sign is determined by the dot product
           const sign = dragScreen.dot(screenAxis) >= 0 ? 1 : -1;
           dragAmount = dragVector.length() * sign;
         }
-
-        // Create a vector with only the relevant axis
+        // Smooth swap between move and opposite move
+        if (trackingStateRef.current._moveSwapped) {
+          dragAmount = -dragAmount;
+        }
         if (initialDir === "left" || initialDir === "right") {
           projectedVector.x = dragAmount;
           projectedVector.y = 0;
