@@ -1,28 +1,12 @@
+import type { RefObject } from "react";
 import type { TrackingStateRef } from "../components/RubiksCube3D_Simple";
 
 const swapMoveIfBottomClicked = (
   finalMove: string,
-  trackingStateRef: React.RefObject<TrackingStateRef>
+  trackingStateRef: RefObject<TrackingStateRef>
 ) => {
-  const moveOpposites: Record<string, string> = {
-    L: "L'",
-    "L'": "L",
-    R: "R'",
-    "R'": "R",
-    F: "F'",
-    "F'": "F",
-    B: "B'",
-    "B'": "B",
-    S: "S'",
-    "S'": "S",
-    M: "M'",
-    "M'": "M",
-  };
-
-  if (trackingStateRef.current.clickedFace === "bottom") {
-    return moveOpposites[finalMove] || finalMove;
-  }
-
+  // With the new drag-sign parity logic, we no longer need to flip moves
+  // for bottom-face interactions. Return the move unchanged.
   return finalMove;
 };
 
