@@ -928,7 +928,7 @@ const RubiksCube3D = ({
   const updateDragRotation = (dragVector: THREE.Vector2) => {
     if (!trackingStateRef.current.isDragging) return;
 
-    const sensitivity = 0.004;
+    const sensitivity = 0.006;
 
     // Signed projection onto locked axis
     const axisLock = trackingStateRef.current._axisLock;
