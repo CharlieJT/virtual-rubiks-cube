@@ -6,7 +6,6 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
-import swapMoveIfBottomClicked from "../utils/swapMoveIfBottomClicked";
 import { RoundedBoxGeometry } from "three-stdlib";
 
 // Position-based move mapping - static mapping for each piece position + face + swipe direction
@@ -1280,8 +1279,6 @@ const RubiksCube3D = ({
       const k = Math.round((currentRotation - baseTarget) / twoPi);
       targetAngle = baseTarget + k * twoPi;
     }
-
-    finalMove = swapMoveIfBottomClicked(finalMove, trackingStateRef);
 
     trackingStateRef.current.isDragging = false;
     trackingStateRef.current.isSnapping = true;
