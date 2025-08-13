@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import React from "react";
 import { useThree } from "@react-three/fiber";
 // Removed unused cubeScreenAxes import
@@ -7,6 +7,63 @@ import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
 import { RoundedBoxGeometry } from "three-stdlib";
+import { getWhiteLogoDeltaByBucketDeg } from "../utils/whiteCenterOrientationMap";
+
+// Enable cache so TextureLoader reuses the same image
+THREE.Cache.enabled = true;
+
+// Centralized drag sensitivity (radians per pixel)
+const DRAG_SENSITIVITY = 0.006;
+
+// Optional per-face orientation deltas when a slice move (M/E/S) does NOT move the white center to a new face.
+// Angles are in radians; positive = CCW in that face's UV frame. Adjust as desired.
+// The sample below targets the top face to satisfy: M, E, S' => +90; M, E', S => -90; M, E2, S => 180.
+// Rationale:
+// - Assign S': +90 and S: -90 on top; M/E/E' default to 0; E2: 180 for top.
+// - This way those three sequences produce the expected totals while leaving single M/E/S mostly neutral.
+const SAME_FACE_DELTA: Partial<
+  Record<
+    keyof import("../types/cube").CubeState["colors"],
+    Partial<Record<string, number>>
+  >
+> = {
+  top: {
+    S: -Math.PI / 2,
+    "S'": Math.PI / 2,
+    S2: Math.PI, // optional; can be set to 0 if undesired
+    E2: Math.PI,
+    // M/E/E' default to 0 when not specified
+  },
+  // Other faces default to no-op; add entries here if you want specific slice behavior while staying on the same face.
+};
+
+// Extra via-path deltas for transitions where the white center changes faces during a slice move.
+// Keyed by from face -> to face -> via move (e.g., "M", "M'", "M2", "S2").
+// Example: differentiate top->bottom via M2 vs via S2.
+export const VIA_TRANSITION_DELTA: Partial<
+  Record<
+    keyof import("../types/cube").CubeState["colors"],
+    Partial<
+      Record<
+        keyof import("../types/cube").CubeState["colors"],
+        Partial<Record<string, number>>
+      >
+    >
+  >
+> = {
+  top: {
+    bottom: {
+      M2: 0, // keep baseline for M2 path
+      S2: Math.PI, // make S2 path distinct (180° difference)
+    },
+  },
+  bottom: {
+    top: {
+      M2: 0,
+      S2: Math.PI,
+    },
+  },
+};
 
 // Position-based move mapping - static mapping for each piece position + face + swipe direction
 const POSITION_MOVE_MAPPING = {
@@ -145,6 +202,8 @@ export interface TrackingStateRef {
   _expectedBaseSign?: number;
   // Parity to fix sign per face/axis
   _dragSignParity?: number;
+  // Guard: ensure snap completion runs once
+  _snapCompleted?: boolean;
 }
 
 interface CubePieceProps {
@@ -176,7 +235,8 @@ const CubePiece = React.memo(
     onPointerDown,
     onMeshReady,
     onPointerMove,
-  }: CubePieceProps) => {
+    whiteLogoAngleRad = 0,
+  }: CubePieceProps & { whiteLogoAngleRad?: number }) => {
     const meshRef = useRef<THREE.Mesh>(null);
 
     useEffect(() => {
@@ -190,14 +250,93 @@ const CubePiece = React.memo(
       }
     }, [position, onMeshReady]);
 
-    const materials = useMemo(() => {
+    // Load the Tipton's solver texture once
+    const tiptonsTexture = useMemo(() => {
+      const loader = new THREE.TextureLoader();
+      const tex = loader.load("/assets/tiptons-solver.png");
+      // Improve sampling and color space
+      // @ts-ignore - colorSpace exists on newer three versions
+      tex.colorSpace =
+        (THREE as any).SRGBColorSpace || (THREE as any).sRGBEncoding;
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.center.set(0.5, 0.5); // allow easy rotation tweaks later if needed
+      return tex;
+    }, []);
+
+    // Helper to normalize and check white color
+    const isWhite = (c: string) => {
+      if (!c) return false;
+      let s = c.toLowerCase();
+      if (s[0] === "#" && s.length === 4) {
+        s = `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+      }
+      return s === "#ffffff" || s === "white";
+    };
+
+    // Determine if this cubie is a center piece (exactly two grid coordinates are the middle index=1)
+    const [gx, gy, gz] = useMemo(() => {
+      const [x, y, z] = position;
       return [
-        new THREE.MeshPhongMaterial({ color: colors.right }),
-        new THREE.MeshPhongMaterial({ color: colors.left }),
-        new THREE.MeshPhongMaterial({ color: colors.top }),
-        new THREE.MeshPhongMaterial({ color: colors.bottom }),
-        new THREE.MeshPhongMaterial({ color: colors.front }),
-        new THREE.MeshPhongMaterial({ color: colors.back }),
+        Math.round(x / 1.05 + 1),
+        Math.round(y / 1.05 + 1),
+        Math.round(z / 1.05 + 1),
+      ];
+    }, [position]);
+    const isCenter =
+      (gx === 1 ? 1 : 0) + (gy === 1 ? 1 : 0) + (gz === 1 ? 1 : 0) === 2;
+
+    const materials = useMemo(() => {
+      // Apply the logo texture only on the white center face
+      const rightIsLogo = isCenter && isWhite(colors.right);
+      const leftIsLogo = isCenter && isWhite(colors.left);
+      const topIsLogo = isCenter && isWhite(colors.top);
+      const bottomIsLogo = isCenter && isWhite(colors.bottom);
+      const frontIsLogo = isCenter && isWhite(colors.front);
+      const backIsLogo = isCenter && isWhite(colors.back);
+
+      // Determine which single face shows the logo for this cubie
+      let logoFace: keyof typeof colors | null = null;
+      if (rightIsLogo) logoFace = "right";
+      else if (leftIsLogo) logoFace = "left";
+      else if (topIsLogo) logoFace = "top";
+      else if (bottomIsLogo) logoFace = "bottom";
+      else if (frontIsLogo) logoFace = "front";
+      else if (backIsLogo) logoFace = "back";
+
+      // Create a per-use cloned texture so rotation doesn't accumulate or affect others
+      let logoTex: THREE.Texture | null = null;
+      if (logoFace) {
+        logoTex = tiptonsTexture.clone();
+        logoTex.rotation = whiteLogoAngleRad; // rotate image only, no change to cube rotations
+        logoTex.needsUpdate = true;
+      }
+
+      return [
+        new THREE.MeshPhongMaterial({
+          color: colors.right,
+          map: logoFace === "right" ? logoTex : null,
+        }),
+        new THREE.MeshPhongMaterial({
+          color: colors.left,
+          map: logoFace === "left" ? logoTex : null,
+        }),
+        new THREE.MeshPhongMaterial({
+          color: colors.top,
+          map: logoFace === "top" ? logoTex : null,
+        }),
+        new THREE.MeshPhongMaterial({
+          color: colors.bottom,
+          map: logoFace === "bottom" ? logoTex : null,
+        }),
+        new THREE.MeshPhongMaterial({
+          color: colors.front,
+          map: logoFace === "front" ? logoTex : null,
+        }),
+        new THREE.MeshPhongMaterial({
+          color: colors.back,
+          map: logoFace === "back" ? logoTex : null,
+        }),
       ];
     }, [
       colors.right,
@@ -206,6 +345,9 @@ const CubePiece = React.memo(
       colors.bottom,
       colors.front,
       colors.back,
+      isCenter,
+      tiptonsTexture,
+      whiteLogoAngleRad,
     ]);
 
     const EDGE_GEOMETRIES = [
@@ -291,6 +433,400 @@ const RubiksCube3D = ({
     hasLockedDirection: false,
   });
 
+  // Track white logo rotation (in radians). Positive values rotate CCW in texture space.
+  const [whiteLogoAngle, setWhiteLogoAngle] = useState<number>(0);
+  const lastAppliedMoveRef = useRef<{ move: string; t: number } | null>(null);
+  // Track the white center's logo orientation as a quaternion in cube-local space
+  const whiteQuatRef = useRef<THREE.Quaternion>(new THREE.Quaternion());
+  // Track the previous face holding the white center (pre-move)
+  const prevWhiteFaceRef = useRef<keyof CubeState["colors"] | null>(null);
+  // Keep a ref of the last displayed angle to accumulate face-turn deltas without projection jump
+  const displayedAngleRef = useRef<number>(0);
+
+  // Helper to normalize and check white color (duplicate of child helper, kept here for state derivation)
+  const isWhiteColor = useCallback((c: string) => {
+    if (!c) return false;
+    let s = c.toLowerCase();
+    if (s[0] === "#" && s.length === 4) {
+      s = `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+    }
+    return s === "#ffffff" || s === "white";
+  }, []);
+
+  // Determine which face currently has the white center
+  const getWhiteCenterFaceFromState = useCallback(():
+    | keyof CubeState["colors"]
+    | null => {
+    // Indices: 0..2. Visible faces for centers: right(2,1,1), left(0,1,1), top(1,2,1), bottom(1,0,1), front(1,1,2), back(1,1,0)
+    const candidates: Array<{
+      idx: [number, number, number];
+      face: keyof CubeState["colors"];
+    }> = [
+      { idx: [2, 1, 1], face: "right" },
+      { idx: [0, 1, 1], face: "left" },
+      { idx: [1, 2, 1], face: "top" },
+      { idx: [1, 0, 1], face: "bottom" },
+      { idx: [1, 1, 2], face: "front" },
+      { idx: [1, 1, 0], face: "back" },
+    ];
+    for (const c of candidates) {
+      const cubie = cubeState[c.idx[0]]?.[c.idx[1]]?.[c.idx[2]];
+      if (cubie && isWhiteColor(cubie.colors[c.face])) return c.face;
+    }
+    return null;
+  }, [cubeState, isWhiteColor]);
+
+  // (removed unused moveToFaceKey)
+
+  // (removed old whiteFaceToCoords helper; no longer needed with rule-based rotation)
+
+  // Canonical face basis used to compute in-plane texture angle (must match UV orientation)
+  const getLogoFaceBasis = (
+    face: keyof CubeState["colors"]
+  ): { normal: THREE.Vector3; up: THREE.Vector3; right: THREE.Vector3 } => {
+    const normal =
+      face === "front"
+        ? new THREE.Vector3(0, 0, 1)
+        : face === "back"
+        ? new THREE.Vector3(0, 0, -1)
+        : face === "right"
+        ? new THREE.Vector3(1, 0, 0)
+        : face === "left"
+        ? new THREE.Vector3(-1, 0, 0)
+        : face === "top"
+        ? new THREE.Vector3(0, 1, 0)
+        : new THREE.Vector3(0, -1, 0);
+
+    let up: THREE.Vector3;
+    let right: THREE.Vector3;
+    switch (face) {
+      case "front":
+        up = new THREE.Vector3(0, 1, 0);
+        right = new THREE.Vector3(-1, 0, 0);
+        break;
+      case "back":
+        up = new THREE.Vector3(0, 1, 0);
+        right = new THREE.Vector3(1, 0, 0);
+        break;
+      case "right":
+        up = new THREE.Vector3(0, 1, 0);
+        right = new THREE.Vector3(0, 0, 1);
+        break;
+      case "left":
+        up = new THREE.Vector3(0, 1, 0);
+        right = new THREE.Vector3(0, 0, -1);
+        break;
+      case "top":
+        up = new THREE.Vector3(0, 0, 1);
+        right = new THREE.Vector3(1, 0, 0);
+        break;
+      case "bottom":
+        up = new THREE.Vector3(0, 0, -1);
+        right = new THREE.Vector3(1, 0, 0);
+        break;
+    }
+    return { normal, up, right };
+  };
+
+  // Helper: pick the nearest canonical face for a given direction vector
+  const getNearestFaceFromVector = (
+    v: THREE.Vector3
+  ): keyof CubeState["colors"] => {
+    const faces: Array<keyof CubeState["colors"]> = [
+      "front",
+      "back",
+      "right",
+      "left",
+      "top",
+      "bottom",
+    ];
+    let bestFace: keyof CubeState["colors"] = "front";
+    let bestDot = -Infinity;
+    for (const f of faces) {
+      const n = getLogoFaceBasis(f).normal;
+      const d = v.dot(n);
+      if (d > bestDot) {
+        bestDot = d;
+        bestFace = f;
+      }
+    }
+    return bestFace;
+  };
+
+  // Discrete transfer of 0/90/180/270 angle buckets from one face frame to another.
+  // prevAngleRad must be a multiple of 90 degrees.
+  const transferAngleBetweenFaces = (
+    from: keyof CubeState["colors"],
+    to: keyof CubeState["colors"],
+    prevAngleRad: number
+  ): number => {
+    // Map prevAngle bucket to a direction vector v expressed in cube local axes
+    const { up: upF, right: rightF } = getLogoFaceBasis(from);
+    const quarter = Math.PI / 2;
+    const k = Math.round(prevAngleRad / quarter) % 4; // -2..2 -> clamp to 0..3
+    const kk = ((k % 4) + 4) % 4;
+    let v = new THREE.Vector3();
+    switch (kk) {
+      case 0: // 0° => up
+        v = upF.clone();
+        break;
+      case 1: // +90° (CCW) => left = -right
+        v = rightF.clone().multiplyScalar(-1);
+        break;
+      case 2: // 180° => -up
+        v = upF.clone().multiplyScalar(-1);
+        break;
+      case 3: // 270° => right
+        v = rightF.clone();
+        break;
+    }
+    // Determine which of to-face's cardinal directions best matches v
+    const { up: upT, right: rightT } = getLogoFaceBasis(to);
+    const candidates = [
+      { angle: 0, dir: upT.clone() },
+      { angle: quarter, dir: rightT.clone().multiplyScalar(-1) }, // left
+      { angle: Math.PI, dir: upT.clone().multiplyScalar(-1) },
+      { angle: -quarter, dir: rightT.clone() }, // 270° == -90°
+    ];
+    let best = candidates[0].angle;
+    let bestDot = -Infinity;
+    for (const c of candidates) {
+      const d = v.dot(c.dir);
+      if (d > bestDot) {
+        bestDot = d;
+        best = c.angle;
+      }
+    }
+    // Normalize to [-π, π]
+    const twoPi = Math.PI * 2;
+    let n = best % twoPi;
+    if (n > Math.PI) n -= twoPi;
+    if (n < -Math.PI) n += twoPi;
+    return n;
+  };
+
+  // Initialize prev face and quaternion once
+  useEffect(() => {
+    if (prevWhiteFaceRef.current == null) {
+      const face = getWhiteCenterFaceFromState();
+      if (face) {
+        prevWhiteFaceRef.current = face;
+        whiteQuatRef.current.identity();
+        setWhiteLogoAngle(0);
+        displayedAngleRef.current = 0;
+      }
+    }
+  }, [getWhiteCenterFaceFromState]);
+
+  // Update white logo angle based on a completed move (quaternion-based, consistent with animation)
+  const applyMoveToWhiteLogoAngle = useCallback(
+    (move: CubeMove) => {
+      const moveStr = (move as string).toUpperCase();
+      const now = Date.now();
+      // Guard: avoid double-apply if the exact same move fires twice within 200ms
+      if (
+        lastAppliedMoveRef.current &&
+        lastAppliedMoveRef.current.move === moveStr &&
+        now - lastAppliedMoveRef.current.t < 200
+      ) {
+        return;
+      }
+      lastAppliedMoveRef.current = { move: moveStr, t: now };
+      // Determine rotation according to explicit rule:
+      // - If rotating the current white face (U/D/L/R/F/B), rotate the logo 90° CW for non-prime, CCW for prime, 180° for "2".
+      // - For slice moves (M/E/S), preserve orientation (no rotation), just re-project after the move.
+      // - Whole-cube rotations (X/Y/Z) rotate orientation normally.
+      // Use the current white face from state (post-logical-move) to avoid race conditions
+      const currentWhiteFace = getWhiteCenterFaceFromState();
+      const base = moveStr[0];
+      const isPrime = moveStr.includes("'");
+      const isDouble = moveStr.includes("2");
+      const isWhole = base === "X" || base === "Y" || base === "Z";
+      const isSliceMove = base === "M" || base === "E" || base === "S";
+
+      // Map base face letter to face key used in state/colors
+      const baseToFaceKey: Record<string, keyof CubeState["colors"]> = {
+        R: "right",
+        L: "left",
+        U: "top",
+        D: "bottom",
+        F: "front",
+        B: "back",
+      } as const;
+
+      if (isWhole) {
+        const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+          moveStr as CubeMove
+        );
+        const q = new THREE.Quaternion().setFromAxisAngle(axis, totalRotation);
+        whiteQuatRef.current.multiply(q);
+      } else if (currentWhiteFace && baseToFaceKey[base]) {
+        // Face turn; apply only if rotating the (current) white face
+        const rotatingFace = baseToFaceKey[base];
+        if (rotatingFace === currentWhiteFace) {
+          // Our texture angle convention: positive is CCW in face UV space.
+          // "clockwise for non-prime" => delta = -90° for non-prime; +90° for prime; 180° for double.
+          const delta = isDouble
+            ? Math.PI
+            : isPrime
+            ? Math.PI / 2
+            : -Math.PI / 2;
+          const faceNormal = getLogoFaceBasis(currentWhiteFace).normal;
+          const q = new THREE.Quaternion().setFromAxisAngle(faceNormal, delta);
+          whiteQuatRef.current.multiply(q);
+          // Accumulate displayed angle from freshest state to avoid stale value on first twist
+          const twoPi = Math.PI * 2;
+          const normalizeAngle = (a: number) => {
+            let n = a % twoPi;
+            if (n > Math.PI) n -= twoPi;
+            if (n < -Math.PI) n += twoPi;
+            return n;
+          };
+          setWhiteLogoAngle((prev) => {
+            const next = normalizeAngle((prev || 0) + delta);
+            displayedAngleRef.current = next;
+            return next;
+          });
+          // Update prev face (doesn't change for a white-face turn)
+          if (currentWhiteFace) prevWhiteFaceRef.current = currentWhiteFace;
+          return; // We've already set the angle; skip projection below
+        }
+        // If rotating some other face, do nothing to the logo orientation.
+      }
+
+      // Slice moves: don't rotate orientation here; we'll transfer angle discretely and align quaternion below.
+
+      // Compute angle relative to current (post-move) white face
+      const whiteFaceAfter = getWhiteCenterFaceFromState();
+      if (whiteFaceAfter || (isSliceMove && prevWhiteFaceRef.current)) {
+        const quarter = Math.PI / 2;
+        // Resolve the target face for mapping:
+        // - Prefer computed face for slices (rotate previous face normal by move axis)
+        // - Otherwise, use state-derived face
+        let resolvedAfter: keyof CubeState["colors"] | null = whiteFaceAfter;
+        if (isSliceMove && prevWhiteFaceRef.current) {
+          const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+            moveStr as CubeMove
+          );
+          const q = new THREE.Quaternion().setFromAxisAngle(
+            axis,
+            totalRotation
+          );
+          const prevN = getLogoFaceBasis(prevWhiteFaceRef.current).normal;
+          const rotatedN = prevN.clone().applyQuaternion(q).normalize();
+          resolvedAfter = getNearestFaceFromVector(rotatedN);
+        }
+        if (!resolvedAfter) return;
+
+        const {
+          normal: faceN,
+          up: faceUp,
+          right: faceRight,
+        } = getLogoFaceBasis(resolvedAfter);
+        let thetaDesired: number | null = null;
+        if (isSliceMove && prevWhiteFaceRef.current) {
+          // Discrete transfer for slices to avoid unwanted flips
+          thetaDesired = transferAngleBetweenFaces(
+            prevWhiteFaceRef.current,
+            resolvedAfter,
+            displayedAngleRef.current || 0
+          );
+          // Apply user-refinable mapping delta on top using the PRE-MOVE bucket on the FROM face
+          {
+            const quarter = Math.PI / 2;
+            const k = Math.round((displayedAngleRef.current || 0) / quarter);
+            const bucketDeg = ((((k % 4) + 4) % 4) * 90) as 0 | 90 | 180 | 270;
+            thetaDesired += getWhiteLogoDeltaByBucketDeg(
+              prevWhiteFaceRef.current,
+              resolvedAfter,
+              bucketDeg
+            );
+          }
+          // If the white center stayed on the same face, apply any configured SAME_FACE_DELTA for this move.
+          const stayedOnSameFace = prevWhiteFaceRef.current === resolvedAfter;
+          if (stayedOnSameFace) {
+            const faceRules = SAME_FACE_DELTA[resolvedAfter];
+            const moveKey = moveStr.includes("2")
+              ? `${base}2`
+              : moveStr.includes("'")
+              ? `${base}'`
+              : base;
+            const extra = faceRules?.[moveKey] || 0;
+            if (extra) {
+              thetaDesired = ((thetaDesired || 0) + extra) as number;
+            }
+          } else {
+            // If face changed, consider VIA_TRANSITION_DELTA overrides
+            const from = prevWhiteFaceRef.current;
+            const to = resolvedAfter;
+            const viaKey = moveStr.includes("2")
+              ? `${base}2`
+              : moveStr.includes("'")
+              ? `${base}'`
+              : base;
+            const viaExtra = VIA_TRANSITION_DELTA[from]?.[to]?.[viaKey] || 0;
+            if (viaExtra) {
+              thetaDesired = ((thetaDesired || 0) + viaExtra) as number;
+            }
+          }
+          // Compute current projected angle and align quaternion to desired bucket
+          const logoUp0 = faceUp.clone();
+          const logoUpNow = logoUp0
+            .applyQuaternion(whiteQuatRef.current)
+            .normalize();
+          const upProj = logoUpNow
+            .clone()
+            .sub(faceN.clone().multiplyScalar(logoUpNow.dot(faceN)))
+            .normalize();
+          const x = upProj.dot(faceRight);
+          const y = upProj.dot(faceUp);
+          let thetaProj = Math.atan2(x, y);
+          thetaProj = Math.round(thetaProj / quarter) * quarter; // snap to 90°
+          // Smallest correction around face normal to realize thetaDesired
+          const twoPi = Math.PI * 2;
+          const normalize = (a: number) => {
+            let m = a % twoPi;
+            if (m > Math.PI) m -= twoPi;
+            if (m < -Math.PI) m += twoPi;
+            return m;
+          };
+          const delta = normalize(thetaDesired - thetaProj);
+          if (Math.abs(delta) > 1e-6) {
+            const qFix = new THREE.Quaternion().setFromAxisAngle(faceN, delta);
+            whiteQuatRef.current.multiply(qFix);
+          }
+        }
+
+        // Final angle to display: desired (for slice) or projected from quaternion
+        let theta: number;
+        if (thetaDesired != null) {
+          theta = thetaDesired;
+        } else {
+          const logoUp0 = faceUp.clone();
+          const logoUpNow = logoUp0
+            .applyQuaternion(whiteQuatRef.current)
+            .normalize();
+          const upProj = logoUpNow
+            .clone()
+            .sub(faceN.clone().multiplyScalar(logoUpNow.dot(faceN)))
+            .normalize();
+          const x = upProj.dot(faceRight);
+          const y = upProj.dot(faceUp);
+          theta = Math.atan2(x, y);
+          theta = Math.round(theta / quarter) * quarter; // snap to 90°
+        }
+        const twoPi = Math.PI * 2;
+        let n = theta % twoPi;
+        if (n > Math.PI) n -= twoPi;
+        if (n < -Math.PI) n += twoPi;
+        setWhiteLogoAngle(n);
+        displayedAngleRef.current = n;
+        prevWhiteFaceRef.current = resolvedAfter;
+      }
+    },
+    [getWhiteCenterFaceFromState]
+  );
+
   // Pending move animation effect
   useEffect(() => {
     if (
@@ -308,14 +844,21 @@ const RubiksCube3D = ({
         groupRef.current,
         pendingMove,
         () => {
-          // Update logical state first
-          // The actual visual update will be synchronized in AnimationHelper
+          // Update logical state first (parent)
           onMoveAnimationDone && onMoveAnimationDone(pendingMove);
+          // Defer logo rotation until next frame so any internal resets have landed
+          requestAnimationFrame(() => applyMoveToWhiteLogoAngle(pendingMove));
           currentTweenRef.current = null;
         }
       );
     }
-  }, [pendingMove, onStartAnimation, onMoveAnimationDone, isAnimating]);
+  }, [
+    pendingMove,
+    onStartAnimation,
+    onMoveAnimationDone,
+    isAnimating,
+    applyMoveToWhiteLogoAngle,
+  ]);
 
   const { camera, gl } = useThree();
 
@@ -431,10 +974,10 @@ const RubiksCube3D = ({
           // First call onMoveAnimationDone to update the logical cube state (colors)
           onMoveAnimationDone(moveToExecute);
 
-          // Then clean up visual state after the logical state has been updated
-          // Add a small delay to ensure React has time to update materials with new colors
+          // Then clean up visual state and finally apply the logo rotation to avoid overlap
           setTimeout(() => {
             cleanupDragState();
+            applyMoveToWhiteLogoAngle(moveToExecute);
             // Reset snapping state
             trackingStateRef.current.isSnapping = false;
           }, 0);
@@ -670,6 +1213,8 @@ const RubiksCube3D = ({
     _expectedBaseSign: undefined,
     // Parity to fix sign per face/axis
     _dragSignParity: 1,
+    // Guard
+    _snapCompleted: false,
   });
 
   // Helper: base move to axis char
@@ -928,8 +1473,6 @@ const RubiksCube3D = ({
   const updateDragRotation = (dragVector: THREE.Vector2) => {
     if (!trackingStateRef.current.isDragging) return;
 
-    const sensitivity = 0.006;
-
     // Signed projection onto locked axis
     const axisLock = trackingStateRef.current._axisLock;
     const faceRight = trackingStateRef.current._screenFaceRight;
@@ -952,7 +1495,7 @@ const RubiksCube3D = ({
 
     // Rotation is from drag projection with parity fix; axis sign stays fixed to base move
     trackingStateRef.current.currentRotation =
-      sensitivity * signedProjection * parity;
+      DRAG_SENSITIVITY * signedProjection * parity;
 
     // Apply immediately to avoid one-frame delay waiting for useFrame
     const dg = trackingStateRef.current.dragGroup;
@@ -1243,7 +1786,7 @@ const RubiksCube3D = ({
       targetSteps = Math.sign(axisVelSigned) || 1;
     }
 
-    // Clamp to valid range
+    // Clamp to valid range (allow half-turns again when thresholds permit)
     targetSteps = Math.max(-2, Math.min(2, targetSteps));
 
     const signedSteps = targetSteps; // -2,-1,0,1,2
@@ -1296,37 +1839,44 @@ const RubiksCube3D = ({
       onPointerLeave={handleLeaveCube}
       onPointerMove={handlePreciseHover}
     >
-      {cubeState.map((plane, x) =>
-        plane.map((row, y) =>
-          row.map((cubie, z) => (
-            <CubePiece
-              key={`${x},${y},${z}`}
-              position={[(x - 1) * 1.05, (y - 1) * 1.05, (z - 1) * 1.05]}
-              colors={cubie.colors}
-              onPointerDown={(e, pos, intersectionPoint) =>
-                handlePointerDown(e, pos, intersectionPoint)
-              }
-              onMeshReady={(mesh, gridX, gridY, gridZ) => {
-                // Register cubie mesh for animation
-                if (!cubiesRef.current.some((c) => c.mesh === mesh)) {
-                  cubiesRef.current.push({
-                    mesh,
-                    x: gridX,
-                    y: gridY,
-                    z: gridZ,
-                    originalPosition: mesh.position.clone(),
-                  });
-                }
-                // Mark meshes as ready when all are registered
-                if (cubiesRef.current.length === 27) {
-                  meshesReadyRef.current = true;
-                }
-              }}
-              onPointerMove={undefined}
-            />
-          ))
-        )
-      )}
+      {(() => {
+        const nodes: React.ReactNode[] = [];
+        cubeState.forEach((plane, x) => {
+          plane.forEach((row, y) => {
+            row.forEach((cubie, z) => {
+              nodes.push(
+                <CubePiece
+                  key={`${x},${y},${z}`}
+                  position={[(x - 1) * 1.05, (y - 1) * 1.05, (z - 1) * 1.05]}
+                  colors={cubie.colors}
+                  whiteLogoAngleRad={whiteLogoAngle}
+                  onPointerDown={(e, pos, intersectionPoint) =>
+                    handlePointerDown(e, pos, intersectionPoint)
+                  }
+                  onMeshReady={(mesh, gridX, gridY, gridZ) => {
+                    // Register cubie mesh for animation
+                    if (!cubiesRef.current.some((c) => c.mesh === mesh)) {
+                      cubiesRef.current.push({
+                        mesh,
+                        x: gridX,
+                        y: gridY,
+                        z: gridZ,
+                        originalPosition: mesh.position.clone(),
+                      });
+                    }
+                    // Mark meshes as ready when all are registered
+                    if (cubiesRef.current.length === 27) {
+                      meshesReadyRef.current = true;
+                    }
+                  }}
+                  onPointerMove={undefined}
+                />
+              );
+            });
+          });
+        });
+        return nodes;
+      })()}
     </group>
   );
 };
