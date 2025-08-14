@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
+/* Apply Quicksand globally */
+:root {
+  --app-font-sans: "Quicksand", Inter, system-ui, Avenir, Helvetica, Arial,
+    sans-serif;
+}
+
 body {
   margin: 0;
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--app-font-sans);
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   min-height: 100vh;
 }
