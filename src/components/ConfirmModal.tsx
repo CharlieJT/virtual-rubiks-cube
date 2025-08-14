@@ -110,6 +110,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
               position: "relative",
               opacity: isSolving ? 0.7 : 1,
               cursor: isSolving ? "not-allowed" : "pointer",
+              width: "125px",
             }}
           >
             {isSolving ? (
@@ -142,7 +143,6 @@ const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
                   />
                   <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
                 </svg>
-                Loading...
               </span>
             ) : (
               confirmText

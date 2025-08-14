@@ -235,34 +235,39 @@ const App = () => {
     setSolutionIndex(-1);
   }, []);
 
-  const handleSolve = useCallback(async () => {
+  const handleSolve = useCallback(() => {
     if (isAnimating || AnimationHelper.isLocked()) return;
-    const currentState = cubeRef.current.getState();
-    let movesToRun: string[];
-
-    if (!solution || lastSolvedState !== currentState) {
-      // Generate a fresh solution for the current cube state
-      const fresh = cubeRef.current.solve();
-      const algo = fresh.join(" ");
-      const steps = fresh.map((m) => ({
-        move: m as CubeMove,
-        description: "",
-      }));
-      setSolution({ steps, moveCount: fresh.length, algorithm: algo });
-      setLastSolvedState(currentState);
-      movesToRun = fresh;
-    } else {
-      movesToRun = solution.steps.map((s) => s.move);
-    }
-
-    // Reset index before we enqueue so first pump isn't overridden
-    setSolutionIndex(-1);
-    // Mark this run before enqueuing so highlighting starts with the first move
-    currentRunRef.current = "solve";
-    enqueueMoves(movesToRun);
+    // Show loader in the modal immediately
     setIsSolving(true);
-    setConfirmSolveOpen(false);
-  }, [enqueueMoves, isAnimating, isScrambled, solution, lastSolvedState]);
+    // Defer heavy solve work to next tick so the spinner can render first
+    setTimeout(() => {
+      const currentState = cubeRef.current.getState();
+      let movesToRun: string[];
+
+      if (!solution || lastSolvedState !== currentState) {
+        // Generate a fresh solution for the current cube state
+        const fresh = cubeRef.current.solve();
+        const algo = fresh.join(" ");
+        const steps = fresh.map((m) => ({
+          move: m as CubeMove,
+          description: "",
+        }));
+        setSolution({ steps, moveCount: fresh.length, algorithm: algo });
+        setLastSolvedState(currentState);
+        movesToRun = fresh;
+      } else {
+        movesToRun = solution.steps.map((s) => s.move);
+      }
+
+      // Reset index before we enqueue so first pump isn't overridden
+      setSolutionIndex(-1);
+      // Mark this run before enqueuing so highlighting starts with the first move
+      currentRunRef.current = "solve";
+      enqueueMoves(movesToRun);
+      // Close modal after work is queued
+      setConfirmSolveOpen(false);
+    }, 0);
+  }, [enqueueMoves, isAnimating, solution, lastSolvedState]);
 
   // Use explicit scrambling state to avoid flicker and ensure re-enable
   const isScrambling = isScramblingState;
