@@ -65,23 +65,6 @@ const ControlPanel = ({
         >
           Generate Solution
         </button>
-        {/* ...other controls... */}
-      </div>
-      {/* Status */}
-      <div className="text-center mt-2">
-        <div className="text-white/70 text-base mb-2 font-medium">Status</div>
-        <div
-          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm ${
-            isSolving
-              ? "bg-yellow-400 text-yellow-900"
-              : isScrambled
-              ? "bg-red-400 text-red-900"
-              : "bg-green-400 text-green-900"
-          }`}
-        >
-          <span>{isSolving ? "⚡" : isScrambled ? "🔀" : "✅"}</span>
-          {isSolving ? "Solving" : isScrambled ? "Scrambled" : "Solved"}
-        </div>
       </div>
     </div>
   );

@@ -46,103 +46,31 @@ const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
 
   console.log("ConfirmModal rendered");
   const modalContent = (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.7)",
-      }}
-    >
-      <div
-        style={{
-          background: "white",
-          border: "4px solid #06b6d4",
-          borderRadius: 20,
-          padding: 40,
-          minWidth: 320,
-          maxWidth: 400,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-        }}
-      >
-        <h3
-          style={{
-            fontSize: 24,
-            fontWeight: "bold",
-            background: "linear-gradient(90deg,#06b6d4,#3b82f6,#6366f1)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            marginBottom: 12,
-          }}
-        >
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70">
+      <div className="bg-white border-4 border-cyan-400 rounded-2xl p-10 min-w-[320px] max-w-[400px] shadow-lg">
+        <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
           {title}
         </h3>
-        <p style={{ color: "#333", marginBottom: 24 }}>{message}</p>
-        <div style={{ display: "flex", gap: 16, justifyContent: "flex-end" }}>
+        <p className="text-gray-800 mb-6">{message}</p>
+        <div className="flex gap-4 justify-end">
           <button
             onClick={onCancel}
-            style={{
-              padding: "10px 24px",
-              borderRadius: 8,
-              fontWeight: "bold",
-              background: "#e0f7fa",
-              color: "#036",
-              border: "2px solid #06b6d4",
-            }}
+            className="px-6 py-2 rounded-lg font-bold bg-cyan-50 text-blue-900 border-2 border-cyan-400 hover:bg-cyan-100 transition-colors"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
             disabled={isSolving}
-            style={{
-              padding: "10px 24px",
-              borderRadius: 8,
-              fontWeight: "bold",
-              background: isSolving
-                ? "#a5b4fc"
-                : "linear-gradient(90deg,#06b6d4,#3b82f6,#6366f1)",
-              color: "white",
-              border: "none",
-              position: "relative",
-              opacity: isSolving ? 0.7 : 1,
-              cursor: isSolving ? "not-allowed" : "pointer",
-              width: "125px",
-            }}
+            className={`px-6 py-1 rounded-lg font-bold w-[125px] text-white border-none relative transition-opacity ${
+              isSolving
+                ? "bg-indigo-300 opacity-70 cursor-not-allowed"
+                : "bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 hover:opacity-90 cursor-pointer"
+            }`}
           >
             {isSolving ? (
-              <span
-                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-              >
-                <svg
-                  style={{ width: 20, height: 20, marginRight: 6 }}
-                  viewBox="0 0 50 50"
-                >
-                  <circle
-                    cx="25"
-                    cy="25"
-                    r="20"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="5"
-                    opacity="0.2"
-                  />
-                  <circle
-                    cx="25"
-                    cy="25"
-                    r="20"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="5"
-                    strokeDasharray="90"
-                    strokeDashoffset="60"
-                    style={{ animation: "spin 1s linear infinite" }}
-                  />
-                  <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
-                </svg>
+              <span className="inline-flex py-1 items-center gap-2">
+                <span className="w-6 h-6 mr-1 border-4 border-gray-200 border-t-4 border-t-cyan-400 rounded-full animate-spin"></span>
               </span>
             ) : (
               confirmText

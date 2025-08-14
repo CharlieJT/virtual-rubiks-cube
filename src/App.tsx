@@ -287,6 +287,21 @@ const App = () => {
         {/* Cube container fills available space */}
         <div className="flex-1 flex items-center justify-center px-4 min-h-0 mb-8">
           <div className="w-full max-w-4xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]">
+            {/* Status indicator - bottom left of cube container */}
+            <div className="absolute left-4 bottom-4 z-30 pointer-events-none">
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm ${
+                  isSolving
+                    ? "bg-yellow-400 text-yellow-900"
+                    : isScrambled
+                    ? "bg-red-400 text-red-900"
+                    : "bg-green-400 text-green-900"
+                }`}
+              >
+                <span>{isSolving ? "⚡" : isScrambled ? "🔀" : "✅"}</span>
+                {isSolving ? "Solving" : isScrambled ? "Scrambled" : "Solved"}
+              </div>
+            </div>
             {/* Floating Scramble/Solution overlay */}
             {scrambleMoves && scrambleMoves.length > 0 && !isSolving && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">

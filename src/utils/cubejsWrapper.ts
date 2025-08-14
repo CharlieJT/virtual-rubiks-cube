@@ -94,11 +94,25 @@ export class CubeJSWrapper {
   }
 
   isSolved(): boolean {
-    // Cheap check against canonical solved string; we never apply whole-cube x/y/z to the logical cube
-    const solved = CubeJSWrapper.solvedString;
-    if (!solved) return false;
+    // Orientation-agnostic solved check: each face must be uniform (all 9 stickers equal to the center)
     try {
-      return this.cube.asString() === solved;
+      const s: string = this.cube.asString();
+      if (!s || s.length < 54) return false;
+      const blocks: Array<[number, number]> = [
+        [0, 8], // U
+        [9, 17], // R
+        [18, 26], // F
+        [27, 35], // D
+        [36, 44], // L
+        [45, 53], // B
+      ];
+      for (const [start, end] of blocks) {
+        const center = s[start + 4];
+        for (let i = start; i <= end; i++) {
+          if (s[i] !== center) return false;
+        }
+      }
+      return true;
     } catch {
       return false;
     }
