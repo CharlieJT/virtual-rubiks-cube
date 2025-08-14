@@ -115,9 +115,9 @@ const App = () => {
     setIsScrambled(true);
     setSolution(null);
     setLastSolvedState(null);
-  setScrambleMoves(scramble);
-  setShowScrambleOverlay(true);
-  setShowSolutionOverlay(false);
+    setScrambleMoves(scramble);
+    setShowScrambleOverlay(true);
+    setShowSolutionOverlay(false);
     // Index will become 0 when the first move starts
   }, [enqueueMoves, isAnimating]);
 
@@ -234,10 +234,10 @@ const App = () => {
       move: m as CubeMove,
       description: "",
     }));
-  setSolution({ steps, moveCount: moves.length, algorithm: algo });
-  setLastSolvedState(cubeRef.current.getState());
-  setSolutionIndex(-1);
-  setShowSolutionOverlay(true);
+    setSolution({ steps, moveCount: moves.length, algorithm: algo });
+    setLastSolvedState(cubeRef.current.getState());
+    setSolutionIndex(-1);
+    setShowSolutionOverlay(true);
   }, []);
 
   const handleSolve = useCallback(() => {
@@ -313,37 +313,40 @@ const App = () => {
               </div>
             </div>
             {/* Scramble overlay stays after scrambling until X is clicked, Solution overlay after solve/generate until X is clicked */}
-            {scrambleMoves && scrambleMoves.length > 0 && showScrambleOverlay && !showSolutionOverlay && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
-                <div className="flex justify-between items-center w-full mb-1">
-                  <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
-                    <span>🎲</span>
-                    Scramble:
-                  </h4>
-                  <button
-                    className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition"
-                    aria-label="Close scramble overlay"
-                    onClick={() => setShowScrambleOverlay(false)}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1 text-[0.8em] md:text-base">
-                  {scrambleMoves.map((move, i) => (
-                    <span
-                      key={i}
-                      className={`px-1 py-0.5 md:px-2 md:py-1 rounded font-mono transition-colors ${
-                        i === scrambleIndex
-                          ? "bg-yellow-400 text-yellow-900"
-                          : "bg-white/30 text-white"
-                      }`}
+            {scrambleMoves &&
+              scrambleMoves.length > 0 &&
+              showScrambleOverlay &&
+              !showSolutionOverlay && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
+                  <div className="flex justify-between items-center w-full mb-1">
+                    <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
+                      <span>🎲</span>
+                      Scramble:
+                    </h4>
+                    <button
+                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition"
+                      aria-label="Close scramble overlay"
+                      onClick={() => setShowScrambleOverlay(false)}
                     >
-                      {move}
-                    </span>
-                  ))}
+                      ×
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 text-[0.8em] md:text-base">
+                    {scrambleMoves.map((move, i) => (
+                      <span
+                        key={i}
+                        className={`px-1 py-0.5 md:px-2 md:py-1 rounded font-mono transition-colors ${
+                          i === scrambleIndex
+                            ? "bg-yellow-400 text-yellow-900"
+                            : "bg-white/30 text-white"
+                        }`}
+                      >
+                        {move}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
             {solution && solution.steps.length > 0 && showSolutionOverlay && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
                 <div className="flex items-center justify-between mb-1 md:mb-2 w-full">
