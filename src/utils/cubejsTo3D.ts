@@ -1,12 +1,13 @@
 import type { CubeState } from "../types/cube";
 
+// Brighter, more saturated sticker colors for better contrast in the 3D view
 const COLOR_MAP = {
-  U: "#ffffff",
-  D: "#ffff00",
-  F: "#2cdd5a",
-  B: "#6279f7",
-  R: "#ff0000",
-  L: "#ff9600",
+  U: "#ffffff", // white
+  D: "#FFEB3B", // bright yellow
+  F: "#00E676", // vivid green
+  B: "#2979FF", // vivid blue
+  R: "#FF1744", // bright red
+  L: "#FF9100", // bright orange
 };
 
 const getColor = (face: string) =>

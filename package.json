@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "tw:build": "tailwindcss -i ./src/index.css -o ./src/tw.css",
+    "tw:watch": "tailwindcss -i ./src/index.css -o ./src/tw.css -w",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

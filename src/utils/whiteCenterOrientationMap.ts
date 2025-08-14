@@ -96,6 +96,7 @@ export function getWhiteLogoDeltaByBucketDeg(
   bucket: AngleBucketDeg
 ): number {
   const deg = WHITE_ORIENTATION_MAP_DEG[from]?.[to]?.[bucket] ?? 0;
+  console.log(deg);
   return degToRad(deg);
 }
 

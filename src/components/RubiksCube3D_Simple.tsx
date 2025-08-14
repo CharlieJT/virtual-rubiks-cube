@@ -286,6 +286,7 @@ const CubePiece = React.memo(
     const isCenter =
       (gx === 1 ? 1 : 0) + (gy === 1 ? 1 : 0) + (gz === 1 ? 1 : 0) === 2;
 
+    // Keep a stable material set; update the shared logo texture's rotation via effect
     const materials = useMemo(() => {
       // Apply the logo texture only on the white center face
       const rightIsLogo = isCenter && isWhite(colors.right);
@@ -304,39 +305,33 @@ const CubePiece = React.memo(
       else if (frontIsLogo) logoFace = "front";
       else if (backIsLogo) logoFace = "back";
 
-      // Create a per-use cloned texture so rotation doesn't accumulate or affect others
-      let logoTex: THREE.Texture | null = null;
-      if (logoFace) {
-        logoTex = tiptonsTexture.clone();
-        logoTex.rotation = whiteLogoAngleRad; // rotate image only, no change to cube rotations
-        logoTex.needsUpdate = true;
-      }
+      // Use the shared texture instance; we update its rotation in an effect
+      const logoTex: THREE.Texture | null = logoFace ? tiptonsTexture : null;
+
+      const mk = (opts: { color: string; useLogo: boolean }) => {
+        const hasLogo = opts.useLogo;
+        return new THREE.MeshPhongMaterial({
+          // When using a texture, avoid tinting: set color to white
+          color: hasLogo ? 0xffffff : opts.color,
+          map: hasLogo ? logoTex : null,
+          // Keep the logo image original by disabling emissive when map is present
+          emissive: hasLogo
+            ? new THREE.Color(0x000000)
+            : new THREE.Color(opts.color).multiplyScalar(0.08),
+          specular: hasLogo
+            ? new THREE.Color(0x222222)
+            : new THREE.Color(0xffffff),
+          shininess: hasLogo ? 20 : 60,
+        });
+      };
 
       return [
-        new THREE.MeshPhongMaterial({
-          color: colors.right,
-          map: logoFace === "right" ? logoTex : null,
-        }),
-        new THREE.MeshPhongMaterial({
-          color: colors.left,
-          map: logoFace === "left" ? logoTex : null,
-        }),
-        new THREE.MeshPhongMaterial({
-          color: colors.top,
-          map: logoFace === "top" ? logoTex : null,
-        }),
-        new THREE.MeshPhongMaterial({
-          color: colors.bottom,
-          map: logoFace === "bottom" ? logoTex : null,
-        }),
-        new THREE.MeshPhongMaterial({
-          color: colors.front,
-          map: logoFace === "front" ? logoTex : null,
-        }),
-        new THREE.MeshPhongMaterial({
-          color: colors.back,
-          map: logoFace === "back" ? logoTex : null,
-        }),
+        mk({ color: colors.right, useLogo: logoFace === "right" }),
+        mk({ color: colors.left, useLogo: logoFace === "left" }),
+        mk({ color: colors.top, useLogo: logoFace === "top" }),
+        mk({ color: colors.bottom, useLogo: logoFace === "bottom" }),
+        mk({ color: colors.front, useLogo: logoFace === "front" }),
+        mk({ color: colors.back, useLogo: logoFace === "back" }),
       ];
     }, [
       colors.right,
@@ -347,8 +342,14 @@ const CubePiece = React.memo(
       colors.back,
       isCenter,
       tiptonsTexture,
-      whiteLogoAngleRad,
     ]);
+
+    // Update the rotation of the shared logo texture without recreating materials
+    useEffect(() => {
+      if (!tiptonsTexture) return;
+      tiptonsTexture.rotation = whiteLogoAngleRad;
+      tiptonsTexture.needsUpdate = true;
+    }, [whiteLogoAngleRad, tiptonsTexture]);
 
     const EDGE_GEOMETRIES = [
       ...[0.5, -0.5].flatMap((y) =>
@@ -395,7 +396,11 @@ const CubePiece = React.memo(
         {EDGE_GEOMETRIES.map((edge, i) => (
           <mesh key={i} position={edge.pos as [number, number, number]}>
             <boxGeometry args={edge.args as [number, number, number]} />
-            <meshPhongMaterial color="#000000" />
+            <meshPhongMaterial
+              color="#111111"
+              emissive="#111111"
+              emissiveIntensity={0.2}
+            />
           </mesh>
         ))}
       </mesh>
@@ -639,8 +644,6 @@ const RubiksCube3D = ({
       // Use the current white face from state (post-logical-move) to avoid race conditions
       const currentWhiteFace = getWhiteCenterFaceFromState();
       const base = moveStr[0];
-      const isPrime = moveStr.includes("'");
-      const isDouble = moveStr.includes("2");
       const isWhole = base === "X" || base === "Y" || base === "Z";
       const isSliceMove = base === "M" || base === "E" || base === "S";
 
@@ -661,11 +664,12 @@ const RubiksCube3D = ({
         const q = new THREE.Quaternion().setFromAxisAngle(axis, totalRotation);
         whiteQuatRef.current.multiply(q);
       } else if (currentWhiteFace && baseToFaceKey[base]) {
-        // Face turn; apply only if rotating the (current) white face
+        // End-of-move update: if we rotated the face that currently holds the white center,
+        // apply a discrete 90°/180° texture rotation to match the physical twist.
         const rotatingFace = baseToFaceKey[base];
+        const isPrime = moveStr.includes("'");
+        const isDouble = moveStr.includes("2");
         if (rotatingFace === currentWhiteFace) {
-          // Our texture angle convention: positive is CCW in face UV space.
-          // "clockwise for non-prime" => delta = -90° for non-prime; +90° for prime; 180° for double.
           const delta = isDouble
             ? Math.PI
             : isPrime
@@ -674,7 +678,6 @@ const RubiksCube3D = ({
           const faceNormal = getLogoFaceBasis(currentWhiteFace).normal;
           const q = new THREE.Quaternion().setFromAxisAngle(faceNormal, delta);
           whiteQuatRef.current.multiply(q);
-          // Accumulate displayed angle from freshest state to avoid stale value on first twist
           const twoPi = Math.PI * 2;
           const normalizeAngle = (a: number) => {
             let n = a % twoPi;
@@ -687,11 +690,11 @@ const RubiksCube3D = ({
             displayedAngleRef.current = next;
             return next;
           });
-          // Update prev face (doesn't change for a white-face turn)
           if (currentWhiteFace) prevWhiteFaceRef.current = currentWhiteFace;
-          return; // We've already set the angle; skip projection below
+          return; // handled; skip projection below
         }
-        // If rotating some other face, do nothing to the logo orientation.
+        // If rotating some other face (not the white center's), leave the logo angle unchanged here.
+        return;
       }
 
       // Slice moves: don't rotate orientation here; we'll transfer angle discretely and align quaternion below.
@@ -827,31 +830,40 @@ const RubiksCube3D = ({
     [getWhiteCenterFaceFromState]
   );
 
-  // Pending move animation effect
+  // Pending move animation effect (robust start even if set while locked)
   useEffect(() => {
-    if (
-      pendingMove &&
-      !AnimationHelper.isLocked() &&
-      !isAnimating &&
-      groupRef.current &&
-      cubiesRef.current.length === 27 &&
-      meshesReadyRef.current
-    ) {
-      onStartAnimation && onStartAnimation();
+    if (!pendingMove) return;
+    if (!groupRef.current) return;
+    if (cubiesRef.current.length !== 27 || !meshesReadyRef.current) return;
 
+    let cancelled = false;
+    const tryStart = () => {
+      if (cancelled) return;
+      if (AnimationHelper.isLocked()) {
+        // Defer until unlock, then retry
+        setTimeout(tryStart, 0);
+        return;
+      }
+      onStartAnimation && onStartAnimation();
       currentTweenRef.current = AnimationHelper.animate(
         cubiesRef.current,
-        groupRef.current,
+        groupRef.current!,
         pendingMove,
         () => {
-          // Update logical state first (parent)
+          if (cancelled) return;
           onMoveAnimationDone && onMoveAnimationDone(pendingMove);
-          // Defer logo rotation until next frame so any internal resets have landed
+          // Update the logo angle exactly after the geometry completes to avoid flicker
+          // Use rAF to occur after React state updates have applied colors
           requestAnimationFrame(() => applyMoveToWhiteLogoAngle(pendingMove));
           currentTweenRef.current = null;
         }
       );
-    }
+    };
+    tryStart();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     pendingMove,
     onStartAnimation,
