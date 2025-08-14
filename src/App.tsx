@@ -30,6 +30,8 @@ const App = () => {
   // Track which sequence the current queue represents for accurate highlighting
   const currentRunRef = useRef<null | "scramble" | "solve">(null);
   const [scrambleMoves, setScrambleMoves] = useState<string[] | null>(null);
+  const [showScrambleOverlay, setShowScrambleOverlay] = useState(false);
+  const [showSolutionOverlay, setShowSolutionOverlay] = useState(false);
   const [scrambleIndex, setScrambleIndex] = useState<number>(-1);
   const [solutionIndex, setSolutionIndex] = useState<number>(-1);
   const [isScramblingState, setIsScramblingState] = useState(false);
@@ -113,7 +115,9 @@ const App = () => {
     setIsScrambled(true);
     setSolution(null);
     setLastSolvedState(null);
-    setScrambleMoves(scramble);
+  setScrambleMoves(scramble);
+  setShowScrambleOverlay(true);
+  setShowSolutionOverlay(false);
     // Index will become 0 when the first move starts
   }, [enqueueMoves, isAnimating]);
 
@@ -223,23 +227,24 @@ const App = () => {
   const [confirmSolveOpen, setConfirmSolveOpen] = useState(false);
 
   const handleGenerateSolution = useCallback(() => {
-    // Solve current state using cubejs built-in kociemba
+    // Always compute and show solution for current cube state
     const moves = cubeRef.current.solve();
     const algo = moves.join(" ");
     const steps = moves.map((m) => ({
       move: m as CubeMove,
       description: "",
     }));
-    setSolution({ steps, moveCount: moves.length, algorithm: algo });
-    setLastSolvedState(cubeRef.current.getState());
-    setSolutionIndex(-1);
+  setSolution({ steps, moveCount: moves.length, algorithm: algo });
+  setLastSolvedState(cubeRef.current.getState());
+  setSolutionIndex(-1);
+  setShowSolutionOverlay(true);
   }, []);
 
   const handleSolve = useCallback(() => {
     if (isAnimating || AnimationHelper.isLocked()) return;
     // Show loader in the modal immediately
     setIsSolving(true);
-    // Defer heavy solve work to next tick so the spinner can render first
+    // Compute solution and queue moves, then close modal
     setTimeout(() => {
       const currentState = cubeRef.current.getState();
       let movesToRun: string[];
@@ -264,7 +269,12 @@ const App = () => {
       // Mark this run before enqueuing so highlighting starts with the first move
       currentRunRef.current = "solve";
       enqueueMoves(movesToRun);
-      // Close modal after work is queued
+      // Clear scramble overlay and state immediately
+      setShowScrambleOverlay(false);
+      setScrambleMoves(null);
+      setScrambleIndex(-1);
+      setShowSolutionOverlay(true);
+      // Now close modal and hide spinner
       setConfirmSolveOpen(false);
     }, 0);
   }, [enqueueMoves, isAnimating, solution, lastSolvedState]);
@@ -302,13 +312,22 @@ const App = () => {
                 {isSolving ? "Solving" : isScrambled ? "Scrambled" : "Solved"}
               </div>
             </div>
-            {/* Floating Scramble/Solution overlay */}
-            {scrambleMoves && scrambleMoves.length > 0 && !isSolving && (
+            {/* Scramble overlay stays after scrambling until X is clicked, Solution overlay after solve/generate until X is clicked */}
+            {scrambleMoves && scrambleMoves.length > 0 && showScrambleOverlay && !showSolutionOverlay && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
-                <h4 className="text-white font-semibold mb-1 text-[0.85em] md:text-lg flex items-center gap-2">
-                  <span>🎲</span>
-                  Scramble:
-                </h4>
+                <div className="flex justify-between items-center w-full mb-1">
+                  <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
+                    <span>🎲</span>
+                    Scramble:
+                  </h4>
+                  <button
+                    className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition"
+                    aria-label="Close scramble overlay"
+                    onClick={() => setShowScrambleOverlay(false)}
+                  >
+                    ×
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-1 text-[0.8em] md:text-base">
                   {scrambleMoves.map((move, i) => (
                     <span
@@ -325,35 +344,42 @@ const App = () => {
                 </div>
               </div>
             )}
-            {solution &&
-              solution.steps.length > 0 &&
-              (isSolving || (!isSolving && scrambleMoves == null)) && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
-                  <div className="flex items-center justify-between mb-1 md:mb-2 w-full">
-                    <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
-                      <span>🧠</span>
-                      Solution:
-                    </h4>
+            {solution && solution.steps.length > 0 && showSolutionOverlay && (
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
+                <div className="flex items-center justify-between mb-1 md:mb-2 w-full">
+                  <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
+                    <span>🧠</span>
+                    Solution:
+                  </h4>
+                  <div className="flex items-center gap-2">
                     <span className="bg-purple-500 text-white px-1 py-0.5 md:px-2 md:py-1 rounded text-[0.8em] md:text-base font-semibold">
                       {solution.moveCount} moves
                     </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 text-[0.8em] md:text-base">
-                    {solution.steps.map((step, i) => (
-                      <span
-                        key={i}
-                        className={`px-1 py-0.5 md:px-2 md:py-1 rounded font-mono transition-colors ${
-                          i === solutionIndex
-                            ? "bg-purple-400 text-purple-900"
-                            : "bg-white/30 text-white"
-                        }`}
-                      >
-                        {step.move}
-                      </span>
-                    ))}
+                    <button
+                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition"
+                      aria-label="Close solution overlay"
+                      onClick={() => setShowSolutionOverlay(false)}
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
-              )}
+                <div className="flex flex-wrap gap-1 text-[0.8em] md:text-base">
+                  {solution.steps.map((step, i) => (
+                    <span
+                      key={i}
+                      className={`px-1 py-0.5 md:px-2 md:py-1 rounded font-mono transition-colors ${
+                        i === solutionIndex
+                          ? "bg-purple-400 text-purple-900"
+                          : "bg-white/30 text-white"
+                      }`}
+                    >
+                      {step.move}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <Canvas
               camera={{ position: [5, 5, 5], fov: 55 }}
               className="w-full h-full pt-3"
