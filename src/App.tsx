@@ -58,7 +58,9 @@ const App = () => {
         );
       }
       lastMoveSourceRef.current = "queue";
+      // Set state and ref together to avoid race on mobile
       setPendingMove(next);
+      pendingMoveRef.current = next;
     } else {
       // No more moves queued; end-of-run cleanup will be handled in handleMoveAnimationDone
     }
@@ -67,11 +69,16 @@ const App = () => {
   // Retry pumping until AnimationHelper unlocks to avoid stalling after first move
   const pumpQueueSoon = useCallback(() => {
     const attempt = () => {
-      if (!AnimationHelper.isLocked()) {
-        pumpQueue();
-      } else {
+      // Wait until animation system is unlocked and there's no pending move
+      if (
+        AnimationHelper.isLocked() ||
+        isAnimatingRef.current ||
+        pendingMoveRef.current
+      ) {
         setTimeout(attempt, 0);
+        return;
       }
+      pumpQueue();
     };
     // Ensure we give React a tick to commit state before first attempt
     setTimeout(attempt, 0);
@@ -171,7 +178,9 @@ const App = () => {
 
       // Reset animation state
       setPendingMove(null);
+      pendingMoveRef.current = null;
       setIsAnimating(false);
+      isAnimatingRef.current = false;
 
       // continue queue if any (retry until unlock)
       pumpQueueSoon();
@@ -208,6 +217,7 @@ const App = () => {
 
   const handleStartAnimation = useCallback(() => {
     setIsAnimating(true);
+    isAnimatingRef.current = true;
   }, []);
 
   const [confirmSolveOpen, setConfirmSolveOpen] = useState(false);
