@@ -273,7 +273,7 @@ const App = () => {
   const isScrambling = isScramblingState;
   return (
     <>
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600">
+      <div className="min-h-[100dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
         {/* Header at top */}
         <div className="text-center py-4 shrink-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1 drop-shadow-lg">
@@ -384,9 +384,11 @@ const App = () => {
             </Canvas>
           </div>
         </div>
+      </div>
 
-        {/* Control panel at bottom */}
-        <div className="w-full max-w-6xl mx-auto px-4 pb-6 shrink-0">
+      {/* Control panel fixed at bottom (mobile-safe) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40">
+        <div className="w-full max-w-6xl mx-auto px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
           <ControlPanel
             onScramble={handleScramble}
             onSolve={() => {
@@ -403,22 +405,22 @@ const App = () => {
             solutionIndex={solutionIndex}
           />
         </div>
-
-        {/* Modal stays above everything */}
-        <ConfirmModal
-          isOpen={confirmSolveOpen}
-          title="Ready to Solve?"
-          message="This will run the solver and execute all moves step-by-step until your cube is solved!"
-          confirmText="Solve It!"
-          cancelText="Cancel"
-          onCancel={() => {
-            console.log("Modal cancelled");
-            setConfirmSolveOpen(false);
-          }}
-          onConfirm={handleSolve}
-          isSolving={isSolving}
-        />
       </div>
+
+      {/* Modal stays above everything */}
+      <ConfirmModal
+        isOpen={confirmSolveOpen}
+        title="Ready to Solve?"
+        message="This will run the solver and execute all moves step-by-step until your cube is solved!"
+        confirmText="Solve It!"
+        cancelText="Cancel"
+        onCancel={() => {
+          console.log("Modal cancelled");
+          setConfirmSolveOpen(false);
+        }}
+        onConfirm={handleSolve}
+        isSolving={isSolving}
+      />
     </>
   );
 };
