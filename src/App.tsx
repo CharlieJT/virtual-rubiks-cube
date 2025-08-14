@@ -33,6 +33,8 @@ const App = () => {
   const [scrambleIndex, setScrambleIndex] = useState<number>(-1);
   const [solutionIndex, setSolutionIndex] = useState<number>(-1);
   const [isScramblingState, setIsScramblingState] = useState(false);
+  // Track remaining scramble moves to robustly end scrambling across devices
+  const scrambleRemainingRef = useRef(0);
 
   // Mirror state into refs to avoid stale-closure checks during async retries
   const isAnimatingRef = useRef(isAnimating);
@@ -58,10 +60,7 @@ const App = () => {
       lastMoveSourceRef.current = "queue";
       setPendingMove(next);
     } else {
-      // No more moves queued; reset highlight pointers
-      setScrambleIndex(-1);
-      setSolutionIndex(-1);
-      currentRunRef.current = null;
+      // No more moves queued; end-of-run cleanup will be handled in handleMoveAnimationDone
     }
   }, [scrambleMoves, scrambleIndex, solution, solutionIndex]);
 
@@ -100,6 +99,8 @@ const App = () => {
     // Mark this run before enqueuing so highlighting starts with the first move
     currentRunRef.current = "scramble";
     setIsScramblingState(true);
+    // Track remaining scramble moves explicitly
+    scrambleRemainingRef.current = scramble.length;
     // Apply & animate on the visual cube and mutate cubeRef in onMoveAnimationDone
     enqueueMoves(scramble);
     setIsScrambled(true);
@@ -149,6 +150,14 @@ const App = () => {
         const solved = cubeRef.current.isSolved();
         setIsScrambled(!solved);
 
+        // Decrement scramble remaining if we are in a scramble run
+        if (currentRunRef.current === "scramble") {
+          scrambleRemainingRef.current = Math.max(
+            0,
+            scrambleRemainingRef.current - 1
+          );
+        }
+
         // If this was a manual twist, invalidate any cached solution/scramble sequence
         if (lastMoveSourceRef.current === "manual") {
           setSolution(null);
@@ -169,8 +178,11 @@ const App = () => {
       if (moveQueueRef.current.length === 0) {
         // End of a run
         if (currentRunRef.current === "scramble") {
-          setIsScramblingState(false);
-          currentRunRef.current = null;
+          // Clear scrambling when all expected scramble moves have finished
+          if (scrambleRemainingRef.current <= 0) {
+            setIsScramblingState(false);
+            currentRunRef.current = null;
+          }
         }
         if (currentRunRef.current === "solve") {
           setIsSolving(false);
@@ -286,7 +298,7 @@ const App = () => {
             {solution &&
               solution.steps.length > 0 &&
               (isSolving || (!isSolving && scrambleMoves == null)) && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-1 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[90vw] text-[0.75em] md:text-base">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
                   <div className="flex items-center justify-between mb-1 md:mb-2 w-full">
                     <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
                       <span>🧠</span>
