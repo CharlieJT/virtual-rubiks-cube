@@ -273,7 +273,7 @@ const App = () => {
   const isScrambling = isScramblingState;
   return (
     <>
-      <div className="min-h-[105dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
+      <div className="min-h-[108dvh] md:min-h-[105dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
         {/* Header at top */}
         <div className="text-center py-4 shrink-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1 drop-shadow-lg">
@@ -355,8 +355,8 @@ const App = () => {
                 </div>
               )}
             <Canvas
-              camera={{ position: [5, 5, 5], fov: 60 }}
-              className="w-full h-full"
+              camera={{ position: [5, 5, 5], fov: 55 }}
+              className="w-full h-full pt-3"
             >
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.9} color="#eeeeee" />
