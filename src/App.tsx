@@ -1,7 +1,9 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { TrackballControls } from "@react-three/drei";
-import RubiksCube3D, { type RubiksCube3DHandle } from "./components/RubiksCube3D_Simple";
+import RubiksCube3D, {
+  type RubiksCube3DHandle,
+} from "./components/RubiksCube3D_Simple";
 import ControlPanel from "./components/ControlPanel";
 // import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
@@ -25,7 +27,12 @@ const App = () => {
   const orbitControlsRef = useRef<any>(null);
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
-  const pinchRef = useRef<{ active: boolean; startDist: number; lastPinchTime: number }>({ active: false, startDist: 0, lastPinchTime: 0 });
+  const pinchRef = useRef<{
+    active: boolean;
+    startDist: number;
+    lastPinchTime: number;
+  }>({ active: false, startDist: 0, lastPinchTime: 0 });
+  // when two-finger spin mode is active we temporarily disable orbit controls - no extra state needed
 
   // Precision orbit mode: toggle for fine adjustments
   const [precisionMode, setPrecisionMode] = useState(false);
@@ -365,7 +372,10 @@ const App = () => {
       if (e.touches.length === 2) {
         // Start pinch
         pinchRef.current.active = true;
-        pinchRef.current.startDist = computeTouchDistance(e.touches[0], e.touches[1]);
+        pinchRef.current.startDist = computeTouchDistance(
+          e.touches[0],
+          e.touches[1]
+        );
       }
     };
 
@@ -406,26 +416,39 @@ const App = () => {
   }, []);
 
   // Trackpad overlay drag state
-  const trackpadDragRef = useRef<{ active: boolean; lastX: number } | null>(null);
-  const handleTrackpadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    trackpadDragRef.current = { active: true, lastX: e.clientX };
-  }, []);
-  const handleTrackpadPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!trackpadDragRef.current?.active) return;
-    const dx = e.clientX - trackpadDragRef.current.lastX;
-    trackpadDragRef.current.lastX = e.clientX;
-    // Convert pixels to radians; scale with precision mode for finer control
-    const base = 0.004; // rad/px baseline
-    const sensitivity = base * (precisionActive ? 0.4 : 1.0);
-    // UX: dragging left should spin CW (negative angle), right = CCW (positive)
-    const angle = dx * sensitivity;
-    cubeViewRef.current?.spinAroundViewAxis(angle);
-  }, [precisionActive]);
-  const handleTrackpadPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-    trackpadDragRef.current = { active: false, lastX: 0 };
-  }, []);
+  const trackpadDragRef = useRef<{ active: boolean; lastX: number } | null>(
+    null
+  );
+  const handleTrackpadPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      trackpadDragRef.current = { active: true, lastX: e.clientX };
+    },
+    []
+  );
+  const handleTrackpadPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!trackpadDragRef.current?.active) return;
+      const dx = e.clientX - trackpadDragRef.current.lastX;
+      trackpadDragRef.current.lastX = e.clientX;
+      // Convert pixels to radians; scale with precision mode for finer control
+      const base = 0.004; // rad/px baseline
+      const sensitivity = base * (precisionActive ? 0.4 : 1.0);
+      // UX: dragging left should spin CW (negative angle), right = CCW (positive)
+      const angle = dx * sensitivity;
+      cubeViewRef.current?.spinAroundViewAxis(angle);
+    },
+    [precisionActive]
+  );
+  const handleTrackpadPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+      trackpadDragRef.current = { active: false, lastX: 0 };
+    },
+    []
+  );
 
   return (
     <>
@@ -475,11 +498,13 @@ const App = () => {
             <div className="absolute left-4 bottom-28 z-30">
               <div className="bg-white/80 backdrop-blur px-2 py-1 rounded-lg shadow flex items-center gap-1 text-xs md:text-sm">
                 <span className="text-gray-800 font-semibold mr-1">Orbit:</span>
-                {([
-                  { k: "normal", label: "Normal" },
-                  { k: "snappy", label: "Snappy" },
-                  { k: "smooth", label: "Smooth" },
-                ] as Array<{ k: OrbitFeel; label: string }>).map((opt) => (
+                {(
+                  [
+                    { k: "normal", label: "Normal" },
+                    { k: "snappy", label: "Snappy" },
+                    { k: "smooth", label: "Smooth" },
+                  ] as Array<{ k: OrbitFeel; label: string }>
+                ).map((opt) => (
                   <button
                     key={opt.k}
                     onClick={() => setOrbitFeel(opt.k)}
@@ -593,19 +618,39 @@ const App = () => {
                 // Feel tuning
                 staticMoving={orbitFeel === "snappy"}
                 dynamicDampingFactor={(() => {
-                  const base = orbitFeel === "smooth" ? 0.2 : orbitFeel === "snappy" ? 0.05 : 0.1;
+                  const base =
+                    orbitFeel === "smooth"
+                      ? 0.2
+                      : orbitFeel === "snappy"
+                      ? 0.05
+                      : 0.1;
                   return precisionActive ? Math.min(0.3, base + 0.1) : base;
                 })()}
                 rotateSpeed={(() => {
-                  const base = orbitFeel === "snappy" ? 1.6 : orbitFeel === "smooth" ? 0.6 : 1.0;
+                  const base =
+                    orbitFeel === "snappy"
+                      ? 1.6
+                      : orbitFeel === "smooth"
+                      ? 0.6
+                      : 1.0;
                   return base * (precisionActive ? 0.5 : 1.0);
                 })()}
                 zoomSpeed={(() => {
-                  const base = orbitFeel === "snappy" ? 1.6 : orbitFeel === "smooth" ? 0.8 : 1.2;
+                  const base =
+                    orbitFeel === "snappy"
+                      ? 1.6
+                      : orbitFeel === "smooth"
+                      ? 0.8
+                      : 1.2;
                   return base * (precisionActive ? 0.6 : 1.0);
                 })()}
                 panSpeed={(() => {
-                  const base = orbitFeel === "snappy" ? 1.4 : orbitFeel === "smooth" ? 0.8 : 1.0;
+                  const base =
+                    orbitFeel === "snappy"
+                      ? 1.4
+                      : orbitFeel === "smooth"
+                      ? 0.8
+                      : 1.0;
                   return base * (precisionActive ? 0.6 : 1.0);
                 })()}
                 minDistance={3}

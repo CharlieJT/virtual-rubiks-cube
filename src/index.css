@@ -21,7 +21,14 @@ body {
   z-index: 0;
 }
 /* Prevent text selection everywhere */
-html, body, #root, .no-select, .select-none, .absolute, .fixed, .relative {
+html,
+body,
+#root,
+.no-select,
+.select-none,
+.absolute,
+.fixed,
+.relative {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -29,7 +36,8 @@ html, body, #root, .no-select, .select-none, .absolute, .fixed, .relative {
 }
 
 /* Prevent vertical scroll - everything should fit inside the viewport */
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
 }
