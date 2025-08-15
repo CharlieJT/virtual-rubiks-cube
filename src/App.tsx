@@ -400,23 +400,25 @@ const App = () => {
         const dx = e.touches[1].clientX - e.touches[0].clientX;
         const dy = e.touches[1].clientY - e.touches[0].clientY;
         const nowAngle = Math.atan2(dy, dx);
-        const prevAngle = (pinchRef.current as any).prevAngle as number | undefined;
+        const prevAngle = (pinchRef.current as any).prevAngle as
+          | number
+          | undefined;
         if (prevAngle !== undefined) {
           // compute smallest signed delta
-            let delta = nowAngle - prevAngle;
-            // normalize to [-π, π]
-            while (delta > Math.PI) delta -= Math.PI * 2;
-            while (delta < -Math.PI) delta += Math.PI * 2;
-            // convert to cube spin: use delta directly so clockwise finger twist produces clockwise cube spin
-            const spin = delta;
-            cubeViewRef.current?.spinAroundViewAxis(spin);
+          let delta = nowAngle - prevAngle;
+          // normalize to [-π, π]
+          while (delta > Math.PI) delta -= Math.PI * 2;
+          while (delta < -Math.PI) delta += Math.PI * 2;
+          // convert to cube spin: use delta directly so clockwise finger twist produces clockwise cube spin
+          const spin = delta;
+          cubeViewRef.current?.spinAroundViewAxis(spin);
         }
         (pinchRef.current as any).prevAngle = nowAngle;
       }
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-  // do not trigger any automatic spin on touchend; user-controlled spinning only
+      // do not trigger any automatic spin on touchend; user-controlled spinning only
       // Only re-enable when no touches remain (both fingers truly off screen)
       if (e.touches.length === 0) {
         pinchRef.current.active = false;
@@ -489,6 +491,32 @@ const App = () => {
           </p>
         </div>
 
+        {/* Orbit feel selector (placed under header) */}
+        <div className=" max-w-4xl mx-auto px-4 mb-3">
+          <div className="bg-white/80 backdrop-blur px-2 py-1 rounded-lg shadow flex items-center gap-1 text-xs md:text-sm">
+            <span className="text-gray-800 font-semibold mr-2">Orbit:</span>
+            {(
+              [
+                { k: "normal", label: "Normal" },
+                { k: "snappy", label: "Snappy" },
+                { k: "smooth", label: "Smooth" },
+              ] as Array<{ k: OrbitFeel; label: string }>
+            ).map((opt) => (
+              <button
+                key={opt.k}
+                onClick={() => setOrbitFeel(opt.k)}
+                className={`px-2 py-0.5 rounded font-semibold transition ${
+                  orbitFeel === opt.k
+                    ? "bg-blue-500 text-white"
+                    : "bg-white text-gray-700 hover:bg-blue-100"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Cube container fills available space */}
         <div className="flex-1 flex items-center justify-center px-4 min-h-0 mb-8">
           <div
@@ -511,40 +539,7 @@ const App = () => {
                 {isSolving ? "Solving" : isScrambled ? "Scrambled" : "Solved"}
               </div>
             </div>
-            {/* Precision mode indicator */}
-            {precisionActive && (
-              <div className="absolute left-4 bottom-16 z-30 pointer-events-none">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm bg-blue-400 text-blue-900">
-                  <span>🎯</span>
-                  Precision
-                </div>
-              </div>
-            )}
-            {/* Orbit feel selector */}
-            <div className="absolute left-4 bottom-28 z-30">
-              <div className="bg-white/80 backdrop-blur px-2 py-1 rounded-lg shadow flex items-center gap-1 text-xs md:text-sm">
-                <span className="text-gray-800 font-semibold mr-1">Orbit:</span>
-                {(
-                  [
-                    { k: "normal", label: "Normal" },
-                    { k: "snappy", label: "Snappy" },
-                    { k: "smooth", label: "Smooth" },
-                  ] as Array<{ k: OrbitFeel; label: string }>
-                ).map((opt) => (
-                  <button
-                    key={opt.k}
-                    onClick={() => setOrbitFeel(opt.k)}
-                    className={`px-2 py-0.5 rounded font-semibold transition ${
-                      orbitFeel === opt.k
-                        ? "bg-blue-500 text-white"
-                        : "bg-white text-gray-700 hover:bg-blue-100"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Orbit and precision UI moved into ControlPanel for layout consistency */}
             {/* Scramble overlay stays after scrambling until X is clicked, Solution overlay after solve/generate until X is clicked */}
             {scrambleMoves &&
               scrambleMoves.length > 0 &&
@@ -703,7 +698,7 @@ const App = () => {
         </div>
       </div>
 
-      {/* Control panel fixed at bottom (mobile-safe) */}
+      {/* Control panel fixed at bottom (mobile-safe) - scramble/solve buttons remain here */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="w-full max-w-6xl mx-auto px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
           <ControlPanel

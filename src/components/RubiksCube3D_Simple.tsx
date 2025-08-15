@@ -395,7 +395,22 @@ const CubePiece = React.memo(
           // Allow right/middle click or Shift+click to pass through for OrbitControls.
           const isPrimary = (e.button ?? 0) === 0;
           const shiftHeld = !!e.shiftKey;
+          // Prevent a secondary touch/pointer from starting a drag while another pointer is active.
+          // If touches are active, ignore extra pointers (two-finger gestures handled elsewhere).
           if (isPrimary && !shiftHeld) {
+            // For touch devices, ensure only the first active pointer initiates interaction.
+            // Use pointerType if available to detect touch vs mouse.
+            const pointerType = (e.nativeEvent && (e.nativeEvent as any).pointerType) || null;
+            if (pointerType === "touch") {
+              // If there are already touches active on the window, ignore this secondary touch.
+              // We track active touches via TouchEvent on the container elsewhere; as a defensive check, use e.touches if present.
+              const touches = (e.nativeEvent && (e.nativeEvent as any).touches) as TouchList | undefined;
+              if (touches && touches.length > 1) {
+                // If this pointer isn't the first touch, ignore it. The first touch will have been handled elsewhere.
+                // We can't reliably know order here, so defensively ignore when >1 touches – the two-finger spin mode handles multi-touch.
+                return;
+              }
+            }
             e.stopPropagation();
             const intersectionPoint = e.point || new THREE.Vector3();
             onPointerDown?.(e, position, intersectionPoint);
