@@ -43,8 +43,6 @@ const App = () => {
   const [precisionHold, setPrecisionHold] = useState(false); // active while holding Shift
   const lastTwoFingerTapRef = useRef<number>(0);
   const precisionActive = precisionMode || precisionHold;
-  type OrbitFeel = "normal" | "snappy" | "smooth";
-  const [orbitFeel, setOrbitFeel] = useState<OrbitFeel>("normal");
 
   const lastMoveTimeRef = useRef(0);
   const moveQueueRef = useRef<CubeMove[]>([]);
