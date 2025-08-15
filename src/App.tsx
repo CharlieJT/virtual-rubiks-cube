@@ -403,30 +403,20 @@ const App = () => {
         const prevAngle = (pinchRef.current as any).prevAngle as number | undefined;
         if (prevAngle !== undefined) {
           // compute smallest signed delta
-          let delta = nowAngle - prevAngle;
-          // normalize to [-π, π]
-          while (delta > Math.PI) delta -= Math.PI * 2;
-          while (delta < -Math.PI) delta += Math.PI * 2;
-          // convert to cube spin: negate because screen Y axis is downwards
-          const spin = -delta;
-          cubeViewRef.current?.spinAroundViewAxis(spin);
+            let delta = nowAngle - prevAngle;
+            // normalize to [-π, π]
+            while (delta > Math.PI) delta -= Math.PI * 2;
+            while (delta < -Math.PI) delta += Math.PI * 2;
+            // convert to cube spin: use delta directly so clockwise finger twist produces clockwise cube spin
+            const spin = delta;
+            cubeViewRef.current?.spinAroundViewAxis(spin);
         }
         (pinchRef.current as any).prevAngle = nowAngle;
       }
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      // legacy double-pinch toggle
-      if (pinchRef.current.active) {
-        const now = Date.now();
-        const since = now - pinchRef.current.lastPinchTime;
-        if (since > 0 && since < 400) {
-          cubeViewRef.current?.spinAroundViewAxis(Math.PI);
-          pinchRef.current.lastPinchTime = 0;
-        } else {
-          pinchRef.current.lastPinchTime = now;
-        }
-      }
+  // do not trigger any automatic spin on touchend; user-controlled spinning only
       // Only re-enable when no touches remain (both fingers truly off screen)
       if (e.touches.length === 0) {
         pinchRef.current.active = false;
