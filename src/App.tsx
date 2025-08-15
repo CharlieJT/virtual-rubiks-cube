@@ -1,4 +1,17 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+
+// Custom hook to detect touch devices
+function useIsTouchDevice() {
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    const hasTouch =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window ||
+        (typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 0));
+    setIsTouch(Boolean(hasTouch));
+  }, []);
+  return isTouch;
+}
 import { Canvas } from "@react-three/fiber";
 import { TrackballControls } from "@react-three/drei";
 import RubiksCube3D, {
@@ -514,6 +527,8 @@ const App = () => {
     []
   );
 
+  const isTouchDevice = useIsTouchDevice();
+
   return (
     <>
       <div className="min-h-[108dvh] md:min-h-[105dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
@@ -657,23 +672,25 @@ const App = () => {
                 maxDistance={15}
               />
             </Canvas>
-            {/* Spin Trackpad - bottom right */}
-            <div
-              className="absolute right-3 bottom-3 z-30 select-none"
-              aria-label="Spin trackpad"
-            >
+            {/* Spin Trackpad - bottom right (only show on desktop/non-touch devices) */}
+            {!isTouchDevice && (
               <div
-                onPointerDown={handleTrackpadPointerDown}
-                onPointerMove={handleTrackpadPointerMove}
-                onPointerUp={handleTrackpadPointerUp}
-                onPointerCancel={handleTrackpadPointerUp}
-                className="flex flex-col w-32 h-14 md:w-40 md:h-16 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
-                title="Drag left/right to spin"
+                className="absolute right-3 bottom-3 z-30 select-none"
+                aria-label="Spin trackpad"
               >
-                <div>Drag here to spin</div>
-                <div>←→</div>
+                <div
+                  onPointerDown={handleTrackpadPointerDown}
+                  onPointerMove={handleTrackpadPointerMove}
+                  onPointerUp={handleTrackpadPointerUp}
+                  onPointerCancel={handleTrackpadPointerUp}
+                  className="flex flex-col w-32 h-14 md:w-40 md:h-16 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
+                  title="Drag left/right to spin"
+                >
+                  <div>Drag here to spin</div>
+                  <div>←→</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
