@@ -335,17 +335,15 @@ const CubePiece = React.memo(
       const mk = (opts: { color: string; useLogo: boolean }) => {
         const hasLogo = opts.useLogo;
         return new THREE.MeshPhongMaterial({
-          // When using a texture, avoid tinting: set color to white
           color: hasLogo ? 0xffffff : opts.color,
           map: hasLogo ? logoTex : null,
-          // Keep the logo image original by disabling emissive when map is present
-          emissive: hasLogo
-            ? new THREE.Color(0x000000)
-            : new THREE.Color(opts.color).multiplyScalar(0.08),
-          specular: hasLogo
-            ? new THREE.Color(0x222222)
-            : new THREE.Color(0xffffff),
-          shininess: hasLogo ? 20 : 60,
+          emissive: new THREE.Color(
+            hasLogo ? 0xffffff : opts.color
+          ).multiplyScalar(0.08),
+          emissiveMap: hasLogo ? logoTex : null,
+          specular: new THREE.Color(0xffffff),
+          shininess: 60,
+          toneMapped: true,
         });
       };
 

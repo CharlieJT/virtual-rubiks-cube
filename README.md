@@ -122,18 +122,21 @@ src/
 ## Technical Highlights
 
 ### Animation System
+
 - **Custom RequestAnimationFrame**: Replaced TWEEN.js with custom animation system for better performance
 - **Delta Rotation Tracking**: Precise rotation calculations for smooth movements
 - **Move Queue Management**: Prevents animation conflicts and ensures sequential execution
 - **Animation Locking**: Thread-safe animation state management
 
 ### 3D Rendering
+
 - **BoxGeometry with Materials**: Each cubie uses optimized geometry with 6 separate materials
 - **Thick Black Borders**: 3D mesh "beams" create realistic cube edge appearance
 - **Optimized Lighting**: SpotLight and AmbientLight setup for realistic appearance
 - **No Inertia Controls**: Disabled OrbitControls damping for responsive interaction
 
 ### Performance Optimizations
+
 - **Debounced Input**: 100ms debouncing prevents rapid button press issues
 - **Mesh Reference Management**: Efficient cubie reference tracking and updates
 - **State Synchronization**: Cube state updates only after animation completion
