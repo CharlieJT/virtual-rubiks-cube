@@ -1,5 +1,7 @@
 # Virtual Rubik's Cube
 
+[Live Demo](https://virtual-rubiks-cube.netlify.app/)
+
 An interactive 3D Rubik's cube built with React, TypeScript, Three.js, and Tailwind CSS.
 
 ## Features
