@@ -225,6 +225,7 @@ interface CubePieceProps {
   ) => void;
   onMeshReady?: (mesh: THREE.Mesh, x: number, y: number, z: number) => void;
   onPointerMove?: (e: any) => void;
+  touchCount?: number;
 }
 
 export interface RubiksCube3DProps {
@@ -235,6 +236,7 @@ export interface RubiksCube3DProps {
   isAnimating?: boolean;
   onOrbitControlsChange?: (enabled: boolean) => void;
   onDragMove?: (move: CubeMove) => void; // New prop for drag moves
+  touchCount?: number; // number of active touches reported by parent App
 }
 
 export type RubiksCube3DHandle = {
@@ -251,6 +253,7 @@ const CubePiece = React.memo(
     onMeshReady,
     onPointerMove,
     whiteLogoAngleRad = 0,
+    touchCount = 0,
   }: CubePieceProps & { whiteLogoAngleRad?: number }) => {
     const meshRef = useRef<THREE.Mesh>(null);
 
@@ -357,6 +360,7 @@ const CubePiece = React.memo(
       colors.back,
       isCenter,
       tiptonsTexture,
+      touchCount,
     ]);
 
     // Update the rotation of the shared logo texture without recreating materials
@@ -405,15 +409,8 @@ const CubePiece = React.memo(
             const pointerType =
               (e.nativeEvent && (e.nativeEvent as any).pointerType) || null;
             if (pointerType === "touch") {
-              // If there are already touches active on the window, ignore this secondary touch.
-              // We track active touches via TouchEvent on the container elsewhere; as a defensive check, use e.touches if present.
-              const touches = (e.nativeEvent &&
-                (e.nativeEvent as any).touches) as TouchList | undefined;
-              if (touches && touches.length > 1) {
-                // If this pointer isn't the first touch, ignore it. The first touch will have been handled elsewhere.
-                // We can't reliably know order here, so defensively ignore when >1 touches – the two-finger spin mode handles multi-touch.
-                return;
-              }
+              // If parent reports more than one active touch, don't start a cubie drag here.
+              if ((touchCount || 0) > 1) return;
             }
             e.stopPropagation();
             const intersectionPoint = e.point || new THREE.Vector3();
@@ -464,6 +461,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       onStartAnimation,
       isAnimating,
       onOrbitControlsChange,
+      touchCount = 0,
     }: RubiksCube3DProps,
     ref
   ) => {
@@ -1986,6 +1984,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                     position={[(x - 1) * 1.05, (y - 1) * 1.05, (z - 1) * 1.05]}
                     colors={cubie.colors}
                     whiteLogoAngleRad={whiteLogoAngle}
+                    touchCount={touchCount}
                     onPointerDown={(e, pos, intersectionPoint) =>
                       handlePointerDown(e, pos, intersectionPoint)
                     }

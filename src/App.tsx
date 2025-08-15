@@ -26,6 +26,7 @@ const App = () => {
   const [orbitControlsEnabled, setOrbitControlsEnabled] = useState(true);
   const orbitControlsRef = useRef<any>(null);
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
+  const [touchCount, setTouchCount] = useState(0);
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
   const pinchRef = useRef<{
     active: boolean;
@@ -371,6 +372,8 @@ const App = () => {
     if (!el) return;
 
     const onTouchStart = (e: TouchEvent) => {
+      // mirror active touch count for child components
+      setTouchCount(e.touches.length);
       if (e.touches.length === 2) {
         // Enter explicit two-finger spin mode
         pinchRef.current.active = true;
@@ -415,11 +418,15 @@ const App = () => {
         }
         (pinchRef.current as any).prevAngle = nowAngle;
       }
+      // update active touch count during move
+      setTouchCount(e.touches.length);
     };
 
     const onTouchEnd = (e: TouchEvent) => {
       // do not trigger any automatic spin on touchend; user-controlled spinning only
       // Only re-enable when no touches remain (both fingers truly off screen)
+      // update active touch count
+      setTouchCount(e.touches.length);
       if (e.touches.length === 0) {
         pinchRef.current.active = false;
         pinchRef.current.startDist = 0;
@@ -622,6 +629,7 @@ const App = () => {
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
+                touchCount={touchCount}
                 pendingMove={pendingMove}
                 onMoveAnimationDone={handleMoveAnimationDone}
                 onStartAnimation={handleStartAnimation}
