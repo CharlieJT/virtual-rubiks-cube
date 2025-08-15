@@ -44,10 +44,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
 
   if (!isOpen) return null;
 
-  console.log("ConfirmModal rendered");
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70">
-      <div className="bg-white border-4 border-cyan-400 rounded-2xl p-5 min-w-[320px] max-w-[400px] shadow-lg">
+      <div className="bg-white border-4 mx-4 border-cyan-400 rounded-2xl p-5 min-w-[320px] max-w-[400px] shadow-lg">
         <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
           {title}
         </h3>
