@@ -262,6 +262,7 @@ const CubePiece = React.memo(
     touchCount = 0,
   }: CubePieceProps & { whiteLogoAngleRad?: number }) => {
     const meshRef = useRef<THREE.Mesh>(null);
+    const [logoReady, setLogoReady] = useState(false);
 
     useEffect(() => {
       if (meshRef.current && onMeshReady) {
@@ -277,7 +278,12 @@ const CubePiece = React.memo(
     // Load the Tipton's solver texture once
     const tiptonsTexture = useMemo(() => {
       const loader = new THREE.TextureLoader();
-      const tex = loader.load("/assets/tiptons-solver.png");
+      const tex = loader.load(
+        "/assets/tiptons-solver.png",
+        () => setLogoReady(true),
+        undefined,
+        () => setLogoReady(false)
+      );
       // Improve sampling and color space
       // @ts-ignore - colorSpace exists on newer three versions
       tex.colorSpace =
@@ -329,11 +335,12 @@ const CubePiece = React.memo(
       else if (frontIsLogo) logoFace = "front";
       else if (backIsLogo) logoFace = "back";
 
-      // Use the shared texture instance; we update its rotation in an effect
-      const logoTex: THREE.Texture | null = logoFace ? tiptonsTexture : null;
+      // Use the shared texture instance only after it has loaded
+      const logoTex: THREE.Texture | null =
+        logoFace && logoReady ? tiptonsTexture : null;
 
       const mk = (opts: { color: string; useLogo: boolean }) => {
-        const hasLogo = opts.useLogo;
+        const hasLogo = opts.useLogo && logoReady;
         return new THREE.MeshPhongMaterial({
           color: hasLogo ? 0xffffff : opts.color,
           map: hasLogo ? logoTex : null,
@@ -364,6 +371,7 @@ const CubePiece = React.memo(
       colors.back,
       isCenter,
       tiptonsTexture,
+      logoReady,
       touchCount,
     ]);
 
@@ -923,10 +931,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           pendingMove,
           () => {
             if (cancelled) return;
+            // Apply the white logo rotation immediately on animation completion
+            // This prevents a one-frame mismatch (flicker) on white-face turns during
+            // solve/scramble where state updates and re-parenting briefly desync.
+            applyMoveToWhiteLogoAngle(pendingMove);
+            // Then update the logical cube state/colors in the parent
             onMoveAnimationDone && onMoveAnimationDone(pendingMove);
-            // Update the logo angle exactly after the geometry completes to avoid flicker
-            // Use rAF to occur after React state updates have applied colors
-            requestAnimationFrame(() => applyMoveToWhiteLogoAngle(pendingMove));
             currentTweenRef.current = null;
           }
         );

@@ -607,7 +607,7 @@ const App = () => {
                     {scrambleMoves.map((move, i) => (
                       <span
                         key={i}
-                        className={`px-1 py-0.5 md:px-2 md:py-1 rounded font-mono transition-colors ${
+                        className={`px-1.5 py-0.5 md:px-2.25 md:py-1 rounded font-mono transition-colors ${
                           i === scrambleIndex
                             ? "bg-yellow-400 text-yellow-900"
                             : "bg-white/30 text-white"
@@ -643,7 +643,7 @@ const App = () => {
                   {solution.steps.map((step, i) => (
                     <span
                       key={i}
-                      className={`px-1 py-0.5 md:px-2 md:py-1 rounded font-mono transition-colors ${
+                      className={`px-1.5 py-0.5 md:px-2.25 md:py-1 rounded font-mono transition-colors ${
                         i === solutionIndex
                           ? "bg-purple-400 text-purple-900"
                           : "bg-white/30 text-white"
