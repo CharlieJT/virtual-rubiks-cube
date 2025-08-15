@@ -1,7 +1,7 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import RubiksCube3D from "./components/RubiksCube3D_Simple";
+import { TrackballControls } from "@react-three/drei";
+import RubiksCube3D, { type RubiksCube3DHandle } from "./components/RubiksCube3D_Simple";
 import ControlPanel from "./components/ControlPanel";
 // import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
@@ -23,6 +23,16 @@ const App = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [orbitControlsEnabled, setOrbitControlsEnabled] = useState(true);
   const orbitControlsRef = useRef<any>(null);
+  const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
+  const cubeContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Precision orbit mode: toggle for fine adjustments
+  const [precisionMode, setPrecisionMode] = useState(false);
+  const [precisionHold, setPrecisionHold] = useState(false); // active while holding Shift
+  const lastTwoFingerTapRef = useRef<number>(0);
+  const precisionActive = precisionMode || precisionHold;
+  type OrbitFeel = "normal" | "snappy" | "smooth";
+  const [orbitFeel, setOrbitFeel] = useState<OrbitFeel>("normal");
 
   const lastMoveTimeRef = useRef(0);
   const moveQueueRef = useRef<CubeMove[]>([]);
@@ -283,6 +293,72 @@ const App = () => {
 
   // Use explicit scrambling state to avoid flicker and ensure re-enable
   const isScrambling = isScramblingState;
+
+  // Desktop: hold Shift for temporary precision
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setPrecisionHold(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setPrecisionHold(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
+  // Mobile: two-finger double-tap toggles precision mode
+  useEffect(() => {
+    const el = cubeContainerRef.current;
+    if (!el) return;
+    const onTouchStart = (e: TouchEvent) => {
+      // Only consider two-finger tap start (not moving yet)
+      if (e.touches.length === 2) {
+        const now = Date.now();
+        if (now - lastTwoFingerTapRef.current < 350) {
+          setPrecisionMode((p) => !p);
+          lastTwoFingerTapRef.current = 0; // reset
+        } else {
+          lastTwoFingerTapRef.current = now;
+        }
+      }
+    };
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart as any);
+    };
+  }, []);
+
+  // Desktop: double-click anywhere in the cube container toggles precision mode
+  const handleContainerDoubleClick = useCallback(() => {
+    setPrecisionMode((p) => !p);
+  }, []);
+
+  // Trackpad overlay drag state
+  const trackpadDragRef = useRef<{ active: boolean; lastX: number } | null>(null);
+  const handleTrackpadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    trackpadDragRef.current = { active: true, lastX: e.clientX };
+  }, []);
+  const handleTrackpadPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!trackpadDragRef.current?.active) return;
+    const dx = e.clientX - trackpadDragRef.current.lastX;
+    trackpadDragRef.current.lastX = e.clientX;
+    // Convert pixels to radians; scale with precision mode for finer control
+    const base = 0.004; // rad/px baseline
+    const sensitivity = base * (precisionActive ? 0.4 : 1.0);
+    // UX: dragging left should spin CW (negative angle), right = CCW (positive)
+    const angle = dx * sensitivity;
+    cubeViewRef.current?.spinAroundViewAxis(angle);
+  }, [precisionActive]);
+  const handleTrackpadPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    trackpadDragRef.current = { active: false, lastX: 0 };
+  }, []);
+
   return (
     <>
       <div className="min-h-[108dvh] md:min-h-[105dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
@@ -298,7 +374,11 @@ const App = () => {
 
         {/* Cube container fills available space */}
         <div className="flex-1 flex items-center justify-center px-4 min-h-0 mb-8">
-          <div className="w-full max-w-4xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]">
+          <div
+            ref={cubeContainerRef}
+            onDoubleClick={handleContainerDoubleClick}
+            className="w-full max-w-4xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]"
+          >
             {/* Status indicator - bottom left of cube container */}
             <div className="absolute left-4 bottom-4 z-30 pointer-events-none">
               <div
@@ -312,6 +392,38 @@ const App = () => {
               >
                 <span>{isSolving ? "⚡" : isScrambled ? "🔀" : "✅"}</span>
                 {isSolving ? "Solving" : isScrambled ? "Scrambled" : "Solved"}
+              </div>
+            </div>
+            {/* Precision mode indicator */}
+            {precisionActive && (
+              <div className="absolute left-4 bottom-16 z-30 pointer-events-none">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm bg-blue-400 text-blue-900">
+                  <span>🎯</span>
+                  Precision
+                </div>
+              </div>
+            )}
+            {/* Orbit feel selector */}
+            <div className="absolute left-4 bottom-28 z-30">
+              <div className="bg-white/80 backdrop-blur px-2 py-1 rounded-lg shadow flex items-center gap-1 text-xs md:text-sm">
+                <span className="text-gray-800 font-semibold mr-1">Orbit:</span>
+                {([
+                  { k: "normal", label: "Normal" },
+                  { k: "snappy", label: "Snappy" },
+                  { k: "smooth", label: "Smooth" },
+                ] as Array<{ k: OrbitFeel; label: string }>).map((opt) => (
+                  <button
+                    key={opt.k}
+                    onClick={() => setOrbitFeel(opt.k)}
+                    className={`px-2 py-0.5 rounded font-semibold transition ${
+                      orbitFeel === opt.k
+                        ? "bg-blue-500 text-white"
+                        : "bg-white text-gray-700 hover:bg-blue-100"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
             {/* Scramble overlay stays after scrambling until X is clicked, Solution overlay after solve/generate until X is clicked */}
@@ -392,6 +504,7 @@ const App = () => {
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.9} color="#eeeeee" />
               <RubiksCube3D
+                ref={cubeViewRef}
                 cubeState={cube3D}
                 pendingMove={pendingMove}
                 onMoveAnimationDone={handleMoveAnimationDone}
@@ -400,19 +513,51 @@ const App = () => {
                 onOrbitControlsChange={handleOrbitControlsChange}
                 onDragMove={handleButtonMove}
               />
-              <OrbitControls
+              <TrackballControls
                 ref={orbitControlsRef}
                 enabled={orbitControlsEnabled}
-                enablePan={true}
-                enableZoom={true}
-                enableRotate={true}
-                enableDamping={false}
+                // TrackballControls props
+                noRotate={false}
+                noZoom={false}
+                noPan={false}
+                // Feel tuning
+                staticMoving={orbitFeel === "snappy"}
+                dynamicDampingFactor={(() => {
+                  const base = orbitFeel === "smooth" ? 0.2 : orbitFeel === "snappy" ? 0.05 : 0.1;
+                  return precisionActive ? Math.min(0.3, base + 0.1) : base;
+                })()}
+                rotateSpeed={(() => {
+                  const base = orbitFeel === "snappy" ? 1.6 : orbitFeel === "smooth" ? 0.6 : 1.0;
+                  return base * (precisionActive ? 0.5 : 1.0);
+                })()}
+                zoomSpeed={(() => {
+                  const base = orbitFeel === "snappy" ? 1.6 : orbitFeel === "smooth" ? 0.8 : 1.2;
+                  return base * (precisionActive ? 0.6 : 1.0);
+                })()}
+                panSpeed={(() => {
+                  const base = orbitFeel === "snappy" ? 1.4 : orbitFeel === "smooth" ? 0.8 : 1.0;
+                  return base * (precisionActive ? 0.6 : 1.0);
+                })()}
                 minDistance={3}
                 maxDistance={15}
-                minPolarAngle={0}
-                maxPolarAngle={Math.PI}
               />
             </Canvas>
+            {/* Spin Trackpad - bottom right */}
+            <div
+              className="absolute right-3 bottom-3 z-30 select-none"
+              aria-label="Spin trackpad"
+            >
+              <div
+                onPointerDown={handleTrackpadPointerDown}
+                onPointerMove={handleTrackpadPointerMove}
+                onPointerUp={handleTrackpadPointerUp}
+                onPointerCancel={handleTrackpadPointerUp}
+                className="w-28 h-20 md:w-32 md:h-24 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg flex items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
+                title="Drag left/right to spin"
+              >
+                ↺↻ Spin
+              </div>
+            </div>
           </div>
         </div>
       </div>

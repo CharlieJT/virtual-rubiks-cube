@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo, useState } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState, useImperativeHandle } from "react";
 import React from "react";
 import { useThree } from "@react-three/fiber";
 // Removed unused cubeScreenAxes import
@@ -218,7 +218,7 @@ interface CubePieceProps {
   onPointerMove?: (e: any) => void;
 }
 
-interface RubiksCube3DProps {
+export interface RubiksCube3DProps {
   cubeState: CubeState[][][];
   pendingMove?: CubeMove | null;
   onMoveAnimationDone?: (move: CubeMove) => void;
@@ -227,6 +227,12 @@ interface RubiksCube3DProps {
   onOrbitControlsChange?: (enabled: boolean) => void;
   onDragMove?: (move: CubeMove) => void; // New prop for drag moves
 }
+
+export type RubiksCube3DHandle = {
+  // Rotate the whole cube around the current camera view axis by angleRad.
+  // Positive = CCW as seen by the viewer; negative = CW.
+  spinAroundViewAxis: (angleRad: number) => void;
+};
 
 const CubePiece = React.memo(
   ({
@@ -378,16 +384,31 @@ const CubePiece = React.memo(
         position={position}
         material={materials}
         onPointerDown={(e) => {
-          e.stopPropagation();
-          const intersectionPoint = e.point || new THREE.Vector3();
-          onPointerDown?.(e, position, intersectionPoint);
+          // Only intercept primary button without precision modifier.
+          // Allow right/middle click or Shift+click to pass through for OrbitControls.
+          const isPrimary = (e.button ?? 0) === 0;
+          const shiftHeld = !!e.shiftKey;
+          if (isPrimary && !shiftHeld) {
+            e.stopPropagation();
+            const intersectionPoint = e.point || new THREE.Vector3();
+            onPointerDown?.(e, position, intersectionPoint);
+          }
         }}
         onPointerMove={(e) => {
-          e.stopPropagation();
-          onPointerMove?.(e);
+          // Only stop propagation if we previously started a primary-button drag without Shift.
+          const isPrimary = (e.button ?? 0) === 0;
+          const shiftHeld = !!e.shiftKey;
+          if (isPrimary && !shiftHeld) {
+            e.stopPropagation();
+            onPointerMove?.(e);
+          }
         }}
         onPointerUp={(e) => {
-          e.stopPropagation();
+          const isPrimary = (e.button ?? 0) === 0;
+          const shiftHeld = !!e.shiftKey;
+          if (isPrimary && !shiftHeld) {
+            e.stopPropagation();
+          }
         }}
       >
         {/* Use RoundedBoxGeometry for rounded corners */}
@@ -408,14 +429,14 @@ const CubePiece = React.memo(
   }
 );
 
-const RubiksCube3D = ({
+const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(({
   cubeState,
   pendingMove,
   onMoveAnimationDone,
   onStartAnimation,
   isAnimating,
   onOrbitControlsChange,
-}: RubiksCube3DProps) => {
+}: RubiksCube3DProps, ref) => {
   const groupRef = useRef<THREE.Group>(null);
   const cubiesRef = useRef<AnimatedCubie[]>([]);
   const currentTweenRef = useRef<any>(null);
@@ -874,6 +895,26 @@ const RubiksCube3D = ({
 
   const { camera, gl } = useThree();
 
+  // Expose a minimal imperative handle for external orientation refinement
+  useImperativeHandle(
+    ref,
+    () => ({
+      spinAroundViewAxis: (angleRad: number) => {
+        if (!groupRef.current) return;
+        // Don't interfere with active slice drags or snapping animations
+        if (trackingStateRef.current.isDragging || trackingStateRef.current.isSnapping) return;
+        if (AnimationHelper.isLocked()) return;
+        // World-space axis along camera's forward direction (viewer -> scene)
+        const axisWorld = camera.getWorldDirection(new THREE.Vector3()).normalize();
+        const q = new THREE.Quaternion().setFromAxisAngle(axisWorld, angleRad);
+        // Apply as a world rotation so it truly spins around the view axis
+        groupRef.current.quaternion.premultiply(q);
+        groupRef.current.updateMatrixWorld(true);
+      },
+    }),
+    [camera]
+  );
+
   // Build a face-local basis (right/up) in cube local space
   const getFaceBasisLocal = useCallback((face: string) => {
     const normal =
@@ -1119,35 +1160,32 @@ const RubiksCube3D = ({
   // Detect which face of the cubie was clicked and determine move parameters
   const detectFaceAndMove = (
     position: [number, number, number],
-    intersectionPoint: THREE.Vector3
+    intersectionPointWorld: THREE.Vector3
   ) => {
     const [x, y, z] = position;
     const gridX = Math.round(x / 1.05 + 1);
     const gridY = Math.round(y / 1.05 + 1);
     const gridZ = Math.round(z / 1.05 + 1);
 
-    // Convert world intersection point to local cube coordinates
-    const localPoint = intersectionPoint
-      .clone()
-      .sub(new THREE.Vector3(x, y, z));
+    // Convert the world intersection point to cube-local coordinates to be rotation invariant
+    let pointInCubeLocal = intersectionPointWorld.clone();
+    if (groupRef.current) {
+      pointInCubeLocal = groupRef.current.worldToLocal(pointInCubeLocal);
+    }
+    // Now compute local offset from the cubie's static local center (position is cube-local)
+    const localPoint = pointInCubeLocal.sub(new THREE.Vector3(x, y, z));
 
-    // Determine which face was clicked based on the intersection point
-    // Use a threshold to determine the most prominent coordinate
+    // Determine which face was clicked based on the dominant local axis
     const absX = Math.abs(localPoint.x);
     const absY = Math.abs(localPoint.y);
     const absZ = Math.abs(localPoint.z);
 
     let clickedFace = "front";
-
-    // Determine the face based on the largest absolute coordinate
     if (absX > absY && absX > absZ) {
-      // Left/Right face clicked
       clickedFace = localPoint.x > 0 ? "right" : "left";
     } else if (absY > absX && absY > absZ) {
-      // Top/Bottom face clicked
       clickedFace = localPoint.y > 0 ? "top" : "bottom";
     } else {
-      // Front/Back face clicked
       clickedFace = localPoint.z > 0 ? "front" : "back";
     }
 
@@ -1503,7 +1541,13 @@ const RubiksCube3D = ({
           : Math.sign(dragVector.y) * dragVector.length();
     }
 
-    const parity = trackingStateRef.current._dragSignParity ?? 1;
+    // Parity: re-evaluate based on the face and base move axis for consistency
+    const parity =
+      trackingStateRef.current._dragSignParity ??
+      getDragParity(
+        trackingStateRef.current.clickedFace,
+        baseMoveToAxis(trackingStateRef.current._baseMove || "F")
+      );
 
     // Rotation is from drag projection with parity fix; axis sign stays fixed to base move
     trackingStateRef.current.currentRotation =
@@ -1541,6 +1585,15 @@ const RubiksCube3D = ({
     const dragVector = currentPos
       .clone()
       .sub(trackingStateRef.current.startPosition);
+
+    // Always keep face-aligned screen axes up-to-date to account for whole-cube spins mid-gesture
+    if (groupRef.current) {
+      const { right, up } = getFaceBasisLocal(trackingStateRef.current.clickedFace);
+      const r2 = projectLocalDirToScreen(right);
+      const u2 = projectLocalDirToScreen(up);
+      if (r2.lengthSq() > 1e-6) trackingStateRef.current._screenFaceRight = r2.clone().normalize();
+      if (u2.lengthSq() > 1e-6) trackingStateRef.current._screenFaceUp = u2.clone().normalize();
+    }
 
     if (!trackingStateRef.current.hasStartedDrag) {
       // Use cached face axes; if missing, compute now
@@ -1592,7 +1645,7 @@ const RubiksCube3D = ({
       return;
     }
 
-    // After lock, we no longer switch move types mid-drag; rotation sign determines prime vs non-prime
+  // After lock, we no longer switch move types mid-drag; rotation sign determines prime vs non-prime
     updateDragRotation(dragVector);
   };
 
@@ -1891,6 +1944,6 @@ const RubiksCube3D = ({
       })()}
     </group>
   );
-};
+});
 
 export default RubiksCube3D;
