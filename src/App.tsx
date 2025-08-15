@@ -667,10 +667,11 @@ const App = () => {
                 onPointerMove={handleTrackpadPointerMove}
                 onPointerUp={handleTrackpadPointerUp}
                 onPointerCancel={handleTrackpadPointerUp}
-                className="w-28 h-14 md:w-32 md:h-16 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg flex items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
+                className="flex flex-col w-32 h-14 md:w-40 md:h-16 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
                 title="Drag left/right to spin"
               >
-                ↺↻ Spin
+                <div>Drag here to spin</div>
+                <div>←→</div>
               </div>
             </div>
           </div>
