@@ -25,6 +25,7 @@ const App = () => {
   const orbitControlsRef = useRef<any>(null);
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
+  const pinchRef = useRef<{ active: boolean; startDist: number; lastPinchTime: number }>({ active: false, startDist: 0, lastPinchTime: 0 });
 
   // Precision orbit mode: toggle for fine adjustments
   const [precisionMode, setPrecisionMode] = useState(false);
@@ -337,6 +338,73 @@ const App = () => {
     setPrecisionMode((p) => !p);
   }, []);
 
+  // Prevent wheel from resizing/zooming the cube or scrolling the page
+  useEffect(() => {
+    const el = cubeContainerRef.current;
+    if (!el) return;
+    const onWheel = (ev: WheelEvent) => {
+      // Prevent page scroll and Trackball zoom via wheel
+      ev.preventDefault();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel as any);
+  }, []);
+
+  // Touch handlers: detect pinch and double-pinch to toggle a spin between two orientations.
+  const computeTouchDistance = (t0: Touch, t1: Touch) => {
+    const dx = t0.clientX - t1.clientX;
+    const dy = t0.clientY - t1.clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  useEffect(() => {
+    const el = cubeContainerRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Start pinch
+        pinchRef.current.active = true;
+        pinchRef.current.startDist = computeTouchDistance(e.touches[0], e.touches[1]);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      // Prevent native pinch-zoom in mobile Safari
+      if (e.touches.length >= 2) e.preventDefault();
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      void e; // parameter intentionally unused
+      // If we ended a pinch gesture, treat as one pinch
+      if (pinchRef.current.active) {
+        const now = Date.now();
+        const since = now - pinchRef.current.lastPinchTime;
+        if (since > 0 && since < 400) {
+          // Double-pinch detected: toggle spin between two orientations (flip 180°)
+          // Use the cube view ref to spin by 180° around view axis
+          cubeViewRef.current?.spinAroundViewAxis(Math.PI);
+          // reset lastPinchTime so triple doesn't retrigger
+          pinchRef.current.lastPinchTime = 0;
+        } else {
+          pinchRef.current.lastPinchTime = now;
+        }
+      }
+      pinchRef.current.active = false;
+      pinchRef.current.startDist = 0;
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart as any);
+      el.removeEventListener("touchmove", onTouchMove as any);
+      el.removeEventListener("touchend", onTouchEnd as any);
+    };
+  }, []);
+
   // Trackpad overlay drag state
   const trackpadDragRef = useRef<{ active: boolean; lastX: number } | null>(null);
   const handleTrackpadPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -500,6 +568,8 @@ const App = () => {
             <Canvas
               camera={{ position: [5, 5, 5], fov: 55 }}
               className="w-full h-full pt-3"
+              // prevent default touch-action on canvas
+              style={{ touchAction: "none" }}
             >
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.9} color="#eeeeee" />
@@ -518,7 +588,7 @@ const App = () => {
                 enabled={orbitControlsEnabled}
                 // TrackballControls props
                 noRotate={false}
-                noZoom={false}
+                noZoom={true}
                 noPan={false}
                 // Feel tuning
                 staticMoving={orbitFeel === "snappy"}
@@ -552,7 +622,7 @@ const App = () => {
                 onPointerMove={handleTrackpadPointerMove}
                 onPointerUp={handleTrackpadPointerUp}
                 onPointerCancel={handleTrackpadPointerUp}
-                className="w-28 h-20 md:w-32 md:h-24 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg flex items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
+                className="w-28 h-14 md:w-32 md:h-16 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg flex items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
                 title="Drag left/right to spin"
               >
                 ↺↻ Spin
