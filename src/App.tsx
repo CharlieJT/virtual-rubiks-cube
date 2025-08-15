@@ -625,7 +625,7 @@ const App = () => {
             )}
             <Canvas
               camera={{ position: [5, 5, 5], fov: 55 }}
-              className="w-full h-full pt-3"
+              className="w-full h-full pt-8"
               // prevent default touch-action on canvas
               style={{ touchAction: "none" }}
             >

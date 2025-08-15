@@ -40,4 +40,6 @@ html,
 body {
   height: 100%;
   overflow: hidden;
+  overscroll-behavior-y: contain;
+  touch-action: none;
 }
