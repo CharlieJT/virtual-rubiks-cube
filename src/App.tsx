@@ -378,10 +378,10 @@ const App = () => {
           e.touches[0],
           e.touches[1]
         );
-        (pinchRef.current as any).lastMidpoint = {
-          x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-          y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
-        };
+        // store previous angle between the two touches for incremental rotation
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        (pinchRef.current as any).prevAngle = Math.atan2(dy, dx);
         setTwoFingerMode(true);
         setOrbitControlsEnabled(false);
         if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
@@ -396,18 +396,22 @@ const App = () => {
         // Prevent native pinch-zoom/page scroll
         e.preventDefault();
         if (!pinchRef.current.active) return;
-        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const last = (pinchRef.current as any).lastMidpoint as
-          | { x: number; y: number }
-          | undefined;
-        if (last) {
-          const dx = midX - last.x;
-          const base = 0.004;
-          const sensitivity = base * (precisionActive ? 0.4 : 1.0);
-          const angle = dx * sensitivity;
-          cubeViewRef.current?.spinAroundViewAxis(angle);
+        // Compute current angle between touches
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        const nowAngle = Math.atan2(dy, dx);
+        const prevAngle = (pinchRef.current as any).prevAngle as number | undefined;
+        if (prevAngle !== undefined) {
+          // compute smallest signed delta
+          let delta = nowAngle - prevAngle;
+          // normalize to [-π, π]
+          while (delta > Math.PI) delta -= Math.PI * 2;
+          while (delta < -Math.PI) delta += Math.PI * 2;
+          // convert to cube spin: negate because screen Y axis is downwards
+          const spin = -delta;
+          cubeViewRef.current?.spinAroundViewAxis(spin);
         }
-        (pinchRef.current as any).lastMidpoint = { x: midX, y: 0 };
+        (pinchRef.current as any).prevAngle = nowAngle;
       }
     };
 
@@ -423,11 +427,11 @@ const App = () => {
           pinchRef.current.lastPinchTime = now;
         }
       }
-      // if fewer than 2 touches remain, exit two-finger mode
-      if (e.touches.length < 2) {
+      // Only re-enable when no touches remain (both fingers truly off screen)
+      if (e.touches.length === 0) {
         pinchRef.current.active = false;
         pinchRef.current.startDist = 0;
-        (pinchRef.current as any).lastMidpoint = undefined;
+        (pinchRef.current as any).prevAngle = undefined;
         setTwoFingerMode(false);
         setOrbitControlsEnabled(true);
         if (orbitControlsRef.current) orbitControlsRef.current.enabled = true;
