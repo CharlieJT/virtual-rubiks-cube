@@ -8,6 +8,7 @@ import {
 } from "react";
 import React from "react";
 import { useThree } from "@react-three/fiber";
+import { activeTouches } from "../utils/touchState";
 // Removed unused cubeScreenAxes import
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -184,6 +185,7 @@ export interface TrackingStateRef {
   uniquePieceId: string;
   // Drag state
   isDragging: boolean;
+  _pointerId?: number;
   lockedMoveType: string;
   lockedDirection: SwipeDirection;
   initialSwipeDirection: SwipeDirection;
@@ -243,6 +245,10 @@ export type RubiksCube3DHandle = {
   // Rotate the whole cube around the current camera view axis by angleRad.
   // Positive = CCW as seen by the viewer; negative = CW.
   spinAroundViewAxis: (angleRad: number) => void;
+  // Abort any active face/slice drag immediately (used when entering two-finger spin mode)
+  abortActiveDrag: () => void;
+  // Whether a face/slice drag is currently active
+  isDraggingSlice: () => boolean;
 };
 
 const CubePiece = React.memo(
@@ -411,6 +417,12 @@ const CubePiece = React.memo(
             if (pointerType === "touch") {
               // If parent reports more than one active touch, don't start a cubie drag here.
               if ((touchCount || 0) > 1) return;
+              // Also consult the shared synchronous state in case the second finger is placed off-canvas
+              if (activeTouches.count > 1) return;
+              // As a final defensive check, fallback to native TouchList if available
+              const touches = (e.nativeEvent &&
+                (e.nativeEvent as any).touches) as TouchList | undefined;
+              if (touches && touches.length > 1) return;
             }
             e.stopPropagation();
             const intersectionPoint = e.point || new THREE.Vector3();
@@ -961,6 +973,32 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           groupRef.current.quaternion.premultiply(q);
           groupRef.current.updateMatrixWorld(true);
         },
+        abortActiveDrag: () => {
+          // Remove drag listeners first
+          window.removeEventListener("pointermove", handlePointerMove);
+          window.removeEventListener("pointerup", handlePointerUp);
+          // If dragging, snap back to 0 without issuing a move
+          if (
+            trackingStateRef.current.isDragging ||
+            trackingStateRef.current.dragGroup
+          ) {
+            const current = trackingStateRef.current.currentRotation || 0;
+            trackingStateRef.current.isDragging = false;
+            trackingStateRef.current.isSnapping = true;
+            trackingStateRef.current.snapAnimationStartTime = Date.now();
+            trackingStateRef.current.snapAnimationDuration = 120;
+            trackingStateRef.current.snapStartRotation = current;
+            trackingStateRef.current.snapTargetRotation = 0;
+            trackingStateRef.current.finalMove = "" as any;
+          } else {
+            // Nothing to snap; ensure state is clean and orbits enabled
+            cleanupDragState();
+            trackingStateRef.current.isTracking = false;
+          }
+        },
+        isDraggingSlice: () => {
+          return !!trackingStateRef.current.isDragging;
+        },
       }),
       [camera]
     );
@@ -1449,6 +1487,8 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         clickedFace,
         uniquePieceId,
         isDragging: false,
+        _pointerId:
+          (e && (e.pointerId ?? e?.nativeEvent?.pointerId)) || undefined,
         lockedMoveType: "",
         lockedDirection: "up",
         initialSwipeDirection: "up",
@@ -1623,6 +1663,13 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
     const handlePointerMove = (e: PointerEvent) => {
       if (!trackingStateRef.current.isTracking) return;
+      // Ignore moves from non-initiating pointers (e.g., a second finger)
+      if (
+        trackingStateRef.current._pointerId != null &&
+        e.pointerId !== trackingStateRef.current._pointerId
+      ) {
+        return;
+      }
 
       const currentPos = new THREE.Vector2(e.clientX, e.clientY);
       trackingStateRef.current.currentPosition = currentPos;
@@ -1718,8 +1765,15 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       updateDragRotation(dragVector);
     };
 
-    const handlePointerUp = () => {
-      // Always remove event listeners first
+    const handlePointerUp = (e: PointerEvent) => {
+      // Only respond to the initiating pointer's up event
+      if (
+        trackingStateRef.current._pointerId != null &&
+        e.pointerId !== trackingStateRef.current._pointerId
+      ) {
+        return;
+      }
+      // Now safe to remove listeners
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
 

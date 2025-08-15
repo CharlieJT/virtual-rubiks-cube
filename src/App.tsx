@@ -9,6 +9,7 @@ import ControlPanel from "./components/ControlPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
 import { AnimationHelper } from "./utils/animationHelper";
+import { activeTouches } from "./utils/touchState";
 import type { CubeMove, Solution } from "./types/cube";
 import ConfirmModal from "./components/ConfirmModal";
 
@@ -374,7 +375,14 @@ const App = () => {
     const onTouchStart = (e: TouchEvent) => {
       // mirror active touch count for child components
       setTouchCount(e.touches.length);
+      activeTouches.count = e.touches.length;
       if (e.touches.length === 2) {
+        // If a slice drag is active, don't switch modes; let the slice finish.
+        if (cubeViewRef.current?.isDraggingSlice?.()) {
+          return;
+        }
+        // Otherwise, enter spin mode and ensure no stale drags remain
+        cubeViewRef.current?.abortActiveDrag();
         // Enter explicit two-finger spin mode
         pinchRef.current.active = true;
         pinchRef.current.startDist = computeTouchDistance(
@@ -395,6 +403,8 @@ const App = () => {
     };
 
     const onTouchMove = (e: TouchEvent) => {
+      // keep shared synchronous state in sync for mid-gesture checks
+      activeTouches.count = e.touches.length;
       if (e.touches.length >= 2) {
         // Prevent native pinch-zoom/page scroll
         e.preventDefault();
@@ -418,8 +428,8 @@ const App = () => {
         }
         (pinchRef.current as any).prevAngle = nowAngle;
       }
-      // update active touch count during move
-      setTouchCount(e.touches.length);
+  // update active touch count during move
+  setTouchCount(e.touches.length);
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -427,6 +437,7 @@ const App = () => {
       // Only re-enable when no touches remain (both fingers truly off screen)
       // update active touch count
       setTouchCount(e.touches.length);
+      activeTouches.count = e.touches.length;
       if (e.touches.length === 0) {
         pinchRef.current.active = false;
         pinchRef.current.startDist = 0;
@@ -443,10 +454,30 @@ const App = () => {
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd);
 
+    // Also listen on window so multi-touch anywhere (e.g., second finger outside cube) toggles two-finger mode.
+    const winTouchStart = (e: TouchEvent) => {
+      activeTouches.count = e.touches.length;
+      setTouchCount(e.touches.length);
+    };
+    const winTouchMove = (e: TouchEvent) => {
+      activeTouches.count = e.touches.length;
+      setTouchCount(e.touches.length);
+    };
+    const winTouchEnd = (e: TouchEvent) => {
+      activeTouches.count = e.touches.length;
+      setTouchCount(e.touches.length);
+    };
+    window.addEventListener("touchstart", winTouchStart, { passive: false });
+    window.addEventListener("touchmove", winTouchMove, { passive: false });
+    window.addEventListener("touchend", winTouchEnd);
+
     return () => {
       el.removeEventListener("touchstart", onTouchStart as any);
       el.removeEventListener("touchmove", onTouchMove as any);
       el.removeEventListener("touchend", onTouchEnd as any);
+      window.removeEventListener("touchstart", winTouchStart as any);
+      window.removeEventListener("touchmove", winTouchMove as any);
+      window.removeEventListener("touchend", winTouchEnd as any);
     };
   }, [precisionActive]);
 
