@@ -428,8 +428,8 @@ const App = () => {
         }
         (pinchRef.current as any).prevAngle = nowAngle;
       }
-  // update active touch count during move
-  setTouchCount(e.touches.length);
+      // update active touch count during move
+      setTouchCount(e.touches.length);
     };
 
     const onTouchEnd = (e: TouchEvent) => {
@@ -529,31 +529,7 @@ const App = () => {
           </p>
         </div>
 
-        {/* Orbit feel selector (placed under header) */}
-        <div className=" max-w-4xl mx-auto px-4 mb-3">
-          <div className="bg-white/80 backdrop-blur px-2 py-1 rounded-lg shadow flex items-center gap-1 text-xs md:text-sm">
-            <span className="text-gray-800 font-semibold mr-2">Orbit:</span>
-            {(
-              [
-                { k: "normal", label: "Normal" },
-                { k: "snappy", label: "Snappy" },
-                { k: "smooth", label: "Smooth" },
-              ] as Array<{ k: OrbitFeel; label: string }>
-            ).map((opt) => (
-              <button
-                key={opt.k}
-                onClick={() => setOrbitFeel(opt.k)}
-                className={`px-2 py-0.5 rounded font-semibold transition ${
-                  orbitFeel === opt.k
-                    ? "bg-blue-500 text-white"
-                    : "bg-white text-gray-700 hover:bg-blue-100"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Orbit feel selector removed; always use normal orbit with gentle floating */}
 
         {/* Cube container fills available space */}
         <div className="flex-1 flex items-center justify-center px-4 min-h-0 mb-8">
@@ -671,48 +647,14 @@ const App = () => {
               <TrackballControls
                 ref={orbitControlsRef}
                 enabled={orbitControlsEnabled}
-                // TrackballControls props
                 noRotate={false}
                 noZoom={true}
                 noPan={false}
-                // Feel tuning
-                staticMoving={orbitFeel === "snappy"}
-                dynamicDampingFactor={(() => {
-                  const base =
-                    orbitFeel === "smooth"
-                      ? 0.2
-                      : orbitFeel === "snappy"
-                      ? 0.05
-                      : 0.1;
-                  return precisionActive ? Math.min(0.3, base + 0.1) : base;
-                })()}
-                rotateSpeed={(() => {
-                  const base =
-                    orbitFeel === "snappy"
-                      ? 1.6
-                      : orbitFeel === "smooth"
-                      ? 0.6
-                      : 1.0;
-                  return base * (precisionActive ? 0.5 : 1.0);
-                })()}
-                zoomSpeed={(() => {
-                  const base =
-                    orbitFeel === "snappy"
-                      ? 1.6
-                      : orbitFeel === "smooth"
-                      ? 0.8
-                      : 1.2;
-                  return base * (precisionActive ? 0.6 : 1.0);
-                })()}
-                panSpeed={(() => {
-                  const base =
-                    orbitFeel === "snappy"
-                      ? 1.4
-                      : orbitFeel === "smooth"
-                      ? 0.8
-                      : 1.0;
-                  return base * (precisionActive ? 0.6 : 1.0);
-                })()}
+                staticMoving={false}
+                dynamicDampingFactor={0.35}
+                rotateSpeed={1.2}
+                zoomSpeed={1.2}
+                panSpeed={4.0}
                 minDistance={3}
                 maxDistance={15}
               />
