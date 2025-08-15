@@ -968,6 +968,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
             trackingStateRef.current.isSnapping
           )
             return;
+          if (AnimationHelper.isLocked()) return;
           // World-space axis along camera's forward direction (viewer -> scene)
           const axisWorld = camera
             .getWorldDirection(new THREE.Vector3())
