@@ -66,7 +66,6 @@ const ControlPanel = ({
           Generate Solution
         </button>
       </div>
-  {/* orbit UI removed from control panel; rendered in App header instead */}
     </div>
   );
 };

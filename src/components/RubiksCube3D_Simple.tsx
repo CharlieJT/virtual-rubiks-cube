@@ -21,6 +21,8 @@ THREE.Cache.enabled = true;
 
 // Centralized drag sensitivity (radians per pixel)
 const DRAG_SENSITIVITY = 0.006;
+// Minimum primary-axis projection (px) required to lock a drag and start a twist
+const LOCK_PRIMARY_PX = 5;
 
 // Optional per-face orientation deltas when a slice move (M/E/S) does NOT move the white center to a new face.
 // Angles are in radians; positive = CCW in that face's UV frame. Adjust as desired.
@@ -400,11 +402,13 @@ const CubePiece = React.memo(
           if (isPrimary && !shiftHeld) {
             // For touch devices, ensure only the first active pointer initiates interaction.
             // Use pointerType if available to detect touch vs mouse.
-            const pointerType = (e.nativeEvent && (e.nativeEvent as any).pointerType) || null;
+            const pointerType =
+              (e.nativeEvent && (e.nativeEvent as any).pointerType) || null;
             if (pointerType === "touch") {
               // If there are already touches active on the window, ignore this secondary touch.
               // We track active touches via TouchEvent on the container elsewhere; as a defensive check, use e.touches if present.
-              const touches = (e.nativeEvent && (e.nativeEvent as any).touches) as TouchList | undefined;
+              const touches = (e.nativeEvent &&
+                (e.nativeEvent as any).touches) as TouchList | undefined;
               if (touches && touches.length > 1) {
                 // If this pointer isn't the first touch, ignore it. The first touch will have been handled elsewhere.
                 // We can't reliably know order here, so defensively ignore when >1 touches – the two-finger spin mode handles multi-touch.
@@ -1686,8 +1690,14 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         const suggestedMove =
           POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
 
-        // Start immediately when we have a mapping (no distance gating)
+        // Start only when we have a mapping and the primary-axis projected movement exceeds threshold
         if (!suggestedMove) {
+          return;
+        }
+        // Compute primary-axis projected movement (px) to avoid tiny accidental drags
+        const primaryProjPx = Math.abs(axisLock === "horizontal" ? rDot : uDot);
+        if (primaryProjPx < LOCK_PRIMARY_PX) {
+          // not moved enough yet
           return;
         }
 
