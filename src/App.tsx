@@ -532,7 +532,7 @@ const App = () => {
 
   return (
     <>
-      <div className="min-h-[108dvh] md:min-h-[103dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
+      <div className="min-h-[105dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
         {/* Header at top */}
         <div className="text-center py-4 shrink-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1 drop-shadow-lg">
