@@ -23,7 +23,7 @@ const ControlPanel = ({
 }: ControlPanelProps) => {
   return (
     <div className="flex flex-col items-center w-full">
-      <div className="flex flex-row flex-wrap gap-2 md:gap-4 justify-center items-center w-full bg-white/10 rounded-xl shadow-lg p-2 md:p-4 backdrop-blur-md">
+      <div className="flex flex-row flex-wrap gap-2 md:gap-4 justify-center items-center w-full">
         <button
           className={`bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold py-1 px-2 md:py-2 md:px-4 rounded transition-all text-base md:text-sm shadow-md${
             isSolving || isScrambling ? " opacity-50" : ""

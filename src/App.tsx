@@ -7,7 +7,8 @@ function useIsTouchDevice() {
     const hasTouch =
       typeof window !== "undefined" &&
       ("ontouchstart" in window ||
-        (typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 0));
+        (typeof navigator.maxTouchPoints === "number" &&
+          navigator.maxTouchPoints > 0));
     setIsTouch(Boolean(hasTouch));
   }, []);
   return isTouch;
@@ -545,7 +546,7 @@ const App = () => {
         {/* Orbit feel selector removed; always use normal orbit with gentle floating */}
 
         {/* Cube container fills available space */}
-        <div className="flex-1 flex items-center justify-center px-4 min-h-0 mb-8">
+        <div className="flex-1 flex items-center justify-center px-2 min-h-0">
           <div
             ref={cubeContainerRef}
             onDoubleClick={handleContainerDoubleClick}
@@ -572,14 +573,14 @@ const App = () => {
               scrambleMoves.length > 0 &&
               showScrambleOverlay &&
               !showSolutionOverlay && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
                   <div className="flex justify-between items-center w-full mb-1">
                     <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
                       <span>🎲</span>
                       Scramble:
                     </h4>
                     <button
-                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition"
+                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition pointer-events-auto"
                       aria-label="Close scramble overlay"
                       onClick={() => setShowScrambleOverlay(false)}
                     >
@@ -603,7 +604,7 @@ const App = () => {
                 </div>
               )}
             {solution && solution.steps.length > 0 && showSolutionOverlay && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
                 <div className="flex items-center justify-between mb-1 md:mb-2 w-full">
                   <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
                     <span>🧠</span>
@@ -614,7 +615,7 @@ const App = () => {
                       {solution.moveCount} moves
                     </span>
                     <button
-                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition"
+                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition pointer-events-auto"
                       aria-label="Close solution overlay"
                       onClick={() => setShowSolutionOverlay(false)}
                     >
@@ -639,7 +640,7 @@ const App = () => {
               </div>
             )}
             <Canvas
-              camera={{ position: [5, 5, 5], fov: 55 }}
+              camera={{ position: [5, 5, 5], fov: 52 }}
               className="w-full h-full pt-8"
               // prevent default touch-action on canvas
               style={{ touchAction: "none" }}
@@ -697,7 +698,7 @@ const App = () => {
 
       {/* Control panel fixed at bottom (mobile-safe) - scramble/solve buttons remain here */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
-        <div className="w-full max-w-6xl mx-auto px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+        <div className="w-full max-w-6xl mx-auto pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
           <ControlPanel
             onScramble={handleScramble}
             onSolve={() => {
