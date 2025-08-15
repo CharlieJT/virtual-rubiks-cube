@@ -32,7 +32,9 @@ const App = () => {
     startDist: number;
     lastPinchTime: number;
   }>({ active: false, startDist: 0, lastPinchTime: 0 });
-  // when two-finger spin mode is active we temporarily disable orbit controls - no extra state needed
+  // when two-finger spin mode is active we temporarily disable orbit controls
+  // only need the setter to toggle side-effects; value itself is unused
+  const [, setTwoFingerMode] = useState(false);
 
   // Precision orbit mode: toggle for fine adjustments
   const [precisionMode, setPrecisionMode] = useState(false);
@@ -370,38 +372,68 @@ const App = () => {
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
-        // Start pinch
+        // Enter explicit two-finger spin mode
         pinchRef.current.active = true;
         pinchRef.current.startDist = computeTouchDistance(
           e.touches[0],
           e.touches[1]
         );
+        (pinchRef.current as any).lastMidpoint = {
+          x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+          y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        };
+        setTwoFingerMode(true);
+        setOrbitControlsEnabled(false);
+        if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
+        // disable pointer events on canvas so single-pointer handlers don't fire
+        const elCanvas = el.querySelector("canvas") as HTMLElement | null;
+        if (elCanvas) elCanvas.style.pointerEvents = "none";
       }
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      // Prevent native pinch-zoom in mobile Safari
-      if (e.touches.length >= 2) e.preventDefault();
+      if (e.touches.length >= 2) {
+        // Prevent native pinch-zoom/page scroll
+        e.preventDefault();
+        if (!pinchRef.current.active) return;
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const last = (pinchRef.current as any).lastMidpoint as
+          | { x: number; y: number }
+          | undefined;
+        if (last) {
+          const dx = midX - last.x;
+          const base = 0.004;
+          const sensitivity = base * (precisionActive ? 0.4 : 1.0);
+          const angle = dx * sensitivity;
+          cubeViewRef.current?.spinAroundViewAxis(angle);
+        }
+        (pinchRef.current as any).lastMidpoint = { x: midX, y: 0 };
+      }
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      void e; // parameter intentionally unused
-      // If we ended a pinch gesture, treat as one pinch
+      // legacy double-pinch toggle
       if (pinchRef.current.active) {
         const now = Date.now();
         const since = now - pinchRef.current.lastPinchTime;
         if (since > 0 && since < 400) {
-          // Double-pinch detected: toggle spin between two orientations (flip 180°)
-          // Use the cube view ref to spin by 180° around view axis
           cubeViewRef.current?.spinAroundViewAxis(Math.PI);
-          // reset lastPinchTime so triple doesn't retrigger
           pinchRef.current.lastPinchTime = 0;
         } else {
           pinchRef.current.lastPinchTime = now;
         }
       }
-      pinchRef.current.active = false;
-      pinchRef.current.startDist = 0;
+      // if fewer than 2 touches remain, exit two-finger mode
+      if (e.touches.length < 2) {
+        pinchRef.current.active = false;
+        pinchRef.current.startDist = 0;
+        (pinchRef.current as any).lastMidpoint = undefined;
+        setTwoFingerMode(false);
+        setOrbitControlsEnabled(true);
+        if (orbitControlsRef.current) orbitControlsRef.current.enabled = true;
+        const elCanvas = el.querySelector("canvas") as HTMLElement | null;
+        if (elCanvas) elCanvas.style.pointerEvents = "auto";
+      }
     };
 
     el.addEventListener("touchstart", onTouchStart, { passive: false });
@@ -413,7 +445,7 @@ const App = () => {
       el.removeEventListener("touchmove", onTouchMove as any);
       el.removeEventListener("touchend", onTouchEnd as any);
     };
-  }, []);
+  }, [precisionActive]);
 
   // Trackpad overlay drag state
   const trackpadDragRef = useRef<{ active: boolean; lastX: number } | null>(
