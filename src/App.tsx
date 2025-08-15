@@ -532,7 +532,7 @@ const App = () => {
 
   return (
     <>
-      <div className="min-h-[108dvh] md:min-h-[105dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
+      <div className="min-h-[108dvh] md:min-h-[103dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
         {/* Header at top */}
         <div className="text-center py-4 shrink-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1 drop-shadow-lg">
@@ -556,15 +556,31 @@ const App = () => {
             <div className="absolute left-4 bottom-4 z-30 pointer-events-none">
               <div
                 className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm ${
-                  isSolving
+                  isScrambling
+                    ? "bg-blue-400 text-blue-900"
+                    : isSolving
                     ? "bg-yellow-400 text-yellow-900"
                     : isScrambled
                     ? "bg-red-400 text-red-900"
                     : "bg-green-400 text-green-900"
                 }`}
               >
-                <span>{isSolving ? "⚡" : isScrambled ? "🔀" : "✅"}</span>
-                {isSolving ? "Solving" : isScrambled ? "Scrambled" : "Solved"}
+                <span>
+                  {isScrambling
+                    ? "⏳"
+                    : isSolving
+                    ? "⚡"
+                    : isScrambled
+                    ? "🔀"
+                    : "✅"}
+                </span>
+                {isScrambling
+                  ? "Scrambling"
+                  : isSolving
+                  ? "Solving"
+                  : isScrambled
+                  ? "Scrambled"
+                  : "Solved"}
               </div>
             </div>
             {/* Orbit and precision UI moved into ControlPanel for layout consistency */}

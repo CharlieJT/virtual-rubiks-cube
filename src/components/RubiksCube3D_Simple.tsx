@@ -952,13 +952,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       () => ({
         spinAroundViewAxis: (angleRad: number) => {
           if (!groupRef.current) return;
-          // Don't interfere with active slice drags or snapping animations
+          // Only block spinning during an active slice drag or snap animation
           if (
             trackingStateRef.current.isDragging ||
             trackingStateRef.current.isSnapping
           )
             return;
-          if (AnimationHelper.isLocked()) return;
           // World-space axis along camera's forward direction (viewer -> scene)
           const axisWorld = camera
             .getWorldDirection(new THREE.Vector3())
@@ -967,7 +966,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
             axisWorld,
             angleRad
           );
-          // Apply as a world rotation so it truly spins around the view axis
           groupRef.current.quaternion.premultiply(q);
           groupRef.current.updateMatrixWorld(true);
         },
