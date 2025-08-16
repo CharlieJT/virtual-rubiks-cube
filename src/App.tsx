@@ -246,10 +246,14 @@ const App = () => {
   );
 
   const handleOrbitControlsChange = useCallback((enabled: boolean) => {
+    // keep React state in sync for UI/props and set the live controls instance immediately
     setOrbitControlsEnabled(enabled);
-    // Also directly disable the controls if we have a ref
     if (orbitControlsRef.current) {
       orbitControlsRef.current.enabled = enabled;
+      // optional: ensure a tick to apply damping changes
+      if (typeof orbitControlsRef.current.update === "function") {
+        orbitControlsRef.current.update();
+      }
     }
   }, []);
 
@@ -470,14 +474,41 @@ const App = () => {
     const winTouchStart = (e: TouchEvent) => {
       activeTouches.count = e.touches.length;
       setTouchCount(e.touches.length);
+      // If a second (or more) finger lands anywhere, force-disable orbit to prevent floating
+      if (e.touches.length >= 2) {
+        // Abort any active slice drag to avoid conflicting states
+        cubeViewRef.current?.abortActiveDrag?.();
+        // Disable orbit immediately
+        setOrbitControlsEnabled(false);
+        if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
+        // Disable pointer events on canvas so single-pointer handlers don't fire
+        const elCanvas = cubeContainerRef.current?.querySelector(
+          "canvas"
+        ) as HTMLElement | null;
+        if (elCanvas) elCanvas.style.pointerEvents = "none";
+      }
     };
     const winTouchMove = (e: TouchEvent) => {
       activeTouches.count = e.touches.length;
       setTouchCount(e.touches.length);
+      // Keep orbit disabled while multi-touch is active
+      if (e.touches.length >= 2) {
+        setOrbitControlsEnabled(false);
+        if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
+      }
     };
     const winTouchEnd = (e: TouchEvent) => {
       activeTouches.count = e.touches.length;
       setTouchCount(e.touches.length);
+      // Re-enable orbit and canvas interactivity only when all touches are lifted
+      if (e.touches.length === 0) {
+        setOrbitControlsEnabled(true);
+        if (orbitControlsRef.current) orbitControlsRef.current.enabled = true;
+        const elCanvas = cubeContainerRef.current?.querySelector(
+          "canvas"
+        ) as HTMLElement | null;
+        if (elCanvas) elCanvas.style.pointerEvents = "auto";
+      }
     };
     window.addEventListener("touchstart", winTouchStart, { passive: false });
     window.addEventListener("touchmove", winTouchMove, { passive: false });
@@ -658,8 +689,13 @@ const App = () => {
             <Canvas
               camera={{ position: [5, 5, 5], fov: 52 }}
               className="w-full h-full pt-8"
-              // prevent default touch-action on canvas
               style={{ touchAction: "none" }}
+              onPointerDownCapture={(e) => {
+                cubeViewRef.current?.handlePointerDown(e);
+              }}
+              onPointerUpCapture={() => {
+                cubeViewRef.current?.handlePointerUp?.();
+              }}
             >
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.9} color="#eeeeee" />
@@ -717,10 +753,7 @@ const App = () => {
         <div className="w-full max-w-6xl mx-auto pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
           <ControlPanel
             onScramble={handleScramble}
-            onSolve={() => {
-              console.log("Solve button clicked, opening modal");
-              setConfirmSolveOpen(true);
-            }}
+            onSolve={() => setConfirmSolveOpen(true)}
             onGenerateSolution={handleGenerateSolution}
             solution={solution}
             isScrambled={isScrambled}
@@ -740,10 +773,7 @@ const App = () => {
         message="This will run the solver and execute all moves step-by-step until your cube is solved!"
         confirmText="Solve It!"
         cancelText="Cancel"
-        onCancel={() => {
-          console.log("Modal cancelled");
-          setConfirmSolveOpen(false);
-        }}
+        onCancel={() => setConfirmSolveOpen(false)}
         onConfirm={handleSolve}
         isSolving={isSolving}
       />

@@ -548,7 +548,6 @@ const RubiksCube3D = ({
       Math.abs(finalRotation) > 0.01 &&
       dragStateRef.current.rotationAxis.length() > 0
     ) {
-      console.log("Starting snap animation with finalRotation:", finalRotation);
       AnimationHelper.lock();
 
       new Tween({ rotation: 0 })
@@ -646,22 +645,6 @@ const RubiksCube3D = ({
     onOrbitControlsChange?.(true);
     AnimationHelper.unlock();
   };
-
-  // Only reset cubies when explicitly needed (not on every cubeState change)
-  // useEffect(() => {
-  //   console.log("useEffect running - cubeState or isAnimating changed");
-  //   console.log("AnimationHelper.isLocked():", AnimationHelper.isLocked());
-  //   console.log("isAnimating:", isAnimating);
-  //   console.log("dragState.isActive:", dragState.isActive);
-  //
-  //   // Only reset if we're not in the middle of a drag operation
-  //   if (!AnimationHelper.isLocked() && !isAnimating && !dragState.isActive) {
-  //     console.log("Resetting cubies and meshes ready flag");
-  //     cubiesRef.current = [];
-  //     cubeGenerationRef.current += 1;
-  //     meshesReadyRef.current = false;
-  //   }
-  // }, [cubeState, isAnimating, dragState.isActive]);
 
   useEffect(() => {
     return () => {

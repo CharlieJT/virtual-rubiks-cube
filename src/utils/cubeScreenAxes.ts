@@ -137,11 +137,6 @@ export function getFaceScreenAxes(
   const screenX = projectToScreen(worldRight);
   const screenY = projectToScreen(worldUp);
 
-  // Print orientation values for debugging
-  console.log("screenX:", screenX);
-  console.log("screenY:", screenY);
-  console.log("worldNormal:", worldNormal);
-
   return { screenX, screenY, worldNormal };
 }
 

@@ -249,6 +249,8 @@ export type RubiksCube3DHandle = {
   abortActiveDrag: () => void;
   // Whether a face/slice drag is currently active
   isDraggingSlice: () => boolean;
+  handlePointerDown: (e: React.PointerEvent) => void;
+  handlePointerUp: () => void;
 };
 
 const CubePiece = React.memo(
@@ -382,23 +384,27 @@ const CubePiece = React.memo(
       tiptonsTexture.needsUpdate = true;
     }, [whiteLogoAngleRad, tiptonsTexture]);
 
+    const borderDistance = 0.5;
+    const rounded = 1.08;
+    const borderThickness = 0.094;
+
     const EDGE_GEOMETRIES = [
-      ...[0.5, -0.5].flatMap((y) =>
-        [0.5, -0.5].map((z) => ({
+      ...[borderDistance, -borderDistance].flatMap((y) =>
+        [borderDistance, -borderDistance].map((z) => ({
           pos: [0, y, z],
-          args: [1.08, 0.094, 0.094],
+          args: [rounded, borderThickness, borderThickness],
         }))
       ),
-      ...[0.5, -0.5].flatMap((y) =>
-        [0.5, -0.5].map((x) => ({
+      ...[borderDistance, -borderDistance].flatMap((y) =>
+        [borderDistance, -borderDistance].map((x) => ({
           pos: [x, y, 0],
-          args: [0.094, 0.094, 1.08],
+          args: [borderThickness, borderThickness, rounded],
         }))
       ),
-      ...[0.5, -0.5].flatMap((x) =>
-        [0.5, -0.5].map((z) => ({
+      ...[borderDistance, -borderDistance].flatMap((x) =>
+        [borderDistance, -borderDistance].map((z) => ({
           pos: [x, 0, z],
-          args: [0.094, 1.08, 0.094],
+          args: [borderThickness, rounded, borderThickness],
         }))
       ),
     ];
@@ -695,11 +701,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       (move: CubeMove) => {
         const moveStr = (move as string).toUpperCase();
         const now = Date.now();
-        // Guard: avoid double-apply if the exact same move fires twice within 200ms
+        // Guard: avoid double-apply if the exact same move fires twice within 120ms
         if (
           lastAppliedMoveRef.current &&
           lastAppliedMoveRef.current.move === moveStr &&
-          now - lastAppliedMoveRef.current.t < 200
+          now - lastAppliedMoveRef.current.t < 120
         ) {
           return;
         }
@@ -957,58 +963,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const { camera, gl } = useThree();
 
     // Expose a minimal imperative handle for external orientation refinement
-    useImperativeHandle(
-      ref,
-      () => ({
-        spinAroundViewAxis: (angleRad: number) => {
-          if (!groupRef.current) return;
-          // Only block spinning during an active slice drag or snap animation
-          if (
-            trackingStateRef.current.isDragging ||
-            trackingStateRef.current.isSnapping
-          )
-            return;
-          if (AnimationHelper.isLocked()) return;
-          // World-space axis along camera's forward direction (viewer -> scene)
-          const axisWorld = camera
-            .getWorldDirection(new THREE.Vector3())
-            .normalize();
-          const q = new THREE.Quaternion().setFromAxisAngle(
-            axisWorld,
-            angleRad
-          );
-          groupRef.current.quaternion.premultiply(q);
-          groupRef.current.updateMatrixWorld(true);
-        },
-        abortActiveDrag: () => {
-          // Remove drag listeners first
-          window.removeEventListener("pointermove", handlePointerMove);
-          window.removeEventListener("pointerup", handlePointerUp);
-          // If dragging, snap back to 0 without issuing a move
-          if (
-            trackingStateRef.current.isDragging ||
-            trackingStateRef.current.dragGroup
-          ) {
-            const current = trackingStateRef.current.currentRotation || 0;
-            trackingStateRef.current.isDragging = false;
-            trackingStateRef.current.isSnapping = true;
-            trackingStateRef.current.snapAnimationStartTime = Date.now();
-            trackingStateRef.current.snapAnimationDuration = 120;
-            trackingStateRef.current.snapStartRotation = current;
-            trackingStateRef.current.snapTargetRotation = 0;
-            trackingStateRef.current.finalMove = "" as any;
-          } else {
-            // Nothing to snap; ensure state is clean and orbits enabled
-            cleanupDragState();
-            trackingStateRef.current.isTracking = false;
-          }
-        },
-        isDraggingSlice: () => {
-          return !!trackingStateRef.current.isDragging;
-        },
-      }),
-      [camera]
-    );
+    // (moved near the end of the component to avoid referencing handlers before initialization)
 
     // Build a face-local basis (right/up) in cube local space
     const getFaceBasisLocal = useCallback((face: string) => {
@@ -1243,10 +1198,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         if (lastHoveredPieceRef.current === pieceId) return;
 
         lastHoveredPieceRef.current = pieceId;
-
-        // Don't need to use these anymore since we removed the console.log
-        // const pieceType = getPieceType(gridPos);
-        // const visibleColors = getVisibleColors(cubieState.colors, gridPos);
       },
       [cubeState]
     );
@@ -1345,7 +1296,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       // Snapping animation state
       isSnapping: false,
       snapAnimationStartTime: 0,
-      snapAnimationDuration: 200, // Default 200ms for the animation
+      snapAnimationDuration: 120, // Default 120ms for the animation
       snapStartRotation: 0,
       snapTargetRotation: 0,
       finalMove: "",
@@ -1506,7 +1457,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         hasStartedDrag: false,
         isSnapping: false,
         snapAnimationStartTime: 0,
-        snapAnimationDuration: 200,
+        snapAnimationDuration: 120,
         snapStartRotation: 0,
         snapTargetRotation: 0,
         finalMove: "",
@@ -1562,7 +1513,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       trackingStateRef.current.snapTargetRotation = 0;
 
       // Re-enable orbit controls
-      onOrbitControlsChange?.(true);
+      // onOrbitControlsChange?.(false);
       AnimationHelper.unlock();
     };
 
@@ -1810,8 +1761,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       } else {
         if (trackingStateRef.current.dragGroup) {
           cleanupDragState();
-        } else {
-          onOrbitControlsChange?.(true);
         }
       }
 
@@ -2021,18 +1970,120 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       trackingStateRef.current.isDragging = false;
       trackingStateRef.current.isSnapping = true;
       trackingStateRef.current.snapAnimationStartTime = Date.now();
-      trackingStateRef.current.snapAnimationDuration = 200;
+      trackingStateRef.current.snapAnimationDuration = 120;
       trackingStateRef.current.snapStartRotation =
         trackingStateRef.current.currentRotation;
       trackingStateRef.current.snapTargetRotation = targetAngle;
       trackingStateRef.current.finalMove = finalMove as CubeMove;
     };
 
+    // New handler for boundary pointer down detection
+    const handleBoundaryPointerDown = useCallback(
+      (e: React.PointerEvent) => {
+        if (!groupRef.current || !camera || !gl) return;
+
+        // Detect multi-touch early and force-disable orbits during 2+ fingers
+        const native = (e as any).nativeEvent ?? e;
+        const pointerType: string | undefined =
+          (native && native.pointerType) || (e as any).pointerType;
+        const touchesLen: number =
+          (native && native.touches ? native.touches.length : 0) ||
+          (touchCount ?? 0);
+        if (pointerType === "touch" && touchesLen >= 2) {
+          onOrbitControlsChange?.(false);
+          return;
+        }
+
+        const rect = gl.domElement.getBoundingClientRect();
+        const mouse = new THREE.Vector2();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+
+        // Check for intersection with any cube meshes
+        const allMeshes: THREE.Mesh[] = [];
+        groupRef.current.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            allMeshes.push(child);
+          }
+        });
+
+        const intersects = raycaster.intersectObjects(allMeshes);
+
+        if (intersects.length > 0) {
+          onOrbitControlsChange?.(false);
+        } else {
+          if (!isAnimating && touchesLen < 2) {
+            onOrbitControlsChange?.(true);
+          }
+        }
+      },
+      [camera, gl, onOrbitControlsChange, isAnimating, touchCount]
+    );
+
+    const handleBoundaryPointerUp = useCallback(() => {
+      if (!isAnimating && (touchCount ?? 0) <= 1) {
+        onOrbitControlsChange?.(true);
+      }
+    }, [isAnimating, onOrbitControlsChange, touchCount]);
+
+    // Now that boundary handlers are defined, expose them via the imperative handle
+    useImperativeHandle(
+      ref,
+      () => ({
+        spinAroundViewAxis: (angleRad: number) => {
+          if (!groupRef.current) return;
+          if (
+            trackingStateRef.current.isDragging ||
+            trackingStateRef.current.isSnapping
+          )
+            return;
+          if (AnimationHelper.isLocked()) return;
+          const axisWorld = camera
+            .getWorldDirection(new THREE.Vector3())
+            .normalize();
+          const q = new THREE.Quaternion().setFromAxisAngle(
+            axisWorld,
+            angleRad
+          );
+          groupRef.current.quaternion.premultiply(q);
+          groupRef.current.updateMatrixWorld(true);
+        },
+        abortActiveDrag: () => {
+          window.removeEventListener("pointermove", handlePointerMove);
+          window.removeEventListener("pointerup", handlePointerUp);
+          if (
+            trackingStateRef.current.isDragging ||
+            trackingStateRef.current.dragGroup
+          ) {
+            const current = trackingStateRef.current.currentRotation || 0;
+            trackingStateRef.current.isDragging = false;
+            trackingStateRef.current.isSnapping = true;
+            trackingStateRef.current.snapAnimationStartTime = Date.now();
+            trackingStateRef.current.snapAnimationDuration = 120;
+            trackingStateRef.current.snapStartRotation = current;
+            trackingStateRef.current.snapTargetRotation = 0;
+            trackingStateRef.current.finalMove = "" as any;
+          } else {
+            cleanupDragState();
+            trackingStateRef.current.isTracking = false;
+          }
+        },
+        isDraggingSlice: () => !!trackingStateRef.current.isDragging,
+        handlePointerDown: handleBoundaryPointerDown,
+        handlePointerUp: handleBoundaryPointerUp,
+      }),
+      [camera, handleBoundaryPointerDown, handleBoundaryPointerUp]
+    );
+
     return (
       <group
         ref={groupRef}
         onPointerLeave={handleLeaveCube}
         onPointerMove={handlePreciseHover}
+        onPointerDown={handleBoundaryPointerDown} // Attach new handler here
       >
         {(() => {
           const nodes: React.ReactNode[] = [];
