@@ -161,7 +161,7 @@ export class AnimationHelper {
       } else {
         // Call onComplete first to update logical state
         onComplete && onComplete();
-        
+
         // Immediately unlock to ensure synchronization
         this.unlock();
       }
@@ -234,18 +234,18 @@ export class AnimationHelper {
         // Important! Call onComplete first to update the logical state
         // This updates the cube colors in the logical state
         onComplete && onComplete();
-        
+
         // Now when we add the cubies back, they'll already have the updated material colors
         // from their association with the logical state via ref/state in the parent component
         parentGroup.remove(group);
-        
+
         // CRITICAL: We need a small delay before adding the meshes back
         // This ensures React has time to update materials with new colors before repositioning
         setTimeout(() => {
           affectedCubies.forEach((cubie) => {
             parentGroup.add(cubie.mesh);
           });
-          
+
           this.unlock();
         }, 0);
       }

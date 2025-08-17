@@ -910,20 +910,22 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       [getWhiteCenterFaceFromState]
     );
 
-    // Pending move animation effect (robust start even if set while locked)
     useEffect(() => {
       if (!pendingMove) return;
       if (!groupRef.current) return;
       if (cubiesRef.current.length !== 27 || !meshesReadyRef.current) return;
 
       let cancelled = false;
+      let retryTimeoutId: number | null = null;
+
       const tryStart = () => {
         if (cancelled) return;
+
         if (AnimationHelper.isLocked()) {
-          // Defer until unlock, then retry
-          setTimeout(tryStart, 0);
+          retryTimeoutId = requestAnimationFrame(tryStart);
           return;
         }
+
         onStartAnimation && onStartAnimation();
         currentTweenRef.current = AnimationHelper.animate(
           cubiesRef.current,
@@ -945,12 +947,14 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
       return () => {
         cancelled = true;
+        if (retryTimeoutId !== null) {
+          cancelAnimationFrame(retryTimeoutId);
+        }
       };
     }, [
       pendingMove,
       onStartAnimation,
       onMoveAnimationDone,
-      isAnimating,
       applyMoveToWhiteLogoAngle,
     ]);
 
