@@ -260,11 +260,18 @@ const CubePiece = React.memo(
     onPointerDown,
     onMeshReady,
     onPointerMove,
-    whiteLogoAngleRad = 0,
     touchCount = 0,
-  }: CubePieceProps & { whiteLogoAngleRad?: number }) => {
+    // Shared resources passed from parent to avoid per-cubie allocations
+    roundedBoxGeometry,
+    sharedLogoTexture,
+    logoReady,
+  }: CubePieceProps & {
+    roundedBoxGeometry: RoundedBoxGeometry;
+    sharedLogoTexture: THREE.Texture | null;
+    logoReady: boolean;
+  }) => {
     const meshRef = useRef<THREE.Mesh>(null);
-    const [logoReady, setLogoReady] = useState(false);
+    // no local state needed for materials; we update refs directly
 
     useEffect(() => {
       if (meshRef.current && onMeshReady) {
@@ -277,24 +284,7 @@ const CubePiece = React.memo(
       }
     }, [position, onMeshReady]);
 
-    // Load the Tipton's solver texture once
-    const tiptonsTexture = useMemo(() => {
-      const loader = new THREE.TextureLoader();
-      const tex = loader.load(
-        "/assets/tiptons-solver.png",
-        () => setLogoReady(true),
-        undefined,
-        () => setLogoReady(false)
-      );
-      // Improve sampling and color space
-      // @ts-ignore - colorSpace exists on newer three versions
-      tex.colorSpace =
-        (THREE as any).SRGBColorSpace || (THREE as any).sRGBEncoding;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.center.set(0.5, 0.5); // allow easy rotation tweaks later if needed
-      return tex;
-    }, []);
+    // Use shared logo texture from parent (no per-cubie loader)
 
     // Helper to normalize and check white color
     const isWhite = (c: string) => {
@@ -318,9 +308,17 @@ const CubePiece = React.memo(
     const isCenter =
       (gx === 1 ? 1 : 0) + (gy === 1 ? 1 : 0) + (gz === 1 ? 1 : 0) === 2;
 
-    // Keep a stable material set; update the shared logo texture's rotation via effect
-    const materials = useMemo(() => {
-      // Apply the logo texture only on the white center face
+    // Persistent materials: create once and update on color/logo changes
+    const materialRefs = useRef<THREE.MeshPhongMaterial[]>([
+      new THREE.MeshPhongMaterial({ color: colors.right, toneMapped: true }),
+      new THREE.MeshPhongMaterial({ color: colors.left, toneMapped: true }),
+      new THREE.MeshPhongMaterial({ color: colors.top, toneMapped: true }),
+      new THREE.MeshPhongMaterial({ color: colors.bottom, toneMapped: true }),
+      new THREE.MeshPhongMaterial({ color: colors.front, toneMapped: true }),
+      new THREE.MeshPhongMaterial({ color: colors.back, toneMapped: true }),
+    ]);
+    useEffect(() => {
+      // Determine which single face shows the logo for this cubie
       const rightIsLogo = isCenter && isWhite(colors.right);
       const leftIsLogo = isCenter && isWhite(colors.left);
       const topIsLogo = isCenter && isWhite(colors.top);
@@ -328,42 +326,42 @@ const CubePiece = React.memo(
       const frontIsLogo = isCenter && isWhite(colors.front);
       const backIsLogo = isCenter && isWhite(colors.back);
 
-      // Determine which single face shows the logo for this cubie
-      let logoFace: keyof typeof colors | null = null;
-      if (rightIsLogo) logoFace = "right";
-      else if (leftIsLogo) logoFace = "left";
-      else if (topIsLogo) logoFace = "top";
-      else if (bottomIsLogo) logoFace = "bottom";
-      else if (frontIsLogo) logoFace = "front";
-      else if (backIsLogo) logoFace = "back";
-
-      // Use the shared texture instance only after it has loaded
-      const logoTex: THREE.Texture | null =
-        logoFace && logoReady ? tiptonsTexture : null;
-
-      const mk = (opts: { color: string; useLogo: boolean }) => {
-        const hasLogo = opts.useLogo && logoReady;
-        return new THREE.MeshPhongMaterial({
-          color: hasLogo ? 0xffffff : opts.color,
-          map: hasLogo ? logoTex : null,
-          emissive: new THREE.Color(
-            hasLogo ? 0xffffff : opts.color
-          ).multiplyScalar(0.08),
-          emissiveMap: hasLogo ? logoTex : null,
-          specular: new THREE.Color(0xffffff),
-          shininess: 60,
-          toneMapped: true,
-        });
-      };
-
-      return [
-        mk({ color: colors.right, useLogo: logoFace === "right" }),
-        mk({ color: colors.left, useLogo: logoFace === "left" }),
-        mk({ color: colors.top, useLogo: logoFace === "top" }),
-        mk({ color: colors.bottom, useLogo: logoFace === "bottom" }),
-        mk({ color: colors.front, useLogo: logoFace === "front" }),
-        mk({ color: colors.back, useLogo: logoFace === "back" }),
+      const faces: (keyof typeof colors)[] = [
+        "right",
+        "left",
+        "top",
+        "bottom",
+        "front",
+        "back",
       ];
+      const logoFlags = [
+        rightIsLogo,
+        leftIsLogo,
+        topIsLogo,
+        bottomIsLogo,
+        frontIsLogo,
+        backIsLogo,
+      ];
+      const mats = materialRefs.current;
+      for (let i = 0; i < 6; i++) {
+        const face = faces[i];
+        const mat = mats[i];
+        const useLogo = logoFlags[i] && logoReady && !!sharedLogoTexture;
+        if (useLogo) {
+          mat.color.set(0xffffff);
+          mat.map = sharedLogoTexture;
+          mat.emissive.set(0xffffff);
+          (mat as any).emissiveIntensity = 0.08;
+          mat.emissiveMap = sharedLogoTexture;
+        } else {
+          mat.color.set(colors[face] as any);
+          mat.map = null;
+          mat.emissive.set(colors[face] as any);
+          (mat as any).emissiveIntensity = 0.08;
+          mat.emissiveMap = null as any;
+        }
+        mat.needsUpdate = true;
+      }
     }, [
       colors.right,
       colors.left,
@@ -372,17 +370,9 @@ const CubePiece = React.memo(
       colors.front,
       colors.back,
       isCenter,
-      tiptonsTexture,
       logoReady,
-      touchCount,
+      sharedLogoTexture,
     ]);
-
-    // Update the rotation of the shared logo texture without recreating materials
-    useEffect(() => {
-      if (!tiptonsTexture) return;
-      tiptonsTexture.rotation = whiteLogoAngleRad;
-      tiptonsTexture.needsUpdate = true;
-    }, [whiteLogoAngleRad, tiptonsTexture]);
 
     const borderDistance = 0.5;
     const rounded = 1.08;
@@ -412,8 +402,9 @@ const CubePiece = React.memo(
     return (
       <mesh
         ref={meshRef}
+        geometry={roundedBoxGeometry}
         position={position}
-        material={materials}
+        material={materialRefs.current}
         onPointerDown={(e) => {
           // Only intercept primary button without precision modifier.
           // Allow right/middle click or Shift+click to pass through for OrbitControls.
@@ -458,8 +449,7 @@ const CubePiece = React.memo(
           }
         }}
       >
-        {/* Use RoundedBoxGeometry for rounded corners */}
-        <primitive object={new RoundedBoxGeometry(1.11, 1.11, 1.11, 4, 0.13)} />
+        {/* Geometry is provided via shared roundedBoxGeometry */}
 
         {EDGE_GEOMETRIES.map((edge, i) => (
           <mesh key={i} position={edge.pos as [number, number, number]}>
@@ -490,7 +480,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     ref
   ) => {
     const groupRef = useRef<THREE.Group>(null);
+    // Reuse Raycaster and Vector2 to reduce allocations (mobile stability)
+    const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
+    const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
     const cubiesRef = useRef<AnimatedCubie[]>([]);
+    const raycastTargetsRef = useRef<THREE.Mesh[]>([]);
     const currentTweenRef = useRef<any>(null);
     const meshesReadyRef = useRef(false);
     const lastHoveredPieceRef = useRef<string | null>(null);
@@ -962,6 +956,44 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
     const { camera, gl } = useThree();
 
+    // Shared geometry: one RoundedBoxGeometry reused by all cubies
+    const roundedBoxGeometry = useMemo(
+      () => new RoundedBoxGeometry(1.11, 1.11, 1.11, 5, 0.13),
+      []
+    );
+
+    // Shared logo texture for all cubies
+    const [logoReady, setLogoReady] = useState(false);
+    const tiptonsTexture = useMemo(() => {
+      const loader = new THREE.TextureLoader();
+      const tex = loader.load(
+        "/assets/tiptons-solver.png",
+        () => setLogoReady(true),
+        undefined,
+        () => setLogoReady(false)
+      );
+      if ((THREE as any).SRGBColorSpace) {
+        (tex as any).colorSpace = (THREE as any).SRGBColorSpace;
+      }
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.center.set(0.5, 0.5);
+      // Sharpen appearance at angles
+      tex.anisotropy = Math.min(
+        8,
+        (gl?.capabilities?.getMaxAnisotropy?.() as number) || 8
+      );
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      return tex;
+    }, [gl]);
+    // Keep shared texture rotation in sync with computed angle
+    useEffect(() => {
+      if (!tiptonsTexture) return;
+      tiptonsTexture.rotation = whiteLogoAngle;
+      tiptonsTexture.needsUpdate = true;
+    }, [whiteLogoAngle, tiptonsTexture]);
+
     // Expose a minimal imperative handle for external orientation refinement
     // (moved near the end of the component to avoid referencing handlers before initialization)
 
@@ -1098,27 +1130,35 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const handlePreciseHover = useCallback(
       (e: any) => {
         if (!groupRef.current || dragStateRef.current.isActive) return;
-
-        const mouse = new THREE.Vector2();
         const rect = e.nativeEvent.target.getBoundingClientRect();
-        mouse.x = ((e.nativeEvent.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((e.nativeEvent.clientY - rect.top) / rect.height) * 2 + 1;
+        const mouse = mouseRef.current;
+        mouse.set(
+          ((e.nativeEvent.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.nativeEvent.clientY - rect.top) / rect.height) * 2 + 1
+        );
 
-        const raycaster = new THREE.Raycaster();
-        const camera = new THREE.PerspectiveCamera();
+        const raycaster = raycasterRef.current;
+        // Use the scene's actual camera to avoid allocating a new camera per move (mobile stability)
         raycaster.setFromCamera(mouse, camera);
 
-        const allMeshes: THREE.Mesh[] = [];
-        groupRef.current.traverse((child) => {
-          if (
-            child instanceof THREE.Mesh &&
-            child.parent === groupRef.current
-          ) {
-            allMeshes.push(child);
-          }
-        });
+        const targets =
+          raycastTargetsRef.current.length > 0
+            ? raycastTargetsRef.current
+            : (() => {
+                const all: THREE.Mesh[] = [];
+                groupRef.current!.traverse((child) => {
+                  if (
+                    child instanceof THREE.Mesh &&
+                    child.parent === groupRef.current
+                  ) {
+                    all.push(child);
+                  }
+                });
+                raycastTargetsRef.current = all;
+                return all;
+              })();
 
-        const intersects = raycaster.intersectObjects(allMeshes);
+        const intersects = raycaster.intersectObjects(targets);
         if (intersects.length === 0) {
           lastHoveredPieceRef.current = null;
           return;
@@ -1977,7 +2017,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       trackingStateRef.current.finalMove = finalMove as CubeMove;
     };
 
-    // New handler for boundary pointer down detection
+    // New handler for boundary pointer down detection (cleaned up)
     const handleBoundaryPointerDown = useCallback(
       (e: React.PointerEvent) => {
         if (!groupRef.current || !camera || !gl) return;
@@ -1985,9 +2025,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         // Detect multi-touch early and force-disable orbits during 2+ fingers
         const native = (e as any).nativeEvent ?? e;
         const pointerType: string | undefined =
-          (native && native.pointerType) || (e as any).pointerType;
+          (native && (native as any).pointerType) || (e as any).pointerType;
         const touchesLen: number =
-          (native && native.touches ? native.touches.length : 0) ||
+          (native && (native as any).touches
+            ? (native as any).touches.length
+            : 0) ||
           (touchCount ?? 0);
         if (pointerType === "touch" && touchesLen >= 2) {
           onOrbitControlsChange?.(false);
@@ -1995,22 +2037,31 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         }
 
         const rect = gl.domElement.getBoundingClientRect();
-        const mouse = new THREE.Vector2();
-        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        const mouse = mouseRef.current;
+        mouse.set(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
 
-        const raycaster = new THREE.Raycaster();
+        const raycaster = raycasterRef.current;
         raycaster.setFromCamera(mouse, camera);
 
-        // Check for intersection with any cube meshes
-        const allMeshes: THREE.Mesh[] = [];
-        groupRef.current.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            allMeshes.push(child);
-          }
-        });
+        // Check for intersection with any cube meshes (cached list)
+        const targets =
+          raycastTargetsRef.current.length > 0
+            ? raycastTargetsRef.current
+            : (() => {
+                const all: THREE.Mesh[] = [];
+                groupRef.current!.traverse((child) => {
+                  if (child instanceof THREE.Mesh) {
+                    all.push(child);
+                  }
+                });
+                raycastTargetsRef.current = all;
+                return all;
+              })();
 
-        const intersects = raycaster.intersectObjects(allMeshes);
+        const intersects = raycaster.intersectObjects(targets);
 
         if (intersects.length > 0) {
           onOrbitControlsChange?.(false);
@@ -2095,7 +2146,9 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                     key={`${x},${y},${z}`}
                     position={[(x - 1) * 1.05, (y - 1) * 1.05, (z - 1) * 1.05]}
                     colors={cubie.colors}
-                    whiteLogoAngleRad={whiteLogoAngle}
+                    roundedBoxGeometry={roundedBoxGeometry}
+                    sharedLogoTexture={tiptonsTexture}
+                    logoReady={logoReady}
                     touchCount={touchCount}
                     onPointerDown={(e, pos, intersectionPoint) =>
                       handlePointerDown(e, pos, intersectionPoint)

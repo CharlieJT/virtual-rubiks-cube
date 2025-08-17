@@ -14,7 +14,7 @@ function useIsTouchDevice() {
   return isTouch;
 }
 import { Canvas } from "@react-three/fiber";
-import { TrackballControls } from "@react-three/drei";
+import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
 import RubiksCube3D, {
   type RubiksCube3DHandle,
 } from "./components/RubiksCube3D_Simple";
@@ -560,6 +560,23 @@ const App = () => {
   );
 
   const isTouchDevice = useIsTouchDevice();
+  // High quality at all times
+  const canvasDpr: [number, number] = isTouchDevice ? [2.3, 3.0] : [1.0, 1.5];
+  // Allow dynamic DPR tuning based on performance
+  const setDprRef = useRef<((dpr: number) => void) | null>(null);
+  // Interaction-aware DPR: lower during interaction, raise a bit when idle
+  const dprTimerRef = useRef<number | null>(null);
+  const setInteractiveDpr = useCallback(() => {
+    // Lower DPR a touch while interacting; raise when idle for clarity
+    const interDpr = isTouchDevice ? 2.2 : 1.0;
+    setDprRef.current?.(interDpr);
+    if (dprTimerRef.current) window.clearTimeout(dprTimerRef.current);
+    dprTimerRef.current = window.setTimeout(() => {
+      const idleDpr = isTouchDevice ? 3.0 : 1.3;
+      setDprRef.current?.(idleDpr);
+      dprTimerRef.current = null;
+    }, 900);
+  }, [isTouchDevice]);
 
   return (
     <>
@@ -690,15 +707,53 @@ const App = () => {
               camera={{ position: [5, 5, 5], fov: 52 }}
               className="w-full h-full pt-8"
               style={{ touchAction: "none" }}
+              dpr={canvasDpr}
+              gl={{
+                antialias: true,
+                powerPreference: "high-performance",
+              }}
+              onCreated={(state) => {
+                setDprRef.current = state.setDpr;
+                // Add WebGL context loss handling to avoid full page reloads on iOS
+                const canvas = state.gl.domElement as HTMLCanvasElement;
+                const onLost = (ev: Event) => {
+                  // Prevent default to allow manual restore
+                  ev.preventDefault();
+                  // Hint: we can display a subtle message or reduce DPR on restore
+                };
+                const onRestored = () => {
+                  try {
+                    state.gl.resetState();
+                  } catch {}
+                };
+                canvas.addEventListener(
+                  "webglcontextlost",
+                  onLost as any,
+                  false
+                );
+                canvas.addEventListener(
+                  "webglcontextrestored",
+                  onRestored as any,
+                  false
+                );
+              }}
               onPointerDownCapture={(e) => {
+                setInteractiveDpr();
                 cubeViewRef.current?.handlePointerDown(e);
               }}
+              onPointerMoveCapture={() => setInteractiveDpr()}
               onPointerUpCapture={() => {
+                setInteractiveDpr();
                 cubeViewRef.current?.handlePointerUp?.();
               }}
             >
+              <PerformanceMonitor
+                onDecline={() => setDprRef.current?.(isTouchDevice ? 1.8 : 1.8)}
+                onIncline={() => setDprRef.current?.(isTouchDevice ? 2.8 : 2.6)}
+              />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.9} color="#eeeeee" />
+              {/* Postprocessing removed to keep build lean; relying on higher DPR + MSAA on touch */}
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
@@ -745,6 +800,7 @@ const App = () => {
               </div>
             )}
           </div>
+          {/* Quality toggle removed: always High quality */}
         </div>
       </div>
 
