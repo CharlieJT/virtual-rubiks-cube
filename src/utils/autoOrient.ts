@@ -103,11 +103,8 @@ export function calculateAutoOrientMoves(
   const greenFace = findGreenCenterFace(cubeState);
 
   if (!whiteFace || !greenFace) {
-    console.log("Could not find white or green center faces");
     return [];
   }
-
-  console.log(`Found white on ${whiteFace}, green on ${greenFace}`);
 
   const moves: CubeMove[] = [];
 

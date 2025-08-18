@@ -17,6 +17,7 @@ import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
 import { RoundedBoxGeometry } from "three-stdlib";
 import {
   getWhiteLogoDeltaByBucketDeg,
+  getWhiteLogoDeltaRad,
   type SliceKey,
 } from "../utils/whiteCenterOrientationMap";
 
@@ -900,12 +901,28 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
               const sliceParam: SliceKey = isSliceMove
                 ? (base as SliceKey)
                 : "none";
-              thetaDesired += getWhiteLogoDeltaByBucketDeg(
-                prevWhiteFaceRef.current,
-                resolvedAfter,
-                bucketDeg,
-                sliceParam
-              );
+
+              // Use enhanced function that includes E move specific logic
+              if (isSliceMove) {
+                // For slice moves, use the enhanced function with cube state and move string
+                const additionalDelta = getWhiteLogoDeltaRad(
+                  prevWhiteFaceRef.current,
+                  resolvedAfter,
+                  displayedAngleRef.current || 0,
+                  sliceParam,
+                  cubeState,
+                  moveStr
+                );
+                thetaDesired += additionalDelta;
+              } else {
+                // For regular moves, use the bucket-based function
+                thetaDesired += getWhiteLogoDeltaByBucketDeg(
+                  prevWhiteFaceRef.current,
+                  resolvedAfter,
+                  bucketDeg,
+                  sliceParam
+                );
+              }
             }
             // If the white center stayed on the same face, apply any configured SAME_FACE_DELTA for this move.
             const stayedOnSameFace = prevWhiteFaceRef.current === resolvedAfter;
@@ -992,7 +1009,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           prevWhiteFaceRef.current = resolvedAfter;
         }
       },
-      [getWhiteCenterFaceFromState]
+      [getWhiteCenterFaceFromState, cubeState]
     );
 
     useEffect(() => {

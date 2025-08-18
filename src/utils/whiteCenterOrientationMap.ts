@@ -133,19 +133,70 @@ export function getWhiteLogoDeltaByBucketDeg(
 }
 
 /**
+ * Check for specific E moves in standard orientation (white top, green front)
+ * and return additional rotation in degrees
+ */
+function getStandardOrientationEMoveDelta(
+  cubeState: any,
+  moveStr: string
+): number {
+  if (!cubeState || !moveStr) return 0;
+
+  // Check if we're in standard orientation (white top, green front)
+  // White center should be on top, green center should be on front
+  const topCenter = cubeState[1]?.[2]?.[1]?.colors?.top;
+  const frontCenter = cubeState[1]?.[1]?.[2]?.colors?.front;
+
+  const WHITE_COLOR = "#ffffff";
+  const GREEN_COLOR = "#00E676";
+
+  const isStandardOrientation =
+    topCenter === WHITE_COLOR && frontCenter === GREEN_COLOR;
+
+  if (!isStandardOrientation) return 0;
+
+  const move = moveStr.toUpperCase();
+
+  if (move === "E") {
+    // E move in standard orientation: +270 degree additional rotation
+    return 270;
+  } else if (move === "E'") {
+    // E' move in standard orientation: +90 degree additional rotation
+    return 90;
+  }
+
+  return 0; // No additional rotation needed
+}
+
+/**
  * Get additional rotation to apply (radians), based on mapping.
  * from: previous face of the white center
  * to:   new face of the white center
  * prevAngleRad: previous image orientation (radians), snapped bucket will be used
  * slice: which slice is being moved (M, E, S, or "none" for face moves)
+ * cubeState: current cube state to check for standard orientation
+ * moveStr: the full move string (e.g., "E", "E'") for specific move detection
  */
 export function getWhiteLogoDeltaRad(
   from: FaceKey,
   to: FaceKey,
   prevAngleRad: number,
-  slice: SliceKey = "none"
+  slice: SliceKey = "none",
+  cubeState?: any,
+  moveStr?: string
 ): number {
   const prevDeg = radToDeg(prevAngleRad);
   const bucket = snapDegBucket(prevDeg);
-  return getWhiteLogoDeltaByBucketDeg(from, to, bucket, slice);
+  let baseDelta = getWhiteLogoDeltaByBucketDeg(from, to, bucket, slice);
+
+  // Additional rotation for E moves in standard orientation
+  if (slice !== "none" && cubeState && moveStr) {
+    const additionalRotation = getStandardOrientationEMoveDelta(
+      cubeState,
+      moveStr
+    );
+    baseDelta += degToRad(additionalRotation);
+  }
+
+  return baseDelta;
 }
