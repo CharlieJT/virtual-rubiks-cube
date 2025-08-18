@@ -560,8 +560,8 @@ const App = () => {
   );
 
   const isTouchDevice = useIsTouchDevice();
-  // High quality at all times
-  const canvasDpr: [number, number] = isTouchDevice ? [2.3, 3.0] : [1.0, 1.5];
+  // High quality with enhanced anti-aliasing: higher DPR + better sampling for smooth edges
+  const canvasDpr: [number, number] = isTouchDevice ? [2.3, 3.0] : [1.5, 2.2];
   // Allow dynamic DPR tuning based on performance
   const setDprRef = useRef<((dpr: number) => void) | null>(null);
   // Interaction-aware DPR: lower during interaction, raise a bit when idle
@@ -711,6 +711,10 @@ const App = () => {
               gl={{
                 antialias: true,
                 powerPreference: "high-performance",
+                alpha: true,
+                stencil: false,
+                depth: true,
+                preserveDrawingBuffer: false,
               }}
               onCreated={(state) => {
                 setDprRef.current = state.setDpr;
@@ -738,18 +742,29 @@ const App = () => {
                 );
               }}
               onPointerDownCapture={(e) => {
-                setInteractiveDpr();
+                // Only adjust DPR on mobile for performance, not on desktop
+                if (isTouchDevice) {
+                  setInteractiveDpr();
+                }
                 cubeViewRef.current?.handlePointerDown(e);
               }}
-              onPointerMoveCapture={() => setInteractiveDpr()}
+              onPointerMoveCapture={() => {
+                // Only adjust DPR on mobile for performance, not on desktop
+                if (isTouchDevice) {
+                  setInteractiveDpr();
+                }
+              }}
               onPointerUpCapture={() => {
-                setInteractiveDpr();
+                // Only adjust DPR on mobile for performance, not on desktop
+                if (isTouchDevice) {
+                  setInteractiveDpr();
+                }
                 cubeViewRef.current?.handlePointerUp?.();
               }}
             >
               <PerformanceMonitor
-                onDecline={() => setDprRef.current?.(isTouchDevice ? 1.8 : 1.8)}
-                onIncline={() => setDprRef.current?.(isTouchDevice ? 2.8 : 2.6)}
+                onDecline={() => setDprRef.current?.(isTouchDevice ? 1.8 : 1.2)}
+                onIncline={() => setDprRef.current?.(isTouchDevice ? 2.8 : 2.0)}
               />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.9} color="#eeeeee" />
