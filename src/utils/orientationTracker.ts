@@ -41,42 +41,34 @@ export class OrientationTracker {
         // M slice = logical rotation around x-axis
         this.xRotation = (this.xRotation + steps) % 4;
         if (this.xRotation < 0) this.xRotation += 4;
-        console.log(`M move: x rotation now ${this.xRotation}`);
         break;
       case "E":
         // E slice = logical rotation around y-axis (but opposite direction)
         this.yRotation = (this.yRotation - steps) % 4;
         if (this.yRotation < 0) this.yRotation += 4;
-        console.log(`E move: y rotation now ${this.yRotation}`);
         break;
       case "S":
         // S slice = logical rotation around z-axis (but opposite direction)
         this.zRotation = (this.zRotation - steps) % 4;
         if (this.zRotation < 0) this.zRotation += 4;
-        console.log(`S move: z rotation now ${this.zRotation}`);
         break;
       case "X":
         // Actual whole-cube rotation
         this.xRotation = (this.xRotation + steps) % 4;
         if (this.xRotation < 0) this.xRotation += 4;
-        console.log(`X move: x rotation now ${this.xRotation}`);
         break;
       case "Y":
         // Actual whole-cube rotation
         this.yRotation = (this.yRotation + steps) % 4;
         if (this.yRotation < 0) this.yRotation += 4;
-        console.log(`Y move: y rotation now ${this.yRotation}`);
         break;
       case "Z":
         // Actual whole-cube rotation
         this.zRotation = (this.zRotation + steps) % 4;
         if (this.zRotation < 0) this.zRotation += 4;
-        console.log(`Z move: z rotation now ${this.zRotation}`);
         break;
       // Face moves (F, B, L, R, U, D) don't affect overall orientation
     }
-
-    console.log(`OrientationTracker state after ${move}:`, this.getState());
   }
 
   /**

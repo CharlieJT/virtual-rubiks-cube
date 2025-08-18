@@ -19,15 +19,9 @@ import RubiksCube3D, {
   type RubiksCube3DHandle,
 } from "./components/RubiksCube3D_Simple";
 import ControlPanel from "./components/ControlPanel";
-// import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
 import { AnimationHelper } from "./utils/animationHelper";
-
-import {
-  calculateAutoOrientMoves,
-  isAlreadyOriented,
-} from "./utils/autoOrient";
 import { activeTouches } from "./utils/touchState";
 import type { CubeMove, Solution } from "./types/cube";
 import ConfirmModal from "./components/ConfirmModal";
@@ -334,38 +328,6 @@ const App = () => {
       }, 0);
     });
   }, [enqueueMoves, isAnimating, solution, lastSolvedState]);
-
-  const handleAutoOrient = useCallback(() => {
-    if (isAnimating || AnimationHelper.isLocked()) return;
-
-    // Check if cube is already oriented correctly
-    if (isAlreadyOriented(cube3D)) {
-      return;
-    }
-
-    // Calculate the moves needed to orient the cube
-    const orientMoves = calculateAutoOrientMoves(cube3D);
-
-    if (orientMoves.length === 0) {
-      return;
-    }
-
-    // Set state and execute moves
-    setIsAutoOrienting(true);
-    setPendingMove(null);
-
-    // Reset indices and solution overlay
-    setSolutionIndex(-1);
-    setScrambleIndex(-1);
-    setShowScrambleOverlay(false);
-    setShowSolutionOverlay(false);
-
-    // Mark this as auto-orient run
-    currentRunRef.current = "auto-orient";
-
-    // Enqueue the orientation moves
-    enqueueMoves(orientMoves);
-  }, [cube3D, isAnimating, enqueueMoves]);
 
   // Use explicit scrambling state to avoid flicker and ensure re-enable
   const isScrambling = isScramblingState;
@@ -897,12 +859,10 @@ const App = () => {
             onScramble={handleScramble}
             onSolve={() => setConfirmSolveOpen(true)}
             onGenerateSolution={handleGenerateSolution}
-            onAutoOrient={handleAutoOrient}
             solution={solution}
             isScrambled={isScrambled}
             isSolving={isSolving}
             isScrambling={isScrambling}
-            isAutoOrienting={isAutoOrienting}
             scrambleMoves={scrambleMoves}
             scrambleIndex={scrambleIndex}
             solutionIndex={solutionIndex}
