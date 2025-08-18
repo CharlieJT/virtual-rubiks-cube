@@ -15,7 +15,10 @@ import * as THREE from "three";
 import type { CubeState, CubeMove } from "../types/cube";
 import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
 import { RoundedBoxGeometry } from "three-stdlib";
-import { getWhiteLogoDeltaByBucketDeg } from "../utils/whiteCenterOrientationMap";
+import {
+  getWhiteLogoDeltaByBucketDeg,
+  type SliceKey,
+} from "../utils/whiteCenterOrientationMap";
 
 // Enable cache so TextureLoader reuses the same image
 THREE.Cache.enabled = true;
@@ -816,10 +819,15 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 | 90
                 | 180
                 | 270;
+              // Determine slice parameter for slice-aware orientation mapping
+              const sliceParam: SliceKey = isSliceMove
+                ? (base as SliceKey)
+                : "none";
               thetaDesired += getWhiteLogoDeltaByBucketDeg(
                 prevWhiteFaceRef.current,
                 resolvedAfter,
-                bucketDeg
+                bucketDeg,
+                sliceParam
               );
             }
             // If the white center stayed on the same face, apply any configured SAME_FACE_DELTA for this move.

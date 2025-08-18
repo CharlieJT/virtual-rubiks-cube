@@ -14,64 +14,91 @@
 
 export type FaceKey = "right" | "left" | "top" | "bottom" | "front" | "back";
 export type AngleBucketDeg = 0 | 90 | 180 | 270;
+export type SliceKey = "M" | "E" | "S" | "none"; // "none" for non-slice moves
 
 type AngleMapDeg = Record<AngleBucketDeg, number>; // delta degrees to add (e.g., -90, 0, 90, 180)
-type FaceToFaceMapDeg = Record<FaceKey, AngleMapDeg>;
+type SliceAwareAngleMap = {
+  default: AngleMapDeg; // for regular face moves
+  M?: AngleMapDeg; // for M slice moves
+  E?: AngleMapDeg; // for E slice moves
+  S?: AngleMapDeg; // for S slice moves
+};
+type FaceToFaceMapDeg = Record<FaceKey, SliceAwareAngleMap>;
 export type OrientationMapDeg = Record<FaceKey, FaceToFaceMapDeg>;
 
 // Editable mapping. All entries are explicitly listed so you can refine easily.
 // Set values in DEGREES: -90, 0, 90, 180 (or any multiple of 90).
-// Example refinements:
-//   WHITE_ORIENTATION_MAP_DEG.top.bottom[0] = 180
-//   WHITE_ORIENTATION_MAP_DEG.top.top[90] = -90
+// Now supports slice-specific mappings for opposite face transitions:
+//   - default: for regular face moves (R, L, U, D, F, B)
+//   - M: for M slice moves (affects left↔right transitions)
+//   - E: for E slice moves (affects top↔bottom transitions)
+//   - S: for S slice moves (affects front↔back transitions)
 export const WHITE_ORIENTATION_MAP_DEG: OrientationMapDeg = {
   right: {
-    right: { 0: 0, 90: 0, 180: 0, 270: 0 },
-    left: { 0: 0, 90: 180, 180: 0, 270: 180 },
-    top: { 0: 90, 90: 0, 180: -90, 270: 0 },
-    bottom: { 0: 270, 90: 0, 180: 90, 270: 0 },
-    front: { 0: 0, 90: 90, 180: 0, 270: 270 },
-    back: { 0: 0, 90: 90, 180: 0, 270: 270 },
+    right: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
+    left: {
+      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
+      M: { 0: 0, 90: 0, 180: 0, 270: 0 }, // M slice: different behavior for right→left
+    },
+    top: { default: { 0: 90, 90: 0, 180: -90, 270: 0 } },
+    bottom: { default: { 0: 270, 90: 0, 180: 90, 270: 0 } },
+    front: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
+    back: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
   },
   left: {
-    right: { 0: 0, 90: 180, 180: 0, 270: 180 },
-    left: { 0: 0, 90: 0, 180: 0, 270: 0 },
-    top: { 0: 270, 90: 0, 180: 90, 270: 0 },
-    bottom: { 0: 90, 90: 0, 180: 270, 270: 0 },
-    front: { 0: 0, 90: 90, 180: 0, 270: 270 },
-    back: { 0: 0, 90: 90, 180: 0, 270: 270 },
+    right: {
+      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
+      M: { 0: 0, 90: 0, 180: 0, 270: 0 }, // M slice: different behavior for left→right
+    },
+    left: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
+    top: { default: { 0: 270, 90: 0, 180: 90, 270: 0 } },
+    bottom: { default: { 0: 90, 90: 0, 180: 270, 270: 0 } },
+    front: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
+    back: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
   },
   top: {
-    right: { 0: 0, 90: 0, 180: 0, 270: 180 },
-    left: { 0: 0, 90: 180, 180: 0, 270: 0 },
-    top: { 0: 0, 90: 0, 180: 0, 270: 0 },
-    bottom: { 0: 180, 90: 0, 180: 180, 270: 0 },
-    front: { 0: 0, 90: 180, 180: 180, 270: 180 },
-    back: { 0: 180, 90: 180, 180: 0, 270: 180 },
+    right: { default: { 0: 0, 90: 0, 180: 0, 270: 180 } },
+    left: { default: { 0: 0, 90: 180, 180: 0, 270: 0 } },
+    top: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
+    bottom: {
+      default: { 0: 180, 90: 0, 180: 180, 270: 0 },
+      E: { 0: 0, 90: 0, 180: 0, 270: 0 },
+    },
+    front: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
+    back: { default: { 0: 180, 90: 180, 180: 0, 270: 180 } },
   },
   bottom: {
-    right: { 0: 0, 90: 180, 180: 0, 270: 0 },
-    left: { 0: 0, 90: 0, 180: 0, 270: 180 },
-    top: { 0: 180, 90: 0, 180: 180, 270: 0 },
-    bottom: { 0: 0, 90: 0, 180: 0, 270: 0 },
-    front: { 0: 0, 90: 180, 180: 180, 270: 180 },
-    back: { 0: 180, 90: 180, 180: 0, 270: 180 },
+    right: { default: { 0: 0, 90: 180, 180: 0, 270: 0 } },
+    left: { default: { 0: 0, 90: 0, 180: 0, 270: 180 } },
+    top: {
+      default: { 0: 180, 90: 0, 180: 180, 270: 0 },
+      E: { 0: 0, 90: 0, 180: 0, 270: 0 },
+    },
+    bottom: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
+    front: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
+    back: { default: { 0: 180, 90: 180, 180: 0, 270: 180 } },
   },
   front: {
-    right: { 0: 0, 90: 90, 180: 0, 270: 270 },
-    left: { 0: 0, 90: 90, 180: 0, 270: 270 },
-    top: { 0: 0, 90: 180, 180: 180, 270: 180 },
-    bottom: { 0: 0, 90: 180, 180: 180, 270: 180 },
-    front: { 0: 0, 90: 0, 180: 0, 270: 0 },
-    back: { 0: 0, 90: 180, 180: 0, 270: 180 },
+    right: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
+    left: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
+    top: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
+    bottom: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
+    front: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
+    back: {
+      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
+      M: { 0: 180, 90: 0, 180: 180, 270: 0 },
+    },
   },
   back: {
-    right: { 0: 0, 90: 90, 180: 0, 270: 270 },
-    left: { 0: 0, 90: 90, 180: 0, 270: 270 },
-    top: { 0: 180, 90: 180, 180: 0, 270: 180 },
-    bottom: { 0: 180, 90: 180, 180: 0, 270: 180 },
-    front: { 0: 0, 90: 180, 180: 0, 270: 180 },
-    back: { 0: 0, 90: 0, 180: 0, 270: 0 },
+    right: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
+    left: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
+    top: { default: { 0: 180, 90: 180, 180: 0, 270: 180 } },
+    bottom: { default: { 0: 180, 90: 180, 180: 0, 270: 180 } },
+    front: {
+      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
+      M: { 0: 180, 90: 0, 180: 180, 270: 0 },
+    },
+    back: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
   },
 };
 
@@ -93,9 +120,15 @@ export const snapDegBucket = (deg: number): AngleBucketDeg => {
 export function getWhiteLogoDeltaByBucketDeg(
   from: FaceKey,
   to: FaceKey,
-  bucket: AngleBucketDeg
+  bucket: AngleBucketDeg,
+  slice: SliceKey = "none"
 ): number {
-  const deg = WHITE_ORIENTATION_MAP_DEG[from]?.[to]?.[bucket] ?? 0;
+  const sliceMap = WHITE_ORIENTATION_MAP_DEG[from]?.[to];
+  if (!sliceMap) return 0;
+
+  // Try slice-specific mapping first, then fall back to default
+  const angleMap = (slice !== "none" && sliceMap[slice]) || sliceMap.default;
+  const deg = angleMap[bucket] ?? 0;
   return degToRad(deg);
 }
 
@@ -104,13 +137,15 @@ export function getWhiteLogoDeltaByBucketDeg(
  * from: previous face of the white center
  * to:   new face of the white center
  * prevAngleRad: previous image orientation (radians), snapped bucket will be used
+ * slice: which slice is being moved (M, E, S, or "none" for face moves)
  */
 export function getWhiteLogoDeltaRad(
   from: FaceKey,
   to: FaceKey,
-  prevAngleRad: number
+  prevAngleRad: number,
+  slice: SliceKey = "none"
 ): number {
   const prevDeg = radToDeg(prevAngleRad);
   const bucket = snapDegBucket(prevDeg);
-  return getWhiteLogoDeltaByBucketDeg(from, to, bucket);
+  return getWhiteLogoDeltaByBucketDeg(from, to, bucket, slice);
 }
