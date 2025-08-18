@@ -177,6 +177,7 @@ interface DragState {
   lockedMoveType: string; // The move type that was locked in (F, R, U, etc.)
   lockedIsPrime: boolean; // Whether the locked move is prime or not
   hasLockedDirection: boolean; // Whether direction has been locked
+  _snapCompleted?: boolean; // Guard to prevent duplicate snap completion
 }
 
 export interface TrackingStateRef {
@@ -252,6 +253,8 @@ export type RubiksCube3DHandle = {
   abortActiveDrag: () => void;
   // Whether a face/slice drag is currently active
   isDraggingSlice: () => boolean;
+  // Get the current rotation quaternion of the cube (for auto-orient functionality)
+  getCurrentRotation: () => THREE.Quaternion | null;
   handlePointerDown: (e: React.PointerEvent) => void;
   handlePointerUp: () => void;
 };
@@ -483,6 +486,50 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     ref
   ) => {
     const groupRef = useRef<THREE.Group>(null);
+
+    // Guard: prevent duplicate move commits within a short window
+    const commitGuardRef = useRef<{ move: string; t: number } | null>(null);
+
+    // Guard: ensure we only start one AnimationHelper.animate per pending move
+    const startGuardRef = useRef<string | null>(null);
+
+    // Optional low-perf toggle via URL: ?lowperf=1
+    const lowPerf = useMemo(() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("lowperf") === "1";
+      } catch {
+        return false;
+      }
+    }, []);
+
+    // Debounced move commit function
+    const commitMoveOnce = useCallback(
+      (move: CubeMove) => {
+        const key = String(move).toUpperCase();
+        const now = performance.now();
+        const last = commitGuardRef.current;
+
+        // Prevent duplicate commits within 200ms
+        if (last && last.move === key && now - last.t < 200) {
+          return;
+        }
+
+        commitGuardRef.current = { move: key, t: now };
+
+        // First update the logical cube state/colors in the parent
+        // This triggers the React re-render with new colors
+        onMoveAnimationDone && onMoveAnimationDone(move);
+
+        // Then apply the white logo rotation after the re-render completes
+        // Using setTimeout(0) ensures this runs after React's reconciliation
+        setTimeout(() => {
+          applyMoveToWhiteLogoAngle(move);
+        }, 0);
+      },
+      [onMoveAnimationDone] // Note: applyMoveToWhiteLogoAngle is stable, no need in deps
+    );
+
     // Reuse Raycaster and Vector2 to reduce allocations (mobile stability)
     const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
     const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
@@ -736,6 +783,36 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
             totalRotation
           );
           whiteQuatRef.current.multiply(q);
+        } else if (isSliceMove) {
+          // For slice moves, apply visual rotation to show the coordinate system change
+          // This physically rotates the entire cube group while keeping logical mapping unchanged
+          // M → x visual rotation (cube rotates opposite to slice direction)
+          // E → y visual rotation
+          // S → z' visual rotation
+          const coordinateRotationMap: Record<string, [THREE.Vector3, number]> =
+            {
+              M: [new THREE.Vector3(1, 0, 0), Math.PI / 2], // x rotation (opposite of slice direction)
+              "M'": [new THREE.Vector3(1, 0, 0), -Math.PI / 2], // x' rotation
+              M2: [new THREE.Vector3(1, 0, 0), Math.PI], // x2 rotation
+              E: [new THREE.Vector3(0, 1, 0), Math.PI / 2], // y rotation
+              "E'": [new THREE.Vector3(0, 1, 0), -Math.PI / 2], // y' rotation
+              E2: [new THREE.Vector3(0, 1, 0), Math.PI], // y2 rotation
+              S: [new THREE.Vector3(0, 0, 1), -Math.PI / 2], // z' rotation
+              "S'": [new THREE.Vector3(0, 0, 1), Math.PI / 2], // z rotation
+              S2: [new THREE.Vector3(0, 0, 1), Math.PI], // z2 rotation
+            };
+
+          const rotation = coordinateRotationMap[moveStr];
+          if (rotation && groupRef.current) {
+            const [axis, angle] = rotation;
+            const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+
+            // Apply rotation to the actual cube group to physically move it
+            groupRef.current.quaternion.multiply(q);
+
+            // Also update white quaternion tracking for consistency
+            whiteQuatRef.current.multiply(q);
+          }
         } else if (currentWhiteFace && baseToFaceKey[base]) {
           // End-of-move update: if we rotated the face that currently holds the white center,
           // apply a discrete 90°/180° texture rotation to match the physical twist.
@@ -919,9 +996,20 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     );
 
     useEffect(() => {
-      if (!pendingMove) return;
+      if (!pendingMove) {
+        // Clear start guard when no pending move
+        startGuardRef.current = null;
+        return;
+      }
       if (!groupRef.current) return;
       if (cubiesRef.current.length !== 27 || !meshesReadyRef.current) return;
+
+      const key = String(pendingMove).toUpperCase();
+
+      // If we already started this same pending move, don't start again
+      if (startGuardRef.current === key) {
+        return;
+      }
 
       let cancelled = false;
       let retryTimeoutId: number | null = null;
@@ -934,6 +1022,13 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           return;
         }
 
+        // Mark as started before launching animation to avoid race
+        startGuardRef.current = key;
+
+        // Clear commit guard when starting a new animation
+        // This allows intentional consecutive moves like U U
+        commitGuardRef.current = null;
+
         onStartAnimation && onStartAnimation();
         currentTweenRef.current = AnimationHelper.animate(
           cubiesRef.current,
@@ -941,13 +1036,13 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           pendingMove,
           () => {
             if (cancelled) return;
-            // Apply the white logo rotation immediately on animation completion
-            // This prevents a one-frame mismatch (flicker) on white-face turns during
-            // solve/scramble where state updates and re-parenting briefly desync.
-            applyMoveToWhiteLogoAngle(pendingMove);
-            // Then update the logical cube state/colors in the parent
-            onMoveAnimationDone && onMoveAnimationDone(pendingMove);
+
+            // Single commit path with debounce guard
+            commitMoveOnce(pendingMove);
             currentTweenRef.current = null;
+
+            // Clear start guard after completion so future moves can start
+            startGuardRef.current = null;
           }
         );
       };
@@ -959,14 +1054,23 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           cancelAnimationFrame(retryTimeoutId);
         }
       };
-    }, [
-      pendingMove,
-      onStartAnimation,
-      onMoveAnimationDone,
-      applyMoveToWhiteLogoAngle,
-    ]);
+    }, [pendingMove, onStartAnimation, commitMoveOnce]);
 
     const { camera, gl } = useThree();
+
+    // Low-performance mode optimization
+    useEffect(() => {
+      if (!gl || !lowPerf) return;
+
+      const prevPixelRatio = gl.getPixelRatio();
+
+      // Force lower pixel ratio for better performance
+      gl.setPixelRatio(Math.min(1, prevPixelRatio));
+
+      return () => {
+        gl.setPixelRatio(prevPixelRatio);
+      };
+    }, [gl, lowPerf]);
 
     // Shared geometry: one RoundedBoxGeometry reused by all cubies
     const roundedBoxGeometry = useMemo(
@@ -990,15 +1094,14 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       tex.wrapS = THREE.ClampToEdgeWrapping;
       tex.wrapT = THREE.ClampToEdgeWrapping;
       tex.center.set(0.5, 0.5);
-      // Sharpen appearance at angles
-      tex.anisotropy = Math.min(
-        8,
-        (gl?.capabilities?.getMaxAnisotropy?.() as number) || 8
-      );
+      // Adjust anisotropy based on performance mode
+      const maxAniso = (gl?.capabilities?.getMaxAnisotropy?.() as number) || 8;
+      const targetAniso = lowPerf ? 2 : Math.min(8, maxAniso);
+      tex.anisotropy = targetAniso;
       tex.minFilter = THREE.LinearMipmapLinearFilter;
       tex.magFilter = THREE.LinearFilter;
       return tex;
-    }, [gl]);
+    }, [gl, lowPerf]);
     // Keep shared texture rotation in sync with computed angle
     useEffect(() => {
       if (!tiptonsTexture) return;
@@ -1114,17 +1217,20 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
         // Animation complete - execute the final move
         if (progress >= 1) {
+          // Guard so we run this block only once
+          if (dragState._snapCompleted) return;
+          dragState._snapCompleted = true;
+
           if (dragState.finalMove && onMoveAnimationDone) {
             // Store the move to be executed
             const moveToExecute = dragState.finalMove as CubeMove;
 
-            // First call onMoveAnimationDone to update the logical cube state (colors)
-            onMoveAnimationDone(moveToExecute);
+            // Use the same debounced commit function
+            commitMoveOnce(moveToExecute);
 
-            // Then clean up visual state and finally apply the logo rotation to avoid overlap
+            // Clean up visual state
             setTimeout(() => {
               cleanupDragState();
-              applyMoveToWhiteLogoAngle(moveToExecute);
               // Reset snapping state
               trackingStateRef.current.isSnapping = false;
             }, 0);
@@ -2135,6 +2241,9 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           }
         },
         isDraggingSlice: () => !!trackingStateRef.current.isDragging,
+        getCurrentRotation: () => {
+          return groupRef.current ? groupRef.current.quaternion.clone() : null;
+        },
         handlePointerDown: handleBoundaryPointerDown,
         handlePointerUp: handleBoundaryPointerUp,
       }),

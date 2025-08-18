@@ -4,10 +4,12 @@ interface ControlPanelProps {
   onScramble: () => void;
   onSolve: () => void;
   onGenerateSolution: () => void;
+  onAutoOrient: () => void;
   solution: Solution | null;
   isScrambled: boolean;
   isSolving: boolean;
   isScrambling?: boolean;
+  isAutoOrienting?: boolean;
   scrambleMoves?: string[] | null;
   scrambleIndex?: number;
   solutionIndex?: number;
@@ -17,9 +19,11 @@ const ControlPanel = ({
   onScramble,
   onSolve,
   onGenerateSolution,
+  onAutoOrient,
   isScrambled,
   isSolving,
   isScrambling,
+  isAutoOrienting,
 }: ControlPanelProps) => {
   return (
     <div className="flex flex-col items-center w-full">

@@ -23,6 +23,11 @@ import ControlPanel from "./components/ControlPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
 import { AnimationHelper } from "./utils/animationHelper";
+
+import {
+  calculateAutoOrientMoves,
+  isAlreadyOriented,
+} from "./utils/autoOrient";
 import { activeTouches } from "./utils/touchState";
 import type { CubeMove, Solution } from "./types/cube";
 import ConfirmModal from "./components/ConfirmModal";
@@ -34,6 +39,7 @@ const App = () => {
   );
   const [isScrambled, setIsScrambled] = useState(false);
   const [isSolving, setIsSolving] = useState(false);
+  const [isAutoOrienting, setIsAutoOrienting] = useState(false);
   const [solution, setSolution] = useState<Solution | null>(null);
   const [lastSolvedState, setLastSolvedState] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
@@ -43,6 +49,7 @@ const App = () => {
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
   const [touchCount, setTouchCount] = useState(0);
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
+
   const pinchRef = useRef<{
     active: boolean;
     startDist: number;
@@ -62,7 +69,9 @@ const App = () => {
   const moveQueueRef = useRef<CubeMove[]>([]);
   const lastMoveSourceRef = useRef<"queue" | "manual" | null>(null);
   // Track which sequence the current queue represents for accurate highlighting
-  const currentRunRef = useRef<null | "scramble" | "solve">(null);
+  const currentRunRef = useRef<null | "scramble" | "solve" | "auto-orient">(
+    null
+  );
   const [scrambleMoves, setScrambleMoves] = useState<string[] | null>(null);
   const [showScrambleOverlay, setShowScrambleOverlay] = useState(false);
   const [showSolutionOverlay, setShowSolutionOverlay] = useState(false);
@@ -195,6 +204,9 @@ const App = () => {
         const solved = cubeRef.current.isSolved();
         setIsScrambled(!solved);
 
+        // For slice moves, apply the equivalent logical rotation to the cube's 3D orientation
+        // applySliceMoveLogicalRotation(move);
+
         // Decrement scramble remaining if we are in a scramble run
         if (currentRunRef.current === "scramble") {
           scrambleRemainingRef.current = Math.max(
@@ -233,6 +245,10 @@ const App = () => {
         }
         if (currentRunRef.current === "solve") {
           setIsSolving(false);
+          currentRunRef.current = null;
+        }
+        if (currentRunRef.current === "auto-orient") {
+          setIsAutoOrienting(false);
           currentRunRef.current = null;
         }
         // End of a run; reset highlight after a tick
@@ -318,6 +334,38 @@ const App = () => {
       }, 0);
     });
   }, [enqueueMoves, isAnimating, solution, lastSolvedState]);
+
+  const handleAutoOrient = useCallback(() => {
+    if (isAnimating || AnimationHelper.isLocked()) return;
+
+    // Check if cube is already oriented correctly
+    if (isAlreadyOriented(cube3D)) {
+      return;
+    }
+
+    // Calculate the moves needed to orient the cube
+    const orientMoves = calculateAutoOrientMoves(cube3D);
+
+    if (orientMoves.length === 0) {
+      return;
+    }
+
+    // Set state and execute moves
+    setIsAutoOrienting(true);
+    setPendingMove(null);
+
+    // Reset indices and solution overlay
+    setSolutionIndex(-1);
+    setScrambleIndex(-1);
+    setShowScrambleOverlay(false);
+    setShowSolutionOverlay(false);
+
+    // Mark this as auto-orient run
+    currentRunRef.current = "auto-orient";
+
+    // Enqueue the orientation moves
+    enqueueMoves(orientMoves);
+  }, [cube3D, isAnimating, enqueueMoves]);
 
   // Use explicit scrambling state to avoid flicker and ensure re-enable
   const isScrambling = isScramblingState;
@@ -608,6 +656,8 @@ const App = () => {
                     ? "bg-blue-400 text-blue-900"
                     : isSolving
                     ? "bg-yellow-400 text-yellow-900"
+                    : isAutoOrienting
+                    ? "bg-orange-400 text-orange-900"
                     : isScrambled
                     ? "bg-red-400 text-red-900"
                     : "bg-green-400 text-green-900"
@@ -618,6 +668,8 @@ const App = () => {
                     ? "⏳"
                     : isSolving
                     ? "⚡"
+                    : isAutoOrienting
+                    ? "🧭"
                     : isScrambled
                     ? "🔀"
                     : "✅"}
@@ -626,6 +678,8 @@ const App = () => {
                   ? "Scrambling"
                   : isSolving
                   ? "Solving"
+                  : isAutoOrienting
+                  ? "Orienting"
                   : isScrambled
                   ? "Scrambled"
                   : "Solved"}
@@ -637,8 +691,8 @@ const App = () => {
               scrambleMoves.length > 0 &&
               showScrambleOverlay &&
               !showSolutionOverlay && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
-                  <div className="flex justify-between items-center w-full mb-1">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
+                  <div className="flex justify-between items-center w-full mb-0">
                     <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
                       <span>🎲</span>
                       Scramble:
@@ -665,11 +719,19 @@ const App = () => {
                       </span>
                     ))}
                   </div>
+                  <div className="flex items-center justify-end w-full mt-1 gap-1">
+                    <div className="flex items-center justify-center w-[1.3em] h-[1.3em] md:w-[1.5em] md:h-[1.5em] border-1 border-white/50 text-white rounded-full text-[0.6em]">
+                      i
+                    </div>
+                    <p className="text-xs md:text-sm text-white/50 italic">
+                      Moves are relative to white top & green front
+                    </p>
+                  </div>
                 </div>
               )}
             {solution && solution.steps.length > 0 && showSolutionOverlay && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
-                <div className="flex items-center justify-between mb-1 md:mb-2 w-full">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
+                <div className="flex items-center justify-between w-full mb-0 ">
                   <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
                     <span>🧠</span>
                     Solution:
@@ -701,10 +763,19 @@ const App = () => {
                     </span>
                   ))}
                 </div>
+                {/* Information section */}
+                <div className="flex items-center justify-end w-full mt-1 gap-1">
+                  <div className="flex items-center justify-center w-[1.3em] h-[1.3em] md:w-[1.5em] md:h-[1.5em] border-1 border-white/50 text-white rounded-full text-[0.6em]">
+                    i
+                  </div>
+                  <p className="text-xs md:text-sm text-white/50 italic">
+                    Moves are relative to white top & green front
+                  </p>
+                </div>
               </div>
             )}
             <Canvas
-              camera={{ position: [5, 5, 5], fov: 52 }}
+              camera={{ position: [5, 5, 5], fov: 53 }}
               className="w-full h-full pt-8"
               style={{ touchAction: "none" }}
               dpr={canvasDpr}
@@ -826,10 +897,12 @@ const App = () => {
             onScramble={handleScramble}
             onSolve={() => setConfirmSolveOpen(true)}
             onGenerateSolution={handleGenerateSolution}
+            onAutoOrient={handleAutoOrient}
             solution={solution}
             isScrambled={isScrambled}
             isSolving={isSolving}
             isScrambling={isScrambling}
+            isAutoOrienting={isAutoOrienting}
             scrambleMoves={scrambleMoves}
             scrambleIndex={scrambleIndex}
             solutionIndex={solutionIndex}

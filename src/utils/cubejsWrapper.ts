@@ -30,11 +30,44 @@ export class CubeJSWrapper {
   }
 
   move(move: string) {
-    this.cube.move(move);
+    // For slice moves, apply them as face moves + rotation to maintain white top/green front
+    const transformedMove = this.transformSliceMove(move);
+    this.cube.move(transformedMove);
   }
 
   applyMoves(moves: string[]) {
-    this.cube.move(moves.join(" "));
+    // Transform each move before applying
+    const transformedMoves = moves.map((move) => this.transformSliceMove(move));
+    this.cube.move(transformedMoves.join(" "));
+  }
+
+  private transformSliceMove(move: string): string {
+    // For slice moves, we want to keep the center orientations unchanged
+    // We apply the slice move plus a counter-rotation to maintain orientation
+    const isPrime = move.includes("'");
+    const isDouble = move.includes("2");
+    const baseMove = move.replace(/['2]/g, "").toUpperCase();
+
+    switch (baseMove) {
+      case "M":
+        // M + x counter-rotation maintains orientation
+        if (isDouble) return `M2 x2`;
+        if (isPrime) return `M' x'`;
+        return `M x`;
+      case "E":
+        // E + y counter-rotation maintains orientation
+        if (isDouble) return `E2 y2`;
+        if (isPrime) return `E' y'`;
+        return `E y`;
+      case "S":
+        // S + z' counter-rotation maintains orientation
+        if (isDouble) return `S2 z2`;
+        if (isPrime) return `S' z`;
+        return `S z'`;
+      default:
+        // Not a slice move, return as-is
+        return move;
+    }
   }
 
   scramble() {
