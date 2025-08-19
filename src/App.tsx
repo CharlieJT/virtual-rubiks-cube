@@ -19,7 +19,6 @@ import RubiksCube3D, {
   type RubiksCube3DHandle,
 } from "./components/RubiksCube3D_Simple";
 import ControlPanel from "./components/ControlPanel";
-// import { MoveButtonsPanel } from "./components/MoveButtonsPanel";
 import { CubeJSWrapper } from "./utils/cubejsWrapper";
 import cubejsTo3D from "./utils/cubejsTo3D";
 import { AnimationHelper } from "./utils/animationHelper";
@@ -34,6 +33,7 @@ const App = () => {
   );
   const [isScrambled, setIsScrambled] = useState(false);
   const [isSolving, setIsSolving] = useState(false);
+  const [isAutoOrienting, setIsAutoOrienting] = useState(false);
   const [solution, setSolution] = useState<Solution | null>(null);
   const [lastSolvedState, setLastSolvedState] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
@@ -43,6 +43,7 @@ const App = () => {
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
   const [touchCount, setTouchCount] = useState(0);
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
+
   const pinchRef = useRef<{
     active: boolean;
     startDist: number;
@@ -62,7 +63,9 @@ const App = () => {
   const moveQueueRef = useRef<CubeMove[]>([]);
   const lastMoveSourceRef = useRef<"queue" | "manual" | null>(null);
   // Track which sequence the current queue represents for accurate highlighting
-  const currentRunRef = useRef<null | "scramble" | "solve">(null);
+  const currentRunRef = useRef<null | "scramble" | "solve" | "auto-orient">(
+    null
+  );
   const [scrambleMoves, setScrambleMoves] = useState<string[] | null>(null);
   const [showScrambleOverlay, setShowScrambleOverlay] = useState(false);
   const [showSolutionOverlay, setShowSolutionOverlay] = useState(false);
@@ -195,6 +198,9 @@ const App = () => {
         const solved = cubeRef.current.isSolved();
         setIsScrambled(!solved);
 
+        // For slice moves, apply the equivalent logical rotation to the cube's 3D orientation
+        // applySliceMoveLogicalRotation(move);
+
         // Decrement scramble remaining if we are in a scramble run
         if (currentRunRef.current === "scramble") {
           scrambleRemainingRef.current = Math.max(
@@ -233,6 +239,10 @@ const App = () => {
         }
         if (currentRunRef.current === "solve") {
           setIsSolving(false);
+          currentRunRef.current = null;
+        }
+        if (currentRunRef.current === "auto-orient") {
+          setIsAutoOrienting(false);
           currentRunRef.current = null;
         }
         // End of a run; reset highlight after a tick
@@ -560,8 +570,8 @@ const App = () => {
   );
 
   const isTouchDevice = useIsTouchDevice();
-  // High quality at all times
-  const canvasDpr: [number, number] = isTouchDevice ? [2.3, 3.0] : [1.0, 1.5];
+  // High quality with enhanced anti-aliasing: higher DPR + better sampling for smooth edges
+  const canvasDpr: [number, number] = isTouchDevice ? [2.3, 3.0] : [1.5, 2.2];
   // Allow dynamic DPR tuning based on performance
   const setDprRef = useRef<((dpr: number) => void) | null>(null);
   // Interaction-aware DPR: lower during interaction, raise a bit when idle
@@ -608,6 +618,8 @@ const App = () => {
                     ? "bg-blue-400 text-blue-900"
                     : isSolving
                     ? "bg-yellow-400 text-yellow-900"
+                    : isAutoOrienting
+                    ? "bg-orange-400 text-orange-900"
                     : isScrambled
                     ? "bg-red-400 text-red-900"
                     : "bg-green-400 text-green-900"
@@ -618,6 +630,8 @@ const App = () => {
                     ? "⏳"
                     : isSolving
                     ? "⚡"
+                    : isAutoOrienting
+                    ? "🧭"
                     : isScrambled
                     ? "🔀"
                     : "✅"}
@@ -626,6 +640,8 @@ const App = () => {
                   ? "Scrambling"
                   : isSolving
                   ? "Solving"
+                  : isAutoOrienting
+                  ? "Orienting"
                   : isScrambled
                   ? "Scrambled"
                   : "Solved"}
@@ -637,8 +653,8 @@ const App = () => {
               scrambleMoves.length > 0 &&
               showScrambleOverlay &&
               !showSolutionOverlay && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
-                  <div className="flex justify-between items-center w-full mb-1">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
+                  <div className="flex justify-between items-center w-full mb-0">
                     <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
                       <span>🎲</span>
                       Scramble:
@@ -665,11 +681,19 @@ const App = () => {
                       </span>
                     ))}
                   </div>
+                  <div className="flex items-center justify-end w-full mt-1 gap-1">
+                    <div className="flex items-center justify-center w-[1.3em] h-[1.3em] md:w-[1.5em] md:h-[1.5em] border-1 border-white/50 text-white rounded-full text-[0.6em]">
+                      i
+                    </div>
+                    <p className="text-xs md:text-sm text-white/50 italic">
+                      Moves are relative to white top & green front
+                    </p>
+                  </div>
                 </div>
               )}
             {solution && solution.steps.length > 0 && showSolutionOverlay && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg p-2 md:p-3 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
-                <div className="flex items-center justify-between mb-1 md:mb-2 w-full">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
+                <div className="flex items-center justify-between w-full mb-0 ">
                   <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
                     <span>🧠</span>
                     Solution:
@@ -701,16 +725,29 @@ const App = () => {
                     </span>
                   ))}
                 </div>
+                {/* Information section */}
+                <div className="flex items-center justify-end w-full mt-1 gap-1">
+                  <div className="flex items-center justify-center w-[1.3em] h-[1.3em] md:w-[1.5em] md:h-[1.5em] border-1 border-white/50 text-white rounded-full text-[0.6em]">
+                    i
+                  </div>
+                  <p className="text-xs md:text-sm text-white/50 italic">
+                    Moves are relative to white top & green front
+                  </p>
+                </div>
               </div>
             )}
             <Canvas
-              camera={{ position: [5, 5, 5], fov: 52 }}
+              camera={{ position: [5, 5, 5], fov: 53 }}
               className="w-full h-full pt-8"
               style={{ touchAction: "none" }}
               dpr={canvasDpr}
               gl={{
                 antialias: true,
                 powerPreference: "high-performance",
+                alpha: true,
+                stencil: false,
+                depth: true,
+                preserveDrawingBuffer: false,
               }}
               onCreated={(state) => {
                 setDprRef.current = state.setDpr;
@@ -738,18 +775,29 @@ const App = () => {
                 );
               }}
               onPointerDownCapture={(e) => {
-                setInteractiveDpr();
+                // Only adjust DPR on mobile for performance, not on desktop
+                if (isTouchDevice) {
+                  setInteractiveDpr();
+                }
                 cubeViewRef.current?.handlePointerDown(e);
               }}
-              onPointerMoveCapture={() => setInteractiveDpr()}
+              onPointerMoveCapture={() => {
+                // Only adjust DPR on mobile for performance, not on desktop
+                if (isTouchDevice) {
+                  setInteractiveDpr();
+                }
+              }}
               onPointerUpCapture={() => {
-                setInteractiveDpr();
+                // Only adjust DPR on mobile for performance, not on desktop
+                if (isTouchDevice) {
+                  setInteractiveDpr();
+                }
                 cubeViewRef.current?.handlePointerUp?.();
               }}
             >
               <PerformanceMonitor
-                onDecline={() => setDprRef.current?.(isTouchDevice ? 1.8 : 1.8)}
-                onIncline={() => setDprRef.current?.(isTouchDevice ? 2.8 : 2.6)}
+                onDecline={() => setDprRef.current?.(isTouchDevice ? 1.8 : 1.2)}
+                onIncline={() => setDprRef.current?.(isTouchDevice ? 2.8 : 2.0)}
               />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.9} color="#eeeeee" />
