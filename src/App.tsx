@@ -738,7 +738,7 @@ const App = () => {
             )}
             <Canvas
               camera={{ position: [5, 5, 5], fov: 53 }}
-              className="w-full h-full pt-8"
+              className="w-full h-full pt-9"
               style={{ touchAction: "none" }}
               dpr={canvasDpr}
               gl={{

@@ -86,7 +86,7 @@ export const WHITE_ORIENTATION_MAP_DEG: OrientationMapDeg = {
     front: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
     back: {
       default: { 0: 0, 90: 180, 180: 0, 270: 180 },
-      M: { 0: 0, 90: 0, 180: 180, 270: 0 },
+      M: { 0: 0, 90: 180, 180: 0, 270: 180 },
     },
   },
   back: {
@@ -96,7 +96,7 @@ export const WHITE_ORIENTATION_MAP_DEG: OrientationMapDeg = {
     bottom: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
     front: {
       default: { 0: 0, 90: 180, 180: 0, 270: 180 },
-      M: { 0: 0, 90: 0, 180: 180, 270: 0 },
+      M: { 0: 0, 90: 180, 180: 0, 270: 180 },
     },
     back: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
   },
