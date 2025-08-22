@@ -145,6 +145,7 @@ src/
 ├── consts/                      # Constants and configuration
 │   ├── cubeColours.ts           # Color definitions
 │   └── faceColors.ts            # Face-to-color mapping
+│   └── moves.ts            # Move mapping
 └── types/
     └── cube.ts                  # TypeScript type definitions
 ```
