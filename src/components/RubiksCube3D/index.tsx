@@ -437,14 +437,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       updateSnappingAnimation();
     });
 
-    const borderMaterial = new THREE.MeshPhongMaterial({
-      color: "#222",
-      toneMapped: true,
-      polygonOffset: true,
-      polygonOffsetFactor: 0, // push forward slightly
-      polygonOffsetUnits: 1,
-    });
-
     return (
       <group
         ref={groupRef}
