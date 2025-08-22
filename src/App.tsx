@@ -484,7 +484,7 @@ const App = () => {
             >
               <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
-              <ambientLight intensity={0.95} color={CUBE_COLORS.WHITE} />
+              <ambientLight intensity={1.1} color={CUBE_COLORS.WHITE} />
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
