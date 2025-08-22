@@ -119,68 +119,69 @@ npm run tw:build
 ### Component Structure
 
 ```
+### Component Structure
+
+```
+
 src/
 ├── App.css
 ├── App.tsx
 ├── assets/
-│   └── tiptons-solver.png
+│ └── tiptons-solver.png
 ├── components/
-│   ├── ConfirmModal.tsx
-│   ├── ControlPanel.tsx
-│   ├── MoveButtonsPanel.tsx
-│   ├── MoveOverlay.tsx
-│   ├── RubiksCube3D/
-│   │   ├── CubePiece.tsx
-│   │   ├── geometry.ts
-│   │   ├── helpers.ts
-│   │   ├── index.tsx
-│   │   └── types.ts
-│   └── UI/
-│       ├── Button.tsx
-│       ├── Footer.tsx
-│       ├── Header.tsx
-│       ├── SpinTrackpad.tsx
-│       └── StatusBadge.tsx
+│ ├── ConfirmModal.tsx
+│ ├── ControlPanel.tsx
+│ ├── MoveButtonsPanel.tsx
+│ ├── MoveOverlay.tsx
+│ ├── RubiksCube3D/
+│ │ ├── CubePiece.tsx
+│ │ ├── geometry.ts
+│ │ ├── index.tsx
+│ │ └── types.ts
+│ └── UI/
+│ ├── Button.tsx
+│ ├── Footer.tsx
+│ ├── Header.tsx
+│ ├── SpinTrackpad.tsx
+│ └── StatusBadge.tsx
 ├── consts/
-│   ├── cubeColours.ts
-│   ├── faceColors.ts
-│   └── moves.ts
+│ ├── cubeColours.ts
+│ ├── faceColors.ts
+│ └── moves.ts
 ├── hooks/
-│   ├── useAnimation.ts
-│   ├── useDprManager.ts
-│   ├── useDragLogic.ts
-│   ├── useIsTouchDevice.tsx
-│   ├── usePrecisionMode.ts
-│   ├── useTrackpadHandlers.ts
-│   ├── useTwoFingerSpin.ts
-│   └── useWhiteLogo.ts
+│ ├── useAnimation.ts
+│ ├── useDprManager.ts
+│ ├── useDragLogic.ts
+│ ├── useHoverLogic.tsx
+│ ├── useIsTouchDevice.tsx
+│ ├── useLogoTexture.tsx
+│ ├── usePrecisionMode.ts
+│ ├── useRoundedBoxGeometry.ts
+│ ├── useTrackpadHandlers.ts
+│ ├── useTwoFingerSpin.ts
+│ └── useWhiteLogo.ts
 ├── index.css
 ├── main.tsx
 ├── maps/
-│   ├── cubieStyleMap.ts
-│   ├── positionMoveMapping.ts
-│   ├── sameFaceDelta.ts
-│   ├── stickerCornerMap.ts
-│   ├── viaTransitionDelta.ts
-│   └── whiteOrentationMapDeg.ts
+│ ├── cubieStyleMap.ts
+│ ├── positionMoveMapping.ts
+│ ├── sameFaceDelta.ts
+│ ├── stickerCornerMap.ts
+│ ├── viaTransitionDelta.ts
+│ └── whiteOrentationMapDeg.ts
 ├── tw.css
 ├── types/
-│   ├── cube.ts
-│   └── cubejs.d.ts
+│ ├── cube.ts
+│ └── cubejs.d.ts
 ├── utils/
-│   ├── animationHelper.ts
-│   ├── cubejsTo3D.ts
-│   ├── cubejsWrapper.ts
-│   ├── touchState.ts
-│   └── whiteCenterOrientationMap.ts
+│ ├── animationHelper.ts
+│ ├── cubejsTo3D.ts
+│ ├── cubejsWrapper.ts
+│ ├── touchState.ts
+│ └── whiteCenterOrientationMap.ts
 └── vite-env.d.ts
+
 ```
-
-### Key Technical Features
-
-#### Advanced Touch System
-
-- **Pointer ID Tracking**: Prevents move conflicts from multiple touches
 - **Face-Local Coordinates**: Accurate drag detection in 3D space
 - **Gesture Recognition**: Distinguishes between moves and camera controls
 - **Smooth Snap Animation**: Visual feedback with quadratic easing
@@ -243,3 +244,4 @@ This project is open source and available under the MIT License.
 ---
 
 _Built with ❤️ for the cubing community_
+```
