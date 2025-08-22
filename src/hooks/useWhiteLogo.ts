@@ -12,7 +12,7 @@ import CUBE_COLORS from "@/consts/cubeColours";
 
 const { WHITE } = CUBE_COLORS;
 
-export const useWhiteLogo = (cubeState: CubeState[][][]) => {
+const useWhiteLogo = (cubeState: CubeState[][][]) => {
   // Track white logo rotation (in radians). Positive values rotate CCW in texture space.
   const [whiteLogoAngle, setWhiteLogoAngle] = useState<number>(0);
   const lastAppliedMoveRef = useRef<{ move: string; t: number } | null>(null);
@@ -456,3 +456,5 @@ export const useWhiteLogo = (cubeState: CubeState[][][]) => {
     applyMoveToWhiteLogoAngle,
   };
 };
+
+export default useWhiteLogo;

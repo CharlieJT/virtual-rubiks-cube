@@ -13,7 +13,7 @@ import {
   LOCK_PRIMARY_PX,
 } from "../components/RubiksCube3D/geometry";
 
-export const useDragLogic = (
+const useDragLogic = (
   groupRef: React.RefObject<THREE.Group | null>,
   cubiesRef: React.RefObject<AnimatedCubie[]>,
   _commitMoveOnce: (move: CubeMove) => void
@@ -876,3 +876,5 @@ export const useDragLogic = (
     projectLocalDirToScreen,
   };
 };
+
+export default useDragLogic;

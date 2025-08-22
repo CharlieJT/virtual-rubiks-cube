@@ -7,7 +7,7 @@ import type {
   TrackingStateRef,
 } from "../components/RubiksCube3D/types";
 
-export const useAnimation = (
+const useAnimation = (
   trackingStateRef: React.RefObject<TrackingStateRef>,
   cleanupDragState: () => void,
   commitMoveOnce: (move: any) => void
@@ -233,3 +233,5 @@ export const useImperativeHandle3D = (
     handleBoundaryPointerUp,
   };
 };
+
+export default useAnimation;

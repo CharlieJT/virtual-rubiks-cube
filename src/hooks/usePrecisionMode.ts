@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
-export const usePrecisionMode = (cubeContainerRef: RefObject<HTMLElement>) => {
+const usePrecisionMode = (cubeContainerRef: RefObject<HTMLElement>) => {
   const [precisionMode, setPrecisionMode] = useState(false);
   const [precisionHold, setPrecisionHold] = useState(false);
   const lastTwoFingerTapRef = useRef<number>(0);
@@ -51,3 +51,5 @@ export const usePrecisionMode = (cubeContainerRef: RefObject<HTMLElement>) => {
 
   return { precisionActive, handleContainerDoubleClick } as const;
 };
+
+export default usePrecisionMode;

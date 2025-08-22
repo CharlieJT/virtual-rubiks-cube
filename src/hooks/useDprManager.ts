@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 
-export function useDprManager(isTouchDevice: boolean) {
+const useDprManager = (isTouchDevice: boolean) => {
   const setDprRef = useRef<((dpr: number) => void) | null>(null);
   const dprTimerRef = useRef<number | null>(null);
 
@@ -37,4 +37,6 @@ export function useDprManager(isTouchDevice: boolean) {
     onDecline,
     onIncline,
   } as const;
-}
+};
+
+export default useDprManager;

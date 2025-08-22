@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 
-export const useTrackpadHandlers = (
+const useTrackpadHandlers = (
   cubeViewRef: React.RefObject<RubiksCube3DHandle>,
   precisionActive: boolean
 ) => {
@@ -36,3 +36,5 @@ export const useTrackpadHandlers = (
 
   return { onPointerDown, onPointerMove, onPointerUp } as const;
 };
+
+export default useTrackpadHandlers;

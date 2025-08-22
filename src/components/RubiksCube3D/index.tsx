@@ -10,14 +10,14 @@ import {
   CUBIE_DISTANCE,
   BORDER_LENGTH,
 } from "./geometry";
-import { useWhiteLogo } from "../../hooks/useWhiteLogo";
-import { useDragLogic } from "../../hooks/useDragLogic";
+import useWhiteLogo from "@/hooks/useWhiteLogo";
+import useDragLogic from "@/hooks/useDragLogic";
 import {
   useLogoTexture,
   useRoundedBoxGeometry,
   useHoverLogic,
 } from "./helpers";
-import { useAnimation, useImperativeHandle3D } from "../../hooks/useAnimation";
+import useAnimation, { useImperativeHandle3D } from "@/hooks/useAnimation";
 import CubePiece from "./CubePiece";
 import type { RubiksCube3DProps, RubiksCube3DHandle } from "./types";
 

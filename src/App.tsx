@@ -15,10 +15,10 @@ import Footer from "@components/UI/Footer";
 import SpinTrackpad from "@components/UI/SpinTrackpad";
 import useIsTouchDevice from "@/hooks/useIsTouchDevice";
 import CUBE_COLORS from "@/consts/cubeColours";
-import { useDprManager } from "./hooks/useDprManager";
-import { usePrecisionMode } from "./hooks/usePrecisionMode";
-import { useTwoFingerSpin } from "./hooks/useTwoFingerSpin";
-import { useTrackpadHandlers } from "./hooks/useTrackpadHandlers";
+import useDprManager from "@/hooks/useDprManager";
+import usePrecisionMode from "@/hooks/usePrecisionMode";
+import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
+import useTrackpadHandlers from "@/hooks/useTrackpadHandlers";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 
 const App = () => {

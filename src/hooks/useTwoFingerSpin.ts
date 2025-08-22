@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { activeTouches } from "@utils/touchState";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 
-export const useTwoFingerSpin = (
+const useTwoFingerSpin = (
   cubeContainerRef: RefObject<HTMLDivElement>,
   cubeViewRef: RefObject<RubiksCube3DHandle>,
   precisionActive: boolean,
@@ -144,3 +144,5 @@ export const useTwoFingerSpin = (
 
   return { touchCount } as const;
 };
+
+export default useTwoFingerSpin;

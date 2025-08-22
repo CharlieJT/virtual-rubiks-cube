@@ -120,34 +120,60 @@ npm run tw:build
 
 ```
 src/
+├── App.css
+├── App.tsx
+├── assets/
+│   └── tiptons-solver.png
 ├── components/
-│   ├── RubiksCube3D.tsx           # Main 3D cube with advanced touch handling
-│   ├── ControlPanel.tsx           # Scramble/solve controls
-│   ├── MoveButtonsPanel.tsx       # Comprehensive move buttons
-│   ├── MoveOverlay.tsx           # Move display overlay
-│   ├── ConfirmModal.tsx          # Confirmation dialogs
-│   └── UI/                       # Reusable UI components
+│   ├── ConfirmModal.tsx
+│   ├── ControlPanel.tsx
+│   ├── MoveButtonsPanel.tsx
+│   ├── MoveOverlay.tsx
+│   ├── RubiksCube3D/
+│   │   ├── CubePiece.tsx
+│   │   ├── geometry.ts
+│   │   ├── helpers.ts
+│   │   ├── index.tsx
+│   │   └── types.ts
+│   └── UI/
 │       ├── Button.tsx
+│       ├── Footer.tsx
 │       ├── Header.tsx
 │       ├── SpinTrackpad.tsx
 │       └── StatusBadge.tsx
+├── consts/
+│   ├── cubeColours.ts
+│   ├── faceColors.ts
+│   └── moves.ts
+├── hooks/
+│   ├── useAnimation.ts
+│   ├── useDprManager.ts
+│   ├── useDragLogic.ts
+│   ├── useIsTouchDevice.tsx
+│   ├── usePrecisionMode.ts
+│   ├── useTrackpadHandlers.ts
+│   ├── useTwoFingerSpin.ts
+│   └── useWhiteLogo.ts
+├── index.css
+├── main.tsx
+├── maps/
+│   ├── cubieStyleMap.ts
+│   ├── positionMoveMapping.ts
+│   ├── sameFaceDelta.ts
+│   ├── stickerCornerMap.ts
+│   ├── viaTransitionDelta.ts
+│   └── whiteOrentationMapDeg.ts
+├── tw.css
+├── types/
+│   ├── cube.ts
+│   └── cubejs.d.ts
 ├── utils/
-│   ├── animationHelper.ts        # Custom RAF-based animation system
-│   ├── cubejsTo3D.ts            # CubeJS to 3D state conversion
-│   ├── cubejsWrapper.ts         # Enhanced CubeJS integration
-│   ├── touchState.ts            # Global touch state management
-│   └── whiteCenterOrientationMap.ts # Smart white center orientation
-├── maps/                         # Configuration and mapping data
-│   ├── cubieStyleMap.ts         # Cube piece styling
-│   ├── stickerCornerMap.ts      # Sticker appearance mapping
-│   ├── whiteOrientationMapDeg.ts # White center rotation rules
-│   └── viaTransitionDelta.ts    # Transition delta calculations
-├── consts/                      # Constants and configuration
-│   ├── cubeColours.ts           # Color definitions
-│   └── faceColors.ts            # Face-to-color mapping
-│   └── moves.ts            # Move mapping
-└── types/
-    └── cube.ts                  # TypeScript type definitions
+│   ├── animationHelper.ts
+│   ├── cubejsTo3D.ts
+│   ├── cubejsWrapper.ts
+│   ├── touchState.ts
+│   └── whiteCenterOrientationMap.ts
+└── vite-env.d.ts
 ```
 
 ### Key Technical Features
