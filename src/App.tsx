@@ -1,22 +1,25 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
-import RubiksCube3D, {
-  type RubiksCube3DHandle,
-} from "@components/RubiksCube3D";
+import RubiksCube3D from "@components/RubiksCube3D";
 import ControlPanel from "@components/ControlPanel";
 import { CubeJSWrapper } from "@utils/cubejsWrapper";
 import cubejsTo3D from "@utils/cubejsTo3D";
 import { AnimationHelper } from "@utils/animationHelper";
-import { activeTouches } from "@utils/touchState";
 import type { CubeMove, Solution } from "@/types/cube";
 import ConfirmModal from "@components/ConfirmModal";
 import MoveOverlay from "@components/MoveOverlay";
 import StatusBadge from "@components/UI/StatusBadge";
 import Header from "@components/UI/Header";
+import Footer from "@components/UI/Footer";
 import SpinTrackpad from "@components/UI/SpinTrackpad";
 import useIsTouchDevice from "@/hooks/useIsTouchDevice";
-import CUBE_COLORS from "./consts/cubeColours";
+import CUBE_COLORS from "@/consts/cubeColours";
+import { useDprManager } from "./hooks/useDprManager";
+import { usePrecisionMode } from "./hooks/usePrecisionMode";
+import { useTwoFingerSpin } from "./hooks/useTwoFingerSpin";
+import { useTrackpadHandlers } from "./hooks/useTrackpadHandlers";
+import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 
 const App = () => {
   const cubeRef = useRef(new CubeJSWrapper());
@@ -33,23 +36,14 @@ const App = () => {
   const [orbitControlsEnabled, setOrbitControlsEnabled] = useState(true);
   const orbitControlsRef = useRef<any>(null);
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
-  const [touchCount, setTouchCount] = useState(0);
+  // touch count will be provided by the touch hook
+
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const pinchRef = useRef<{
-    active: boolean;
-    startDist: number;
-    lastPinchTime: number;
-  }>({ active: false, startDist: 0, lastPinchTime: 0 });
-  // when two-finger spin mode is active we temporarily disable orbit controls
-  // only need the setter to toggle side-effects; value itself is unused
-  const [, setTwoFingerMode] = useState(false);
-
-  // Precision orbit mode: toggle for fine adjustments
-  const [precisionMode, setPrecisionMode] = useState(false);
-  const [precisionHold, setPrecisionHold] = useState(false); // active while holding Shift
-  const lastTwoFingerTapRef = useRef<number>(0);
-  const precisionActive = precisionMode || precisionHold;
+  // Precision controls via hook
+  const { precisionActive, handleContainerDoubleClick } = usePrecisionMode(
+    cubeContainerRef as React.RefObject<HTMLElement>
+  );
 
   const lastMoveTimeRef = useRef(0);
   const moveQueueRef = useRef<CubeMove[]>([]);
@@ -328,48 +322,13 @@ const App = () => {
   // Use explicit scrambling state to avoid flicker and ensure re-enable
   const isScrambling = isScramblingState;
 
-  // Desktop: hold Shift for temporary precision
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Shift") setPrecisionHold(true);
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Shift") setPrecisionHold(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-    };
-  }, []);
-
-  // Mobile: two-finger double-tap toggles precision mode
-  useEffect(() => {
-    const el = cubeContainerRef.current;
-    if (!el) return;
-    const onTouchStart = (e: TouchEvent) => {
-      // Only consider two-finger tap start (not moving yet)
-      if (e.touches.length === 2) {
-        const now = Date.now();
-        if (now - lastTwoFingerTapRef.current < 350) {
-          setPrecisionMode((p) => !p);
-          lastTwoFingerTapRef.current = 0; // reset
-        } else {
-          lastTwoFingerTapRef.current = now;
-        }
-      }
-    };
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    return () => {
-      el.removeEventListener("touchstart", onTouchStart as any);
-    };
-  }, []);
-
-  // Desktop: double-click anywhere in the cube container toggles precision mode
-  const handleContainerDoubleClick = useCallback(() => {
-    setPrecisionMode((p) => !p);
-  }, []);
+  // precision keyboard/tap handlers moved into usePrecisionMode
+  const { touchCount } = useTwoFingerSpin(
+    cubeContainerRef as React.RefObject<HTMLDivElement>,
+    cubeViewRef as React.RefObject<RubiksCube3DHandle>,
+    precisionActive,
+    handleOrbitControlsChange
+  );
 
   // Prevent wheel from resizing/zooming the cube or scrolling the page
   useEffect(() => {
@@ -383,230 +342,25 @@ const App = () => {
     return () => el.removeEventListener("wheel", onWheel as any);
   }, []);
 
-  // Touch handlers: detect pinch and double-pinch to toggle a spin between two orientations.
-  const computeTouchDistance = (t0: Touch, t1: Touch) => {
-    const dx = t0.clientX - t1.clientX;
-    const dy = t0.clientY - t1.clientY;
-    return Math.hypot(dx, dy);
-  };
+  // touch/pinch logic moved to useTwoFingerSpin
 
-  useEffect(() => {
-    const el = cubeContainerRef.current;
-    if (!el) return;
-
-    const onTouchStart = (e: TouchEvent) => {
-      // mirror active touch count for child components
-      setTouchCount(e.touches.length);
-      activeTouches.count = e.touches.length;
-      if (e.touches.length === 2) {
-        // If a slice drag is active, give it a chance to complete before switching to spin mode
-        // Don't immediately abort - let the second touch potentially start a new move
-        if (cubeViewRef.current?.isDraggingSlice?.()) {
-          // Wait a bit to see if a second move starts, if not, then switch to spin mode
-          setTimeout(() => {
-            // Only switch to spin mode if still 2+ touches and still only one drag active
-            if (
-              activeTouches.count >= 2 &&
-              cubeViewRef.current?.isDraggingSlice?.()
-            ) {
-              // Second touch didn't start a move, switch to spin mode
-              cubeViewRef.current?.abortActiveDrag();
-              initiateTwoFingerMode(e);
-            }
-          }, 100);
-          return;
-        }
-        // No active drag, start two-finger mode immediately
-        initiateTwoFingerMode(e);
-      }
-    };
-
-    const initiateTwoFingerMode = (e: TouchEvent) => {
-      // Enter explicit two-finger spin mode
-      pinchRef.current.active = true;
-      pinchRef.current.startDist = computeTouchDistance(
-        e.touches[0],
-        e.touches[1]
-      );
-      // store previous angle between the two touches for incremental rotation
-      const dx = e.touches[1].clientX - e.touches[0].clientX;
-      const dy = e.touches[1].clientY - e.touches[0].clientY;
-      (pinchRef.current as any).prevAngle = Math.atan2(dy, dx);
-      setTwoFingerMode(true);
-      setOrbitControlsEnabled(false);
-      if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
-      // disable pointer events on canvas so single-pointer handlers don't fire
-      const elCanvas = el.querySelector("canvas") as HTMLElement | null;
-      if (elCanvas) elCanvas.style.pointerEvents = "none";
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      // keep shared synchronous state in sync for mid-gesture checks
-      activeTouches.count = e.touches.length;
-      if (e.touches.length >= 2) {
-        // Prevent native pinch-zoom/page scroll
-        e.preventDefault();
-        if (!pinchRef.current.active) return;
-        // Compute current angle between touches
-        const dx = e.touches[1].clientX - e.touches[0].clientX;
-        const dy = e.touches[1].clientY - e.touches[0].clientY;
-        const nowAngle = Math.atan2(dy, dx);
-        const prevAngle = (pinchRef.current as any).prevAngle as
-          | number
-          | undefined;
-        if (prevAngle !== undefined) {
-          // compute smallest signed delta
-          let delta = nowAngle - prevAngle;
-          // normalize to [-π, π]
-          while (delta > Math.PI) delta -= Math.PI * 2;
-          while (delta < -Math.PI) delta += Math.PI * 2;
-          // convert to cube spin: use delta directly so clockwise finger twist produces clockwise cube spin
-          const spin = delta;
-          cubeViewRef.current?.spinAroundViewAxis(spin);
-        }
-        (pinchRef.current as any).prevAngle = nowAngle;
-      }
-      // update active touch count during move
-      setTouchCount(e.touches.length);
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      // do not trigger any automatic spin on touchend; user-controlled spinning only
-      // Only re-enable when no touches remain (both fingers truly off screen)
-      // update active touch count
-      setTouchCount(e.touches.length);
-      activeTouches.count = e.touches.length;
-      if (e.touches.length === 0) {
-        pinchRef.current.active = false;
-        pinchRef.current.startDist = 0;
-        (pinchRef.current as any).prevAngle = undefined;
-        setTwoFingerMode(false);
-        setOrbitControlsEnabled(true);
-        if (orbitControlsRef.current) orbitControlsRef.current.enabled = true;
-        const elCanvas = el.querySelector("canvas") as HTMLElement | null;
-        if (elCanvas) elCanvas.style.pointerEvents = "auto";
-      }
-    };
-
-    el.addEventListener("touchstart", onTouchStart, { passive: false });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd);
-
-    // Also listen on window so multi-touch anywhere (e.g., second finger outside cube) toggles two-finger mode.
-    const winTouchStart = (e: TouchEvent) => {
-      activeTouches.count = e.touches.length;
-      setTouchCount(e.touches.length);
-      // If a second (or more) finger lands anywhere, force-disable orbit to prevent floating
-      if (e.touches.length >= 2) {
-        // Abort any active slice drag to avoid conflicting states
-        cubeViewRef.current?.abortActiveDrag?.();
-        // Disable orbit immediately
-        setOrbitControlsEnabled(false);
-        if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
-        // Disable pointer events on canvas so single-pointer handlers don't fire
-        const elCanvas = cubeContainerRef.current?.querySelector(
-          "canvas"
-        ) as HTMLElement | null;
-        if (elCanvas) elCanvas.style.pointerEvents = "none";
-      }
-    };
-
-    const winTouchMove = (e: TouchEvent) => {
-      activeTouches.count = e.touches.length;
-      setTouchCount(e.touches.length);
-      // Keep orbit disabled while multi-touch is active
-      if (e.touches.length >= 2) {
-        setOrbitControlsEnabled(false);
-        if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
-      }
-    };
-
-    const winTouchEnd = (e: TouchEvent) => {
-      activeTouches.count = e.touches.length;
-      setTouchCount(e.touches.length);
-      // Re-enable orbit and canvas interactivity only when all touches are lifted
-      if (e.touches.length === 0) {
-        setOrbitControlsEnabled(true);
-        if (orbitControlsRef.current) orbitControlsRef.current.enabled = true;
-        const elCanvas = cubeContainerRef.current?.querySelector(
-          "canvas"
-        ) as HTMLElement | null;
-        if (elCanvas) elCanvas.style.pointerEvents = "auto";
-      }
-    };
-    window.addEventListener("touchstart", winTouchStart, { passive: false });
-    window.addEventListener("touchmove", winTouchMove, { passive: false });
-    window.addEventListener("touchend", winTouchEnd);
-
-    return () => {
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-      window.removeEventListener("touchstart", winTouchStart as any);
-      window.removeEventListener("touchmove", winTouchMove as any);
-      window.removeEventListener("touchend", winTouchEnd as any);
-    };
-  }, [precisionActive]);
-
-  // Trackpad overlay drag state
-  const trackpadDragRef = useRef<{ active: boolean; lastX: number } | null>(
-    null
-  );
-  const handleTrackpadPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      trackpadDragRef.current = { active: true, lastX: e.clientX };
-    },
-    []
-  );
-
-  const handleTrackpadPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!trackpadDragRef.current?.active) return;
-      const dx = e.clientX - trackpadDragRef.current.lastX;
-      trackpadDragRef.current.lastX = e.clientX;
-      // Convert pixels to radians; scale with precision mode for finer control
-      const base = 0.004; // rad/px baseline
-      const sensitivity = base * (precisionActive ? 0.4 : 1.0);
-      // UX: dragging left should spin CW (negative angle), right = CCW (positive)
-      const angle = dx * sensitivity;
-      cubeViewRef.current?.spinAroundViewAxis(angle);
-    },
-    [precisionActive]
-  );
-  const handleTrackpadPointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch {}
-      trackpadDragRef.current = { active: false, lastX: 0 };
-    },
-    []
+  const {
+    onPointerDown: handleTrackpadPointerDown,
+    onPointerMove: handleTrackpadPointerMove,
+    onPointerUp: handleTrackpadPointerUp,
+  } = useTrackpadHandlers(
+    cubeViewRef as React.RefObject<RubiksCube3DHandle>,
+    precisionActive
   );
 
   const isTouchDevice = useIsTouchDevice();
-  // High quality with enhanced anti-aliasing: higher DPR + better sampling for smooth edges
-  const canvasDpr: [number, number] = isTouchDevice ? [2.3, 3.0] : [1.5, 2.2];
-  // Allow dynamic DPR tuning based on performance
-  const setDprRef = useRef<((dpr: number) => void) | null>(null);
-  // Interaction-aware DPR: lower during interaction, raise a bit when idle
-  const dprTimerRef = useRef<number | null>(null);
-  const setInteractiveDpr = useCallback(() => {
-    // Lower DPR a touch while interacting; raise when idle for clarity
-    const interDpr = isTouchDevice ? 2.2 : 1.0;
-    setDprRef.current?.(interDpr);
-    if (dprTimerRef.current) window.clearTimeout(dprTimerRef.current);
-    dprTimerRef.current = window.setTimeout(() => {
-      const idleDpr = isTouchDevice ? 3.0 : 1.3;
-      setDprRef.current?.(idleDpr);
-      dprTimerRef.current = null;
-    }, 900);
-  }, [isTouchDevice]);
+  const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } =
+    useDprManager(isTouchDevice);
 
   return (
     <>
       <div
-        className="min-h-[105dvh] flex flex-col pb-28"
+        className="min-h-[103.5dvh] flex flex-col pb-28"
         style={{
           background: `
             radial-gradient(
@@ -631,7 +385,7 @@ const App = () => {
           <div
             ref={cubeContainerRef}
             onDoubleClick={handleContainerDoubleClick}
-            className="w-full max-w-4xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]"
+            className="w-full max-w-6xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]"
           >
             {/* Status indicator - bottom left of cube container */}
             <StatusBadge
@@ -684,7 +438,7 @@ const App = () => {
                 preserveDrawingBuffer: false,
               }}
               onCreated={(state) => {
-                setDprRef.current = state.setDpr;
+                attachSetDpr(state.setDpr);
                 // Add WebGL context loss handling to avoid full page reloads on iOS
                 const canvas = state.gl.domElement as HTMLCanvasElement;
                 const onLost = (ev: Event) => {
@@ -728,10 +482,7 @@ const App = () => {
                 cubeViewRef.current?.handlePointerUp?.();
               }}
             >
-              <PerformanceMonitor
-                onDecline={() => setDprRef.current?.(isTouchDevice ? 1.8 : 1.2)}
-                onIncline={() => setDprRef.current?.(isTouchDevice ? 2.8 : 2.0)}
-              />
+              <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
               <ambientLight intensity={0.95} color={CUBE_COLORS.WHITE} />
               <RubiksCube3D
@@ -795,6 +546,7 @@ const App = () => {
         onConfirm={handleSolve}
         isSolving={isSolving}
       />
+      <Footer />
     </>
   );
 };

@@ -23,7 +23,7 @@ const ControlPanel = ({
   isScrambling,
 }: ControlPanelProps) => (
   // Control panel fixed at bottom (mobile-safe) - scramble/solve buttons remain here
-  <div className="fixed bottom-0 left-0 right-0 z-40">
+  <div className="fixed bottom-5 left-0 right-0 z-40">
     <div className="w-full max-w-6xl mx-auto pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
       <div className="flex flex-col items-center w-full">
         <div className="flex flex-row flex-wrap gap-2 md:gap-4 justify-center items-center w-full">

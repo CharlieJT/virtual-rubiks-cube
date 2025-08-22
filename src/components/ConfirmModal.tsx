@@ -24,6 +24,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
     onCancel,
     isSolving = false,
   } = props;
+
   // Handle ESC key to close modal
   useEffect(() => {
     if (!isOpen) return;
