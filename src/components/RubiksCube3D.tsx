@@ -1,10 +1,45 @@
-import { useEffect, useRef, useCallback, useMemo } from "react";
-import React from "react";
-import { useFrame } from "@react-three/fiber";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useImperativeHandle,
+  useCallback,
+} from "react";
+import tiptonsSolverImg from "../assets/tiptons-solver.png";
+import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Tween } from "@tweenjs/tween.js";
-import type { CubeState, CubeMove } from "../types/cube";
-import { AnimationHelper, type AnimatedCubie } from "../utils/animationHelper";
+import { activeTouches } from "@utils/touchState";
+import type {
+  CubeState,
+  CubeMove,
+  SliceKey,
+  SwipeDirection,
+} from "@/types/cube";
+import { AnimationHelper, type AnimatedCubie } from "@utils/animationHelper";
+import {
+  getWhiteLogoDeltaByBucketDeg,
+  getWhiteLogoDeltaRad,
+} from "@utils/whiteCenterOrientationMap";
+import CUBIE_STYLE_MAP from "@/maps/cubieStyleMap";
+import {
+  POSITION_MOVE_MAPPING,
+  type PositionMoveKey,
+} from "@/maps/positionMoveMapping";
+import STICKER_CORNER_MAP from "@/maps/stickerCornerMap";
+import SAME_FACE_DELTA from "@/maps/sameFaceDelta";
+import VIA_TRANSITION_DELTA from "@/maps/viaTransitionDelta";
+import CUBE_COLORS from "@/consts/cubeColours";
+
+type HandlePreciseHoverType = React.BaseSyntheticEvent<
+  React.PointerEvent & {
+    target: {
+      getBoundingClientRect: () => {
+        [key: string]: number;
+      };
+    };
+  }
+>;
 
 interface DragState {
   isActive: boolean;
@@ -21,17 +56,67 @@ interface DragState {
   lockedMoveType: string; // The move type that was locked in (F, R, U, etc.)
   lockedIsPrime: boolean; // Whether the locked move is prime or not
   hasLockedDirection: boolean; // Whether direction has been locked
+  _snapCompleted?: boolean; // Guard to prevent duplicate snap completion
+}
+
+export interface TrackingStateRef {
+  isTracking: boolean;
+  startPosition: THREE.Vector2;
+  currentPosition: THREE.Vector2;
+  cubiePosition: [number, number, number];
+  clickedFace: string;
+  uniquePieceId: string;
+  // Drag state
+  isDragging: boolean;
+  _pointerId?: number;
+  lockedMoveType: string;
+  lockedDirection: SwipeDirection;
+  initialSwipeDirection: SwipeDirection;
+  dragGroup: THREE.Group | null;
+  affectedCubies: AnimatedCubie[];
+  rotationAxis: THREE.Vector3;
+  currentRotation: number;
+  hasStartedDrag: boolean;
+  // Snapping animation state
+  isSnapping: boolean;
+  snapAnimationStartTime: number;
+  snapAnimationDuration: number;
+  snapStartRotation: number;
+  snapTargetRotation: number;
+  finalMove: CubeMove | "";
+  _axisLock?: "vertical" | "horizontal";
+  _initialDragDirection?: SwipeDirection;
+  _allowedMoves?: string[];
+  // Face-local axes in screen space, captured at pointer down
+  _screenFaceRight?: THREE.Vector2;
+  _screenFaceUp?: THREE.Vector2;
+  _lockThresholdPx?: number;
+  // Canonical base move and expected sign (from AnimationHelper) used to interpret rotation
+  _baseMove?: string;
+  _expectedBaseSign?: number;
+  // Parity to fix sign per face/axis
+  _dragSignParity?: number;
+  // Guard: ensure snap completion runs once
+  _snapCompleted?: boolean;
 }
 
 interface CubePieceProps {
   position: [number, number, number];
   colors: CubeState["colors"];
+  gridIndex?: [number, number, number]; // (x,y,z) in 0..2 for outer-face determination
   onPointerDown?: (
     e: any,
     pos: [number, number, number],
     intersectionPoint: THREE.Vector3
   ) => void;
   onMeshReady?: (mesh: THREE.Mesh, x: number, y: number, z: number) => void;
+  onPointerMove?: (e: any) => void;
+  touchCount?: number;
+  cornerStyles?: string[];
+  children?: React.ReactNode;
+  trackingStateRef?: React.MutableRefObject<
+    TrackingStateRef & { _pointerId?: number }
+  >;
 }
 
 interface RubiksCube3DProps {
@@ -42,11 +127,357 @@ interface RubiksCube3DProps {
   isAnimating?: boolean;
   onOrbitControlsChange?: (enabled: boolean) => void;
   onDragMove?: (move: CubeMove) => void; // New prop for drag moves
+  touchCount?: number; // number of active touches reported by parent App
 }
 
+export type RubiksCube3DHandle = {
+  // Rotate the whole cube around the current camera view axis by angleRad.
+  // Positive = CCW as seen by the viewer; negative = CW.
+  spinAroundViewAxis: (angleRad: number) => void;
+  // Abort any active face/slice drag immediately (used when entering two-finger spin mode)
+  abortActiveDrag: () => void;
+  // Whether a face/slice drag is currently active
+  isDraggingSlice: () => boolean;
+  // Get the current rotation quaternion of the cube (for auto-orient functionality)
+  getCurrentRotation: () => THREE.Quaternion | null;
+  handlePointerDown: (e: React.PointerEvent) => void;
+  handlePointerUp: () => void;
+};
+
+// Cache sticker geometries by pattern
+const stickerGeometryCache = new Map<string, THREE.ShapeGeometry>();
+
+const getStickerGeometryForCorners = (
+  size: number,
+  rTrue: number,
+  rFalse: number,
+  corners: [boolean, boolean, boolean, boolean]
+) => {
+  const key = `v3_${size}_${rTrue}_${rFalse}_${corners
+    .map((c) => (c ? 1 : 0))
+    .join("")}`;
+  const cached = stickerGeometryCache.get(key);
+  if (cached) return cached;
+
+  const radii = corners.map((flag) =>
+    Math.min(flag ? rTrue : rFalse, size * 0.49)
+  ) as [number, number, number, number];
+
+  const half = size / 2;
+  const bl = new THREE.Vector2(-half, -half);
+  const br = new THREE.Vector2(half, -half);
+  const tr = new THREE.Vector2(half, half);
+  const tl = new THREE.Vector2(-half, half);
+  const shape = new THREE.Shape();
+  const [r0, r1, r2, r3] = radii;
+  shape.moveTo(bl.x + r0, bl.y);
+  shape.lineTo(br.x - r1, br.y);
+  shape.absarc(br.x - r1, br.y + r1, r1, -Math.PI / 2, 0, false);
+  shape.lineTo(tr.x, tr.y - r2);
+  shape.absarc(tr.x - r2, tr.y - r2, r2, 0, Math.PI / 2, false);
+  shape.lineTo(tl.x + r3, tl.y);
+  shape.absarc(tl.x + r3, tl.y - r3, r3, Math.PI / 2, Math.PI, false);
+  shape.lineTo(bl.x, bl.y + r0);
+  shape.absarc(bl.x + r0, bl.y + r0, r0, Math.PI, (3 * Math.PI) / 2, false);
+  shape.closePath();
+
+  const geom = new THREE.ShapeGeometry(shape, STICKER_CURVE_SEGMENTS);
+  geom.computeBoundingBox();
+  const bb = geom.boundingBox;
+  if (bb) {
+    const cx = (bb.max.x + bb.min.x) / 2;
+    const cy = (bb.max.y + bb.min.y) / 2;
+    const width = bb.max.x - bb.min.x;
+    const height = bb.max.y - bb.min.y;
+    const posAttr = geom.getAttribute("position");
+    const vertexCount = posAttr.count;
+    for (let i = 0; i < vertexCount; i++) {
+      posAttr.setXY(i, posAttr.getX(i) - cx, posAttr.getY(i) - cy);
+    }
+    posAttr.needsUpdate = true;
+    const uvs: number[] = [];
+    for (let i = 0; i < vertexCount; i++) {
+      const ox = posAttr.getX(i) + cx;
+      const oy = posAttr.getY(i) + cy;
+      uvs.push((ox - bb.min.x) / width, (oy - bb.min.y) / height);
+    }
+    if (geom.getAttribute("uv")) geom.deleteAttribute("uv");
+    geom.setAttribute(
+      "uv",
+      new THREE.BufferAttribute(new Float32Array(uvs), 2)
+    );
+  }
+  stickerGeometryCache.set(key, geom);
+  return geom;
+};
+
+// Custom hook for dice-like cubie geometry
+// (removed unused useDiceCubieGeometry helper)
+
+// Enable cache so TextureLoader reuses the same image
+THREE.Cache.enabled = true;
+
+// Centralized drag sensitivity (radians per pixel)
+const DRAG_SENSITIVITY = 0.006;
+// Minimum primary-axis projection (px) required to lock a drag and start a twist
+const LOCK_PRIMARY_PX = 5;
+
+// Distance the cubies are apart
+const CUBIE_DISTANCE = 1.09;
+
+const { WHITE } = CUBE_COLORS;
+
+const CUBIE_SIZE = 1.09;
+// Sticker appearance tuning
+const STICKER_INSET = 0.91; // 90% of face size
+const STICKER_LIFT = 0.01; // distance above cubie surface (in world units) to prevent z-fighting; larger because size != 1
+const STICKER_CORNER_RATIO = 0.285; // fraction of sticker size used as corner radius when corner flag is true
+const STICKER_FALSE_CORNER_RATIO = 0.04; // tiny rounding for corners flagged false (was sharp previously)
+const STICKER_CURVE_SEGMENTS = 6; // segments used to approximate each rounded corner
+// (thickness is implicit since we use PlaneGeometry)
+
+// Map of cubie positions to style metadata (cornerBuilder + borderMeshes)
+// cornerBuilder: array of 8 corner style strings (pointed|rounded)
+// borderMeshes: descriptors for future per-cubie border cylinders (currently unused placeholder)
+
+// Transform legacy array form into object form with cornerBuilder & empty borderMeshes
+Object.keys(CUBIE_STYLE_MAP).forEach((k) => {
+  const v = CUBIE_STYLE_MAP[k];
+  if (Array.isArray(v)) {
+    CUBIE_STYLE_MAP[k] = { cornerBuilder: v, borderMeshes: [] };
+  }
+});
+
+// Example auto-population of border meshes:
+// - Corner pieces: 3 cylinders (along +X, +Y, +Z directions) as illustrative examples
+// - Edge pieces: 1 cylinder aligned to the axis that is middle (coordinate === 1)
+// - Centers & core: none
+// These are placeholder examples for later fine tuning.
+const BORDER_RADIUS = 0.07;
+const BORDER_DEPTH = 0.499;
+Object.entries(CUBIE_STYLE_MAP).forEach(([key, entry]) => {
+  if (!entry || entry.borderMeshes.length > 0) return; // respect any manual definitions
+  const [x, y, z] = key.split(",").map(Number);
+  const extremes = [x, y, z].filter((c) => c === 0 || c === 2).length;
+  const isCorner = extremes === 3;
+  const isEdge = extremes === 2 && (x === 1 || y === 1 || z === 1);
+  const isFaceCenter =
+    extremes === 1 &&
+    (x === 1 ? 0 : 1) + (y === 1 ? 0 : 1) + (z === 1 ? 0 : 1) === 2; // exactly one extreme and two middles
+  const isCore = x === 1 && y === 1 && z === 1;
+
+  if (isCorner) {
+    // Explicit per-corner cases (8 corners)
+    if (x === 0 && y === 0 && z === 0) {
+      entry.borderMeshes.push(
+        {
+          position: [0, -BORDER_DEPTH, -BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, 0, -BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, -BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    } else if (x === 0 && y === 0 && z === 2) {
+      entry.borderMeshes.push(
+        {
+          position: [0, -BORDER_DEPTH, BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, 0, BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, -BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    } else if (x === 0 && y === 2 && z === 0) {
+      entry.borderMeshes.push(
+        {
+          position: [0, BORDER_DEPTH, -BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, 0, -BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    } else if (x === 0 && y === 2 && z === 2) {
+      entry.borderMeshes.push(
+        {
+          position: [0, BORDER_DEPTH, BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, 0, BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [-BORDER_DEPTH, BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    } else if (x === 2 && y === 0 && z === 0) {
+      entry.borderMeshes.push(
+        {
+          position: [0, -BORDER_DEPTH, -BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, 0, -BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, -BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    } else if (x === 2 && y === 0 && z === 2) {
+      entry.borderMeshes.push(
+        {
+          position: [0, -BORDER_DEPTH, BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, 0, BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, -BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    } else if (x === 2 && y === 2 && z === 0) {
+      entry.borderMeshes.push(
+        {
+          position: [0, BORDER_DEPTH, -BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, 0, -BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    } else if (x === 2 && y === 2 && z === 2) {
+      entry.borderMeshes.push(
+        {
+          position: [0, BORDER_DEPTH, BORDER_DEPTH],
+          rotation: [0, 0, Math.PI / 2],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, 0, BORDER_DEPTH],
+          rotation: [0, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        },
+        {
+          position: [BORDER_DEPTH, BORDER_DEPTH, 0],
+          rotation: [Math.PI / 2, 0, 0],
+          cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+        }
+      );
+    }
+  } else if (isEdge) {
+    // Determine axis of this edge (middle coordinate == 1)
+    if (x === 1) {
+      // Edge along X axis; offsets from y,z extremes
+      const yOff = y === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
+      const zOff = z === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
+      entry.borderMeshes.push({
+        position: [0, yOff, zOff],
+        rotation: [0, 0, Math.PI / 2], // cylinder along X
+        cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+      });
+    } else if (y === 1) {
+      // Edge along Y axis; offsets from x,z extremes
+      const xOff = x === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
+      const zOff = z === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
+      entry.borderMeshes.push({
+        position: [xOff, 0, zOff],
+        rotation: [0, 0, 0], // cylinder along Y (default orientation)
+        cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+      });
+    } else if (z === 1) {
+      // Edge along Z axis; offsets from x,y extremes
+      const xOff = x === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
+      const yOff = y === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
+      entry.borderMeshes.push({
+        position: [xOff, yOff, 0],
+        rotation: [Math.PI / 2, 0, 0], // cylinder along Z
+        cylinder: { radius: BORDER_RADIUS, length: CUBIE_SIZE - 0.05 },
+      });
+    }
+  } else if (isFaceCenter || isCore) {
+    // no border meshes
+  }
+});
+
 const CubePiece = React.memo(
-  ({ position, colors, onPointerDown, onMeshReady }: CubePieceProps) => {
+  ({
+    position,
+    colors,
+    gridIndex,
+    onPointerDown,
+    onMeshReady,
+    onPointerMove,
+    touchCount = 0,
+    cornerStyles = [],
+    children,
+    trackingStateRef,
+    // Shared resources passed from parent to avoid per-cubie allocations
+    roundedBoxGeometry,
+    sharedLogoTexture,
+    logoReady,
+  }: CubePieceProps & {
+    roundedBoxGeometry: THREE.BufferGeometry;
+    sharedLogoTexture: THREE.Texture | null;
+    logoReady: boolean;
+  }) => {
     const meshRef = useRef<THREE.Mesh>(null);
+    // Reference roundedBoxGeometry to avoid unused param TS warning (kept for future optimization work)
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    roundedBoxGeometry;
+    // no local state needed for materials; we update refs directly
+
+    // New state for cubie geometry
+    const [cubieGeometry, setCubieGeometry] =
+      useState<THREE.BufferGeometry | null>(null);
 
     useEffect(() => {
       if (meshRef.current && onMeshReady) {
@@ -59,15 +490,74 @@ const CubePiece = React.memo(
       }
     }, [position, onMeshReady]);
 
-    const materials = useMemo(() => {
+    // Use shared logo texture from parent (no per-cubie loader)
+
+    // Helper to normalize and check white color
+    const isWhite = (c: string) => {
+      if (!c) return false;
+      let s = c.toLowerCase();
+      if (s[0] === "#" && s.length === 4) {
+        s = `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+      }
+      return s === WHITE || s === "white";
+    };
+
+    // Determine if this cubie is a center piece (exactly two grid coordinates are the middle index=1)
+    const [gx, gy, gz] = useMemo(() => {
+      const [x, y, z] = position;
       return [
-        new THREE.MeshPhongMaterial({ color: colors.right }),
-        new THREE.MeshPhongMaterial({ color: colors.left }),
-        new THREE.MeshPhongMaterial({ color: colors.top }),
-        new THREE.MeshPhongMaterial({ color: colors.bottom }),
-        new THREE.MeshPhongMaterial({ color: colors.front }),
-        new THREE.MeshPhongMaterial({ color: colors.back }),
+        Math.round(x / 1.05 + 1),
+        Math.round(y / 1.05 + 1),
+        Math.round(z / 1.05 + 1),
       ];
+    }, [position]);
+    const isCenter =
+      (gx === 1 ? 1 : 0) + (gy === 1 ? 1 : 0) + (gz === 1 ? 1 : 0) === 2;
+
+    // Base sticker size & radius (used per-sticker when building specific geometry)
+    const stickerBaseSize = useMemo(() => CUBIE_SIZE * STICKER_INSET, []);
+    const [stickerRadiusTrue, stickerRadiusFalse] = useMemo(
+      () => [
+        stickerBaseSize * STICKER_CORNER_RATIO,
+        stickerBaseSize * STICKER_FALSE_CORNER_RATIO,
+      ],
+      [stickerBaseSize]
+    );
+
+    // Ensure shared logo texture is centered & clamped (once ready)
+    useEffect(() => {
+      if (sharedLogoTexture) {
+        sharedLogoTexture.center.set(0.5, 0.5);
+        sharedLogoTexture.offset.set(0, 0);
+        sharedLogoTexture.rotation = 0;
+        sharedLogoTexture.wrapS = THREE.ClampToEdgeWrapping;
+        sharedLogoTexture.wrapT = THREE.ClampToEdgeWrapping;
+        sharedLogoTexture.needsUpdate = true;
+      }
+    }, [sharedLogoTexture]);
+
+    // Utility: is a color value considered "present" for sticker purposes
+    const hasStickerColor = (c: string | undefined) => !!c && c !== "";
+
+    // Persistent materials: create once and update on color/logo changes
+    const materialRefs = useRef<THREE.MeshBasicMaterial[]>([
+      new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
+    ]);
+    useEffect(() => {
+      // Base faces no longer display logo textures directly; stickers handle visuals
+
+      const mats = materialRefs.current;
+      for (let i = 0; i < 6; i++) {
+        const mat = mats[i];
+        mat.color.set(0x000000);
+        (mat as any).map = null;
+        mat.needsUpdate = true;
+      }
     }, [
       colors.right,
       colors.left,
@@ -75,557 +565,403 @@ const CubePiece = React.memo(
       colors.bottom,
       colors.front,
       colors.back,
+      isCenter,
+      logoReady,
+      sharedLogoTexture,
     ]);
 
-    const EDGE_GEOMETRIES = [
-      ...[0.495, -0.495].flatMap((y) =>
-        [0.495, -0.495].map((z) => ({
-          pos: [0, y, z],
-          args: [0.95, 0.04, 0.04],
-        }))
-      ),
-      ...[0.495, -0.495].flatMap((y) =>
-        [0.495, -0.495].map((x) => ({
-          pos: [x, y, 0],
-          args: [0.04, 0.04, 0.95],
-        }))
-      ),
-      ...[0.495, -0.495].flatMap((x) =>
-        [0.495, -0.495].map((z) => ({
-          pos: [x, 0, z],
-          args: [0.04, 0.95, 0.04],
-        }))
-      ),
-    ];
+    // Border code removed for clean dice appearance
+
+    // Defer heavy geometry generation to avoid blocking UI
+    useEffect(() => {
+      // Defer heavy geometry generation to avoid blocking UI
+      let cancelled = false;
+      setCubieGeometry(null); // Reset before generating
+      setTimeout(() => {
+        if (!cancelled) {
+          const geometry = getCubieGeometry(CUBIE_SIZE, cornerStyles); // Use your cubie size here
+          setCubieGeometry(geometry);
+        }
+      }, 0);
+      return () => {
+        cancelled = true;
+      };
+    }, [cornerStyles]);
+    if (!cubieGeometry) return null; // Optionally show a loading spinner
 
     return (
       <mesh
         ref={meshRef}
         position={position}
-        material={materials}
         onPointerDown={(e) => {
-          e.stopPropagation();
+          const isPrimary = (e.button ?? 0) === 0;
+          const shiftHeld = !!e.shiftKey;
+          if (isPrimary && !shiftHeld) {
+            const pointerType =
+              (e.nativeEvent && (e.nativeEvent as any).pointerType) || null;
+            if (pointerType === "touch") {
+              // If there's already an active drag with a different finger, ignore this touch
+              if (
+                trackingStateRef &&
+                trackingStateRef.current.isDragging &&
+                trackingStateRef.current._pointerId &&
+                trackingStateRef.current._pointerId !== e.pointerId
+              ) {
+                return;
+              }
 
-          // Get intersection point from the event
-          const intersectionPoint = e.point || new THREE.Vector3();
-
-          onPointerDown?.(e, position, intersectionPoint);
+              // Allow multiple moves - only block if there are more than 2 touches total
+              // This allows one finger to finish a move while a second finger starts a new move
+              if ((touchCount || 0) > 2) return;
+              if (activeTouches.count > 2) return;
+              const touches = (e.nativeEvent &&
+                (e.nativeEvent as any).touches) as TouchList | undefined;
+              if (touches && touches.length > 2) return;
+            }
+            e.stopPropagation();
+            const intersectionPoint = e.point || new THREE.Vector3();
+            onPointerDown?.(e, position as any, intersectionPoint);
+          }
         }}
         onPointerMove={(e) => {
-          e.stopPropagation();
+          const isPrimary = (e.button ?? 0) === 0;
+          const shiftHeld = !!e.shiftKey;
+          if (isPrimary && !shiftHeld) {
+            e.stopPropagation();
+            onPointerMove?.(e);
+          }
         }}
         onPointerUp={(e) => {
-          e.stopPropagation();
+          const isPrimary = (e.button ?? 0) === 0;
+          const shiftHeld = !!e.shiftKey;
+          if (isPrimary && !shiftHeld) {
+            e.stopPropagation();
+          }
         }}
       >
-        <boxGeometry args={[0.95, 0.95, 0.95]} />
+        {/* Main cubie geometry */}
+        <mesh geometry={cubieGeometry} material={materialRefs.current} />
 
-        {EDGE_GEOMETRIES.map((edge, i) => (
-          <mesh key={i} position={edge.pos as [number, number, number]}>
-            <boxGeometry args={edge.args as [number, number, number]} />
-            <meshPhongMaterial color="#000000" />
-          </mesh>
-        ))}
+        {/* Stickers on colored outer faces */}
+        {(() => {
+          const faces: Array<{
+            key: keyof CubeState["colors"];
+            show: boolean;
+            pos: [number, number, number];
+            rot: [number, number, number];
+          }> = [];
+          // Determine grid indices either from supplied gridIndex prop or derived (fallback)
+          const [igx, igy, igz] = gridIndex ?? [gx, gy, gz];
+          const half = CUBIE_SIZE / 2; // actual half-size of cubie geometry
+          faces.push(
+            {
+              key: "right",
+              show: igx === 2,
+              pos: [half + STICKER_LIFT, 0, 0],
+              rot: [0, Math.PI / 2, 0],
+            },
+            {
+              key: "left",
+              show: igx === 0,
+              pos: [-(half + STICKER_LIFT), 0, 0],
+              rot: [0, -Math.PI / 2, 0],
+            },
+            {
+              key: "top",
+              show: igy === 2,
+              pos: [0, half + STICKER_LIFT, 0],
+              rot: [-Math.PI / 2, 0, 0],
+            },
+            {
+              key: "bottom",
+              show: igy === 0,
+              pos: [0, -(half + STICKER_LIFT), 0],
+              rot: [Math.PI / 2, 0, 0],
+            },
+            {
+              key: "front",
+              show: igz === 2,
+              pos: [0, 0, half + STICKER_LIFT],
+              rot: [0, 0, 0],
+            },
+            {
+              key: "back",
+              show: igz === 0,
+              pos: [0, 0, -(half + STICKER_LIFT)],
+              rot: [0, Math.PI, 0],
+            }
+          );
+          return faces.map((f) => {
+            const col = colors[f.key];
+            if (!f.show || !hasStickerColor(col)) return null;
+            // Resolve per-sticker corner config
+            const stickerKey = `${igx},${igy},${igz}:${f.key}`;
+            const cornerPattern = STICKER_CORNER_MAP[stickerKey] || [
+              false,
+              false,
+              false,
+              false,
+            ];
+            const geom = getStickerGeometryForCorners(
+              stickerBaseSize,
+              stickerRadiusTrue,
+              stickerRadiusFalse,
+              cornerPattern
+            );
+            // Determine if this is center sticker for that face to overlay logo
+            const isCenterSticker = (() => {
+              switch (f.key) {
+                case "front":
+                case "back":
+                  return igx === 1 && igy === 1;
+                case "right":
+                case "left":
+                  return igy === 1 && igz === 1;
+                case "top":
+                case "bottom":
+                  return igx === 1 && igz === 1;
+                default:
+                  return false;
+              }
+            })();
+            const showLogo =
+              isCenterSticker &&
+              sharedLogoTexture &&
+              logoReady &&
+              isWhite(col as string);
+            return (
+              <group key={f.key} position={f.pos} rotation={f.rot as any}>
+                <mesh geometry={geom}>
+                  {/* Sticker material: if this is the white center with logo, use the logo texture and white color; otherwise use color */}
+                  <meshPhongMaterial
+                    map={showLogo ? sharedLogoTexture || undefined : undefined}
+                    color={
+                      (() => {
+                        if (showLogo) return new THREE.Color(0xffffff);
+                        const c = new THREE.Color(col as any);
+                        return c;
+                      })() as any
+                    }
+                    transparent={!!showLogo}
+                    shininess={showLogo ? 12 : 0}
+                    specular={showLogo ? (0x333333 as any) : (0x111111 as any)}
+                    emissive={showLogo ? (0x111111 as any) : (0x000000 as any)}
+                    emissiveIntensity={showLogo ? 0.04 : 0}
+                    side={THREE.FrontSide}
+                    polygonOffset
+                    polygonOffsetFactor={-2}
+                    polygonOffsetUnits={-2}
+                  />
+                </mesh>
+              </group>
+            );
+          });
+        })()}
+
+        {/* black face overlays removed */}
+        {children}
       </mesh>
     );
   }
 );
 
-const RubiksCube3D = ({
-  cubeState,
-  pendingMove,
-  onMoveAnimationDone,
-  onStartAnimation,
-  isAnimating,
-  onOrbitControlsChange,
-}: RubiksCube3DProps) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const cubiesRef = useRef<AnimatedCubie[]>([]);
-  const currentTweenRef = useRef<any>(null);
-  const meshesReadyRef = useRef(false);
-  const dragStateRef = useRef<DragState>({
-    isActive: false,
-    startPosition: new THREE.Vector2(),
-    currentPosition: new THREE.Vector2(),
-    cubiePosition: [0, 0, 0],
-    clickedFace: "",
-    moveAxis: "",
-    moveDirection: 1,
-    rotationAxis: new THREE.Vector3(),
-    affectedCubies: [],
-    dragGroup: null,
-    currentRotation: 0,
-    lockedMoveType: "",
-    lockedIsPrime: false,
-    hasLockedDirection: false,
-  });
+// (removed unused getSegmentCount)
 
-  useEffect(() => {
-    if (
-      pendingMove &&
-      !AnimationHelper.isLocked() &&
-      !isAnimating &&
-      groupRef.current &&
-      cubiesRef.current.length === 27 &&
-      meshesReadyRef.current
-    ) {
-      onStartAnimation && onStartAnimation();
+// Geometry cache for performance
+const geometryCache = new Map<string, THREE.BufferGeometry>();
 
-      currentTweenRef.current = AnimationHelper.animate(
-        cubiesRef.current,
-        groupRef.current,
-        pendingMove,
-        () => {
-          onMoveAnimationDone && onMoveAnimationDone(pendingMove);
-          currentTweenRef.current = null;
+const getCubieGeometry = (
+  size: number,
+  cornerStyles: string[]
+): THREE.BufferGeometry => {
+  const segmentCount = 4;
+  const key = cornerStyles.join(",") + ":" + segmentCount;
+  if (geometryCache.has(key)) {
+    return geometryCache.get(key)!.clone();
+  }
+  const geometry = new THREE.BoxGeometry(
+    size,
+    size,
+    size,
+    segmentCount,
+    segmentCount,
+    segmentCount
+  );
+  const corners = [
+    [1, 1, 1],
+    [-1, 1, 1],
+    [1, -1, 1],
+    [-1, -1, 1],
+    [1, 1, -1],
+    [-1, 1, -1],
+    [1, -1, -1],
+    [-1, -1, -1],
+  ];
+  const pos = geometry.getAttribute("position");
+  const v = new THREE.Vector3();
+  const colorAttr = new THREE.BufferAttribute(
+    new Float32Array(pos.count * 3),
+    3
+  );
+  for (let i = 0; i < pos.count; i++) {
+    colorAttr.setXYZ(i, 1, 1, 1); // default white
+  }
+  for (let cornerIdx = 0; cornerIdx < 8; cornerIdx++) {
+    const threshold =
+      size * (cornerStyles[cornerIdx] === "rounded" ? 0.8 : 0.86);
+    const [xx, yy, zz] = corners[cornerIdx];
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i),
+        y = pos.getY(i),
+        z = pos.getZ(i);
+      if (Math.sign(x) === xx && Math.sign(y) === yy && Math.sign(z) === zz) {
+        v.set(x, y, z);
+        if (v.length() > threshold) {
+          v.setLength(threshold);
+          pos.setXYZ(i, v.x, v.y, v.z);
+          colorAttr.setXYZ(i, -1, -1, -1); // black for rounded corner
         }
-      );
+      }
     }
-  }, [pendingMove, onStartAnimation, onMoveAnimationDone, isAnimating]);
+    // If 'pointed', do nothing (leave as is)
+  }
+  pos.needsUpdate = true;
+  geometry.setAttribute("color", colorAttr);
+  geometryCache.set(key, geometry.clone());
+  return geometry;
+};
 
-  useFrame(() => {
-    AnimationHelper.update();
-
-    if (dragStateRef.current.isActive && dragStateRef.current.dragGroup) {
-      updateDragRotation();
-    }
-  });
-
-  // Detect which face of the cubie was clicked and determine move parameters
-  const detectFaceAndMove = (
-    position: [number, number, number],
-    intersectionPoint: THREE.Vector3
+const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
+  (
+    {
+      cubeState,
+      pendingMove,
+      onMoveAnimationDone,
+      onStartAnimation,
+      isAnimating,
+      onOrbitControlsChange,
+      touchCount = 0,
+    }: RubiksCube3DProps,
+    ref
   ) => {
-    const [x, y, z] = position;
-    const gridX = Math.round(x / 1.05 + 1);
-    const gridY = Math.round(y / 1.05 + 1);
-    const gridZ = Math.round(z / 1.05 + 1);
+    const groupRef = useRef<THREE.Group>(null);
 
-    // Convert world intersection point to local cube coordinates
-    const localPoint = intersectionPoint
-      .clone()
-      .sub(new THREE.Vector3(x, y, z));
+    // Guard: prevent duplicate move commits within a short window
+    const commitGuardRef = useRef<{ move: string; t: number } | null>(null);
 
-    // Determine which face was clicked based on the intersection point
-    // Use a threshold to determine the most prominent coordinate
-    const absX = Math.abs(localPoint.x);
-    const absY = Math.abs(localPoint.y);
-    const absZ = Math.abs(localPoint.z);
+    // Guard: ensure we only start one AnimationHelper.animate per pending move
+    const startGuardRef = useRef<string | null>(null);
 
-    let clickedFace = "front";
-
-    // Determine the face based on the largest absolute coordinate
-    if (absX > absY && absX > absZ) {
-      // Left/Right face clicked
-      clickedFace = localPoint.x > 0 ? "right" : "left";
-    } else if (absY > absX && absY > absZ) {
-      // Top/Bottom face clicked
-      clickedFace = localPoint.y > 0 ? "top" : "bottom";
-    } else {
-      // Front/Back face clicked
-      clickedFace = localPoint.z > 0 ? "front" : "back";
-    }
-
-    return { clickedFace, gridX, gridY, gridZ };
-  };
-
-  // Get affected cubies based on the face and move type - using AnimationHelper logic
-  const getAffectedCubiesForMove = (moveType: string) => {
-    return cubiesRef.current.filter((cubie) => {
-      // Use the exact same logic as AnimationHelper.isCubieInMove
-      switch (moveType) {
-        case "F":
-          return cubie.z === 2; // Front face
-        case "B":
-          return cubie.z === 0; // Back face
-        case "R":
-          return cubie.x === 2; // Right face
-        case "L":
-          return cubie.x === 0; // Left face
-        case "U":
-          return cubie.y === 2; // Top face
-        case "D":
-          return cubie.y === 0; // Bottom face
-        case "M": // Middle slice (between L and R)
-          return cubie.x === 1;
-        case "E": // Equatorial slice (between U and D)
-          return cubie.y === 1;
-        case "S": // Standing slice (between F and B)
-          return cubie.z === 1;
-        default:
-          return false;
+    // Optional low-perf toggle via URL: ?lowperf=1
+    const lowPerf = useMemo(() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("lowperf") === "1";
+      } catch {
+        return false;
       }
-    });
-  };
+    }, []);
 
-  // Determine move direction based on drag direction and clicked face
-  const getMoveFromDrag = (clickedFace: string, dragVector: THREE.Vector2) => {
-    const threshold = 20; // Minimum drag distance to determine direction
+    // Create shared dice-like geometry with rounded corners and black rounded areas
+    // Perf: keep subdivision segments low (2) – higher values multiply vertex count & GPU cost.
+    const roundedBoxGeometry = useMemo(() => {
+      const value = 1.08;
+      const box = new THREE.BoxGeometry(value, value, value, 2, 2, 2);
 
-    if (dragVector.length() < threshold) {
-      return null; // Not enough movement to determine direction
-    }
+      // Create vertex colors array - will be black for rounded areas, white elsewhere
+      const colorArray = new Float32Array(box.attributes.position.count * 3);
 
-    // Normalize drag vector to get primary direction
-    const normalizedDrag = dragVector.clone().normalize();
-    const isHorizontal =
-      Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y);
-    const isRight = normalizedDrag.x > 0;
-    const isUp = normalizedDrag.y < 0; // Screen coordinates: negative Y is up
-
-    // Map face + drag direction to cube moves - matching iamthecu.be behavior
-    switch (clickedFace) {
-      case "right": // Red face (x=2) - when clicking on red face
-        if (isHorizontal) {
-          // Horizontal drag on red face
-          return isRight
-            ? { moveType: "U", isPrime: true } // U' - drag right gives U'
-            : { moveType: "U", isPrime: false }; // U - drag left gives U
-        } else {
-          // Vertical drag on red face
-          return isUp
-            ? { moveType: "F", isPrime: true } // F' - drag up gives F'
-            : { moveType: "F", isPrime: false }; // F - drag down gives F
-        }
-
-      case "front": // Green face (z=2) - when clicking on green face
-        if (isHorizontal) {
-          // Horizontal drag on green face
-          return isRight
-            ? { moveType: "U", isPrime: true } // U' - drag right gives U'
-            : { moveType: "U", isPrime: false }; // U - drag left gives U
-        } else {
-          // Vertical drag on green face
-          return isUp
-            ? { moveType: "R", isPrime: false } // R - drag up gives R
-            : { moveType: "R", isPrime: true }; // R' - drag down gives R'
-        }
-
-      case "top": // White face (y=2) - when clicking on white face
-        if (isHorizontal) {
-          // Horizontal drag on white face
-          return isRight
-            ? { moveType: "F", isPrime: false } // F - drag right gives F
-            : { moveType: "F", isPrime: true }; // F' - drag left gives F'
-        } else {
-          // Vertical drag on white face
-          return isUp
-            ? { moveType: "R", isPrime: false } // R - drag up gives R
-            : { moveType: "R", isPrime: true }; // R' - drag down gives R'
-        }
-
-      case "left": // Orange face (x=0) - when clicking on orange face
-        if (isHorizontal) {
-          // Horizontal drag on orange face
-          return isRight
-            ? { moveType: "U", isPrime: false } // U - drag right gives U
-            : { moveType: "U", isPrime: true }; // U' - drag left gives U'
-        } else {
-          // Vertical drag on orange face
-          return isUp
-            ? { moveType: "B", isPrime: false } // B - drag up gives B
-            : { moveType: "B", isPrime: true }; // B' - drag down gives B'
-        }
-
-      case "back": // Blue face (z=0) - when clicking on blue face
-        if (isHorizontal) {
-          // Horizontal drag on blue face - use different slice moves
-          return isRight
-            ? { moveType: "D", isPrime: false } // D - drag right gives D
-            : { moveType: "D", isPrime: true }; // D' - drag left gives D'
-        } else {
-          // Vertical drag on blue face - use back face moves
-          return isUp
-            ? { moveType: "B", isPrime: true } // B' - drag up gives B'
-            : { moveType: "B", isPrime: false }; // B - drag down gives B
-        }
-
-      case "bottom": // Yellow face (y=0) - when clicking on yellow face
-        if (isHorizontal) {
-          // Horizontal drag on yellow face
-          return isRight
-            ? { moveType: "F", isPrime: true } // F' - drag right gives F'
-            : { moveType: "F", isPrime: false }; // F - drag left gives F
-        } else {
-          // Vertical drag on yellow face
-          return isUp
-            ? { moveType: "L", isPrime: true } // L' - drag up gives L'
-            : { moveType: "L", isPrime: false }; // L - drag down gives L
-        }
-    }
-
-    return null;
-  };
-
-  const updateDragRotation = () => {
-    if (!dragStateRef.current.dragGroup) return;
-
-    const dragVector = dragStateRef.current.currentPosition
-      .clone()
-      .sub(dragStateRef.current.startPosition);
-
-    // If direction is not locked yet, determine the move
-    let moveData = null;
-    if (!dragStateRef.current.hasLockedDirection) {
-      moveData = getMoveFromDrag(dragStateRef.current.clickedFace, dragVector);
-      if (!moveData) return; // Not enough movement yet
-
-      // Lock the direction and move type
-      dragStateRef.current.lockedMoveType = moveData.moveType;
-      dragStateRef.current.lockedIsPrime = moveData.isPrime;
-      dragStateRef.current.hasLockedDirection = true;
-
-      // Set up the affected cubies for the locked move type
-      const currentAffectedCubies = getAffectedCubiesForMove(moveData.moveType);
-
-      // Remove old group and create new one with correct cubies
-      if (groupRef.current) {
-        groupRef.current.remove(dragStateRef.current.dragGroup);
-
-        const newDragGroup = new THREE.Group();
-        newDragGroup.name = "DragGroup";
-
-        currentAffectedCubies.forEach((cubie: AnimatedCubie) => {
-          groupRef.current!.remove(cubie.mesh);
-          newDragGroup.add(cubie.mesh);
-        });
-
-        groupRef.current.add(newDragGroup);
-
-        dragStateRef.current.dragGroup = newDragGroup;
-        dragStateRef.current.affectedCubies = currentAffectedCubies;
+      // Initialize all vertices to white (face colors will be applied via materials)
+      for (let i = 0; i < box.attributes.position.count; i++) {
+        colorArray[i * 3] = 1.0; // R = 1 (white)
+        colorArray[i * 3 + 1] = 1.0; // G = 1 (white)
+        colorArray[i * 3 + 2] = 1.0; // B = 1 (white)
       }
-    }
 
-    // Use the locked move type
-    if (dragStateRef.current.hasLockedDirection) {
-      moveData = {
-        moveType: dragStateRef.current.lockedMoveType,
-        isPrime: dragStateRef.current.lockedIsPrime,
+      // Round corners function with black coloring
+      const roundCorner = (xx: number, yy: number, zz: number) => {
+        const pos = box.getAttribute("position");
+        const v = new THREE.Vector3();
+
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i),
+            y = pos.getY(i),
+            z = pos.getZ(i);
+
+          if (xx && Math.sign(x) !== Math.sign(xx)) continue;
+          if (yy && Math.sign(y) !== Math.sign(yy)) continue;
+          if (zz && Math.sign(z) !== Math.sign(zz)) continue;
+
+          v.set(x, y, z);
+          if (v.length() > 0.84) {
+            // Set to pure black (#000000) for rounded areas
+            colorArray[i * 3] = -0.3; // R = 0 (pure black)
+            colorArray[i * 3 + 1] = -0.3; // G = 0 (pure black)
+            colorArray[i * 3 + 2] = -0.3; // B = 0 (pure black)
+
+            // Apply rounding
+            v.setLength(0.85);
+            pos.setXYZ(i, v.x, v.y, v.z);
+          }
+        }
       };
 
-      // Check if we should flip the prime based on current drag direction
-      const currentMoveData = getMoveFromDrag(
-        dragStateRef.current.clickedFace,
-        dragVector
-      );
-      if (
-        currentMoveData &&
-        currentMoveData.moveType === dragStateRef.current.lockedMoveType
-      ) {
-        moveData.isPrime = currentMoveData.isPrime;
-        dragStateRef.current.lockedIsPrime = currentMoveData.isPrime;
-      }
-    }
+      // Pick which corners to round by editing this array:
+      const roundedCorners: Array<[number, number, number]> = [
+        [1, 1, 1], // +X, +Y, +Z
+        [-1, 1, 1], // -X, +Y, +Z
+        [1, -1, 1], // +X, -Y, +Z
+        [-1, -1, 1], // -X, -Y, +Z
+        [1, 1, -1], // +X, +Y, -Z
+        [-1, 1, -1], // -X, +Y, -Z
+        [1, -1, -1], // +X, -Y, -Z
+        [-1, -1, -1], // -X, -Y, -Z
+      ];
+      roundedCorners.forEach(([xx, yy, zz]) => roundCorner(xx, yy, zz));
 
-    if (!moveData) return;
+      // Add vertex colors to geometry
+      box.setAttribute("color", new THREE.BufferAttribute(colorArray, 3));
 
-    // Get the axis and direction using AnimationHelper logic
-    const move = moveData.moveType + (moveData.isPrime ? "'" : "");
-    const [axis, totalRotationFor90] = AnimationHelper.getMoveAxisAndDir(
-      move as CubeMove
+      box.computeVertexNormals();
+      return box;
+    }, []);
+
+    // Debounced move commit function
+    const commitMoveOnce = useCallback(
+      (move: CubeMove) => {
+        const key = String(move).toUpperCase();
+        const now = performance.now();
+        const last = commitGuardRef.current;
+
+        // Prevent duplicate commits within 200ms
+        if (last && last.move === key && now - last.t < 200) {
+          return;
+        }
+
+        commitGuardRef.current = { move: key, t: now };
+
+        // First update the logical cube state/colors in the parent
+        // This triggers the React re-render with new colors
+        onMoveAnimationDone && onMoveAnimationDone(move);
+
+        // Then apply the white logo rotation after the re-render completes
+        // Using setTimeout(0) ensures this runs after React's reconciliation
+        setTimeout(() => {
+          applyMoveToWhiteLogoAngle(move);
+        }, 0);
+      },
+      [onMoveAnimationDone] // Note: applyMoveToWhiteLogoAngle is stable, no need in deps
     );
 
-    // Set the rotation axis only once when direction is first locked
-    if (dragStateRef.current.rotationAxis.length() === 0) {
-      dragStateRef.current.rotationAxis = axis.clone().normalize();
-    }
-
-    // Calculate rotation based on the dominant drag direction and face
-    let rotationAmount = 0;
-    const sensitivity = 0.006; // Reduced sensitivity for smoother control
-
-    // Use the appropriate drag component based on the face and movement type
-    const normalizedDrag = dragVector.clone().normalize();
-    const isHorizontal =
-      Math.abs(normalizedDrag.x) > Math.abs(normalizedDrag.y);
-
-    if (isHorizontal) {
-      rotationAmount = dragVector.x * sensitivity;
-    } else {
-      rotationAmount = -dragVector.y * sensitivity; // Negative for screen coordinates
-    }
-
-    // Apply direction based on whether it's a prime move
-    const direction = totalRotationFor90 > 0 ? 1 : -1;
-    rotationAmount *= direction;
-
-    // Clamp rotation to reasonable range
-    rotationAmount = Math.max(-Math.PI, Math.min(Math.PI, rotationAmount));
-
-    const deltaRotation = rotationAmount - dragStateRef.current.currentRotation;
-    dragStateRef.current.dragGroup.rotateOnAxis(
-      dragStateRef.current.rotationAxis,
-      deltaRotation
-    );
-
-    dragStateRef.current.currentRotation = rotationAmount;
-  };
-
-  const handlePointerDown = (
-    e: any,
-    pos: [number, number, number],
-    intersectionPoint: THREE.Vector3
-  ) => {
-    if (
-      AnimationHelper.isLocked() ||
-      dragStateRef.current.isActive ||
-      !meshesReadyRef.current
-    ) {
-      return;
-    }
-
-    e.stopPropagation();
-    onOrbitControlsChange?.(false);
-
-    // Detect which face was clicked
-    const { clickedFace } = detectFaceAndMove(pos, intersectionPoint);
-
-    if (!groupRef.current) {
-      onOrbitControlsChange?.(true);
-      return;
-    }
-
-    // Start with an empty drag group - we'll populate it when we determine the move
-    const startPos = new THREE.Vector2(e.clientX, e.clientY);
-    const dragGroup = new THREE.Group();
-    dragGroup.name = "DragGroup";
-
-    // Don't add any cubies yet - we'll do that in updateDragRotation when we know the move
-    groupRef.current.add(dragGroup);
-
-    dragStateRef.current = {
-      isActive: true,
-      startPosition: startPos,
-      currentPosition: startPos.clone(),
-      cubiePosition: pos,
-      clickedFace,
-      moveAxis: "", // Will be determined on first drag movement
-      moveDirection: 1, // Will be determined on first drag movement
-      rotationAxis: new THREE.Vector3(0, 0, 0), // Will be set when drag starts
-      affectedCubies: [], // Will be populated when we determine the move
-      dragGroup,
-      currentRotation: 0,
-      lockedMoveType: "",
-      lockedIsPrime: false,
-      hasLockedDirection: false,
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-  };
-
-  const handlePointerMove = (e: PointerEvent) => {
-    if (!dragStateRef.current.isActive) return;
-
-    const currentPos = new THREE.Vector2(e.clientX, e.clientY);
-    dragStateRef.current.currentPosition = currentPos;
-    updateDragRotation();
-  };
-
-  const handlePointerUp = () => {
-    // Always remove event listeners first
-    window.removeEventListener("pointermove", handlePointerMove);
-    window.removeEventListener("pointerup", handlePointerUp);
-
-    if (
-      !dragStateRef.current.isActive ||
-      !dragStateRef.current.dragGroup ||
-      !groupRef.current
-    ) {
-      // Make sure to reset state and re-enable orbit controls
-      dragStateRef.current.isActive = false;
-      onOrbitControlsChange?.(true);
-      return;
-    }
-
-    const totalRotation = dragStateRef.current.currentRotation;
-    const snapRotation =
-      Math.round(totalRotation / (Math.PI / 2)) * (Math.PI / 2);
-    const finalRotation = snapRotation - totalRotation;
-
-    if (
-      Math.abs(finalRotation) > 0.01 &&
-      dragStateRef.current.rotationAxis.length() > 0
-    ) {
-      AnimationHelper.lock();
-
-      new Tween({ rotation: 0 })
-        .to({ rotation: finalRotation }, 150)
-        .onUpdate((obj: { rotation: number }) => {
-          if (
-            dragStateRef.current.dragGroup &&
-            dragStateRef.current.rotationAxis.length() > 0
-          ) {
-            dragStateRef.current.dragGroup.rotateOnAxis(
-              dragStateRef.current.rotationAxis,
-              obj.rotation
-            );
-          }
-        })
-        .onComplete(() => {
-          finalizeDrag();
-        })
-        .start();
-    } else {
-      finalizeDrag();
-    }
-  };
-
-  const finalizeDrag = () => {
-    if (!dragStateRef.current.dragGroup || !groupRef.current) {
-      // Reset state even if we don't have dragGroup
-      dragStateRef.current.isActive = false;
-      onOrbitControlsChange?.(true);
-      AnimationHelper.unlock();
-      return;
-    }
-
-    groupRef.current.remove(dragStateRef.current.dragGroup);
-
-    const rotatedCubies: THREE.Object3D[] = [];
-    dragStateRef.current.dragGroup.children.forEach((cube) => {
-      const worldPos = dragStateRef.current.dragGroup!.localToWorld(
-        cube.position.clone()
-      );
-      cube.position.copy(worldPos);
-      rotatedCubies.push(cube);
-    });
-
-    // Calculate the final snap rotation
-    const totalRotation = dragStateRef.current.currentRotation;
-    const snapRotation =
-      Math.round(totalRotation / (Math.PI / 2)) * (Math.PI / 2);
-
-    // Apply the final rotation to each cube if we have a valid rotation axis
-    if (dragStateRef.current.rotationAxis.length() > 0) {
-      rotatedCubies.forEach((cube) => {
-        AnimationHelper.rotateAroundWorldAxis(
-          cube,
-          dragStateRef.current.rotationAxis,
-          snapRotation
-        );
-        groupRef.current!.add(cube);
-      });
-    } else {
-      // If no rotation axis was set, just add the cubes back without rotation
-      rotatedCubies.forEach((cube) => {
-        groupRef.current!.add(cube);
-      });
-    }
-
-    // Apply the move to the logical cube state if we have a valid move
-    if (
-      dragStateRef.current.hasLockedDirection &&
-      dragStateRef.current.lockedMoveType
-    ) {
-      const move =
-        dragStateRef.current.lockedMoveType +
-        (dragStateRef.current.lockedIsPrime ? "'" : "");
-      onMoveAnimationDone?.(move as CubeMove);
-    }
-
-    dragStateRef.current = {
+    // Reuse Raycaster and Vector2 to reduce allocations (mobile stability)
+    const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
+    const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
+    const cubiesRef = useRef<AnimatedCubie[]>([]);
+    const raycastTargetsRef = useRef<THREE.Mesh[]>([]);
+    const currentTweenRef = useRef<any>(null);
+    const meshesReadyRef = useRef(false);
+    const lastHoveredPieceRef = useRef<string | null>(null);
+    const dragStateRef = useRef<DragState>({
       isActive: false,
       startPosition: new THREE.Vector2(),
       currentPosition: new THREE.Vector2(),
@@ -640,86 +976,1901 @@ const RubiksCube3D = ({
       lockedMoveType: "",
       lockedIsPrime: false,
       hasLockedDirection: false,
-    };
+    });
 
-    onOrbitControlsChange?.(true);
-    AnimationHelper.unlock();
-  };
+    // Track white logo rotation (in radians). Positive values rotate CCW in texture space.
+    const [whiteLogoAngle, setWhiteLogoAngle] = useState<number>(0);
+    const lastAppliedMoveRef = useRef<{ move: string; t: number } | null>(null);
+    // Track the white center's logo orientation as a quaternion in cube-local space
+    const whiteQuatRef = useRef<THREE.Quaternion>(new THREE.Quaternion());
+    // Track the previous face holding the white center (pre-move)
+    const prevWhiteFaceRef = useRef<keyof CubeState["colors"] | null>(null);
+    // Keep a ref of the last displayed angle to accumulate face-turn deltas without projection jump
+    const displayedAngleRef = useRef<number>(0);
 
-  useEffect(() => {
-    return () => {
-      if (currentTweenRef.current) {
-        currentTweenRef.current = null;
+    // Helper to normalize and check white color (duplicate of child helper, kept here for state derivation)
+    const isWhiteColor = useCallback((c: string) => {
+      if (!c) return false;
+      let s = c.toLowerCase();
+      if (s[0] === "#" && s.length === 4) {
+        s = `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
       }
-      // Cleanup event listeners on unmount
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
+      return s === WHITE || s === "white";
+    }, []);
+
+    // Determine which face currently has the white center
+    const getWhiteCenterFaceFromState = useCallback(():
+      | keyof CubeState["colors"]
+      | null => {
+      // Indices: 0..2. Visible faces for centers: right(2,1,1), left(0,1,1), top(1,2,1), bottom(1,0,1), front(1,1,2), back(1,1,0)
+      const candidates: Array<{
+        idx: [number, number, number];
+        face: keyof CubeState["colors"];
+      }> = [
+        { idx: [2, 1, 1], face: "right" },
+        { idx: [0, 1, 1], face: "left" },
+        { idx: [1, 2, 1], face: "top" },
+        { idx: [1, 0, 1], face: "bottom" },
+        { idx: [1, 1, 2], face: "front" },
+        { idx: [1, 1, 0], face: "back" },
+      ];
+      for (const c of candidates) {
+        const cubie = cubeState[c.idx[0]]?.[c.idx[1]]?.[c.idx[2]];
+        if (cubie && isWhiteColor(cubie.colors[c.face])) return c.face;
+      }
+      return null;
+    }, [cubeState, isWhiteColor]);
+
+    // (removed unused moveToFaceKey)
+
+    // (removed old whiteFaceToCoords helper; no longer needed with rule-based rotation)
+
+    // Canonical face basis used to compute in-plane texture angle (must match UV orientation)
+    const getLogoFaceBasis = (
+      face: keyof CubeState["colors"]
+    ): { normal: THREE.Vector3; up: THREE.Vector3; right: THREE.Vector3 } => {
+      const normal =
+        face === "front"
+          ? new THREE.Vector3(0, 0, 1)
+          : face === "back"
+          ? new THREE.Vector3(0, 0, -1)
+          : face === "right"
+          ? new THREE.Vector3(1, 0, 0)
+          : face === "left"
+          ? new THREE.Vector3(-1, 0, 0)
+          : face === "top"
+          ? new THREE.Vector3(0, 1, 0)
+          : new THREE.Vector3(0, -1, 0);
+
+      let up: THREE.Vector3;
+      let right: THREE.Vector3;
+      switch (face) {
+        case "front":
+          up = new THREE.Vector3(0, 1, 0);
+          right = new THREE.Vector3(-1, 0, 0);
+          break;
+        case "back":
+          up = new THREE.Vector3(0, 1, 0);
+          right = new THREE.Vector3(1, 0, 0);
+          break;
+        case "right":
+          up = new THREE.Vector3(0, 1, 0);
+          right = new THREE.Vector3(0, 0, 1);
+          break;
+        case "left":
+          up = new THREE.Vector3(0, 1, 0);
+          right = new THREE.Vector3(0, 0, -1);
+          break;
+        case "top":
+          up = new THREE.Vector3(0, 0, 1);
+          right = new THREE.Vector3(1, 0, 0);
+          break;
+        case "bottom":
+          up = new THREE.Vector3(0, 0, -1);
+          right = new THREE.Vector3(1, 0, 0);
+          break;
+      }
+      return { normal, up, right };
     };
-  }, []);
 
-  const handleMeshReady = useCallback(
-    (mesh: THREE.Mesh, x: number, y: number, z: number) => {
-      // Check if this exact mesh is already in the array
-      const existingMeshIndex = cubiesRef.current.findIndex(
-        (cubie) => cubie.mesh === mesh
-      );
+    // Helper: pick the nearest canonical face for a given direction vector
+    const getNearestFaceFromVector = (
+      v: THREE.Vector3
+    ): keyof CubeState["colors"] => {
+      const faces: Array<keyof CubeState["colors"]> = [
+        "front",
+        "back",
+        "right",
+        "left",
+        "top",
+        "bottom",
+      ];
+      let bestFace: keyof CubeState["colors"] = "front";
+      let bestDot = -Infinity;
+      for (const f of faces) {
+        const n = getLogoFaceBasis(f).normal;
+        const d = v.dot(n);
+        if (d > bestDot) {
+          bestDot = d;
+          bestFace = f;
+        }
+      }
+      return bestFace;
+    };
 
-      if (existingMeshIndex !== -1) {
+    // Discrete transfer of 0/90/180/270 angle buckets from one face frame to another.
+    // prevAngleRad must be a multiple of 90 degrees.
+    const transferAngleBetweenFaces = (
+      from: keyof CubeState["colors"],
+      to: keyof CubeState["colors"],
+      prevAngleRad: number
+    ): number => {
+      // Map prevAngle bucket to a direction vector v expressed in cube local axes
+      const { up: upF, right: rightF } = getLogoFaceBasis(from);
+      const quarter = Math.PI / 2;
+      const k = Math.round(prevAngleRad / quarter) % 4; // -2..2 -> clamp to 0..3
+      const kk = ((k % 4) + 4) % 4;
+      let v = new THREE.Vector3();
+      switch (kk) {
+        case 0: // 0° => up
+          v = upF.clone();
+          break;
+        case 1: // +90° (CCW) => left = -right
+          v = rightF.clone().multiplyScalar(-1);
+          break;
+        case 2: // 180° => -up
+          v = upF.clone().multiplyScalar(-1);
+          break;
+        case 3: // 270° => right
+          v = rightF.clone();
+          break;
+      }
+      // Determine which of to-face's cardinal directions best matches v
+      const { up: upT, right: rightT } = getLogoFaceBasis(to);
+      const candidates = [
+        { angle: 0, dir: upT.clone() },
+        { angle: quarter, dir: rightT.clone().multiplyScalar(-1) }, // left
+        { angle: Math.PI, dir: upT.clone().multiplyScalar(-1) },
+        { angle: -quarter, dir: rightT.clone() }, // 270° == -90°
+      ];
+      let best = candidates[0].angle;
+      let bestDot = -Infinity;
+      for (const c of candidates) {
+        const d = v.dot(c.dir);
+        if (d > bestDot) {
+          bestDot = d;
+          best = c.angle;
+        }
+      }
+      // Normalize to [-π, π]
+      const twoPi = Math.PI * 2;
+      let n = best % twoPi;
+      if (n > Math.PI) n -= twoPi;
+      if (n < -Math.PI) n += twoPi;
+      return n;
+    };
+
+    // Initialize prev face and quaternion once
+    useEffect(() => {
+      if (prevWhiteFaceRef.current == null) {
+        const face = getWhiteCenterFaceFromState();
+        if (face) {
+          prevWhiteFaceRef.current = face;
+          whiteQuatRef.current.identity();
+          setWhiteLogoAngle(0);
+          displayedAngleRef.current = 0;
+        }
+      }
+    }, [getWhiteCenterFaceFromState]);
+
+    // Update white logo angle based on a completed move (quaternion-based, consistent with animation)
+    const applyMoveToWhiteLogoAngle = useCallback(
+      (move: CubeMove) => {
+        const moveStr = (move as string).toUpperCase();
+        const now = Date.now();
+        // Guard: avoid double-apply if the exact same move fires twice within 120ms
+        if (
+          lastAppliedMoveRef.current &&
+          lastAppliedMoveRef.current.move === moveStr &&
+          now - lastAppliedMoveRef.current.t < 120
+        ) {
+          return;
+        }
+        lastAppliedMoveRef.current = { move: moveStr, t: now };
+        // Determine rotation according to explicit rule:
+        // - If rotating the current white face (U/D/L/R/F/B), rotate the logo 90° CW for non-prime, CCW for prime, 180° for "2".
+        // - For slice moves (M/E/S), preserve orientation (no rotation), just re-project after the move.
+        // - Whole-cube rotations (X/Y/Z) rotate orientation normally.
+        // Use the current white face from state (post-logical-move) to avoid race conditions
+        const currentWhiteFace = getWhiteCenterFaceFromState();
+        const base = moveStr[0];
+        const isWhole = base === "X" || base === "Y" || base === "Z";
+        const isSliceMove = base === "M" || base === "E" || base === "S";
+
+        // Map base face letter to face key used in state/colors
+        const baseToFaceKey: Record<string, keyof CubeState["colors"]> = {
+          R: "right",
+          L: "left",
+          U: "top",
+          D: "bottom",
+          F: "front",
+          B: "back",
+        } as const;
+
+        if (isWhole) {
+          const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+            moveStr as CubeMove
+          );
+          const q = new THREE.Quaternion().setFromAxisAngle(
+            axis,
+            totalRotation
+          );
+          whiteQuatRef.current.multiply(q);
+        } else if (isSliceMove) {
+          // For slice moves, apply visual rotation to show the coordinate system change
+          // This physically rotates the entire cube group while keeping logical mapping unchanged
+          // M → x visual rotation (cube rotates opposite to slice direction)
+          // E → y visual rotation
+          // S → z' visual rotation
+          const coordinateRotationMap: Record<string, [THREE.Vector3, number]> =
+            {
+              M: [new THREE.Vector3(1, 0, 0), Math.PI / 2], // x rotation (opposite of slice direction)
+              "M'": [new THREE.Vector3(1, 0, 0), -Math.PI / 2], // x' rotation
+              M2: [new THREE.Vector3(1, 0, 0), Math.PI], // x2 rotation
+              E: [new THREE.Vector3(0, 1, 0), Math.PI / 2], // y rotation
+              "E'": [new THREE.Vector3(0, 1, 0), -Math.PI / 2], // y' rotation
+              E2: [new THREE.Vector3(0, 1, 0), Math.PI], // y2 rotation
+              S: [new THREE.Vector3(0, 0, 1), -Math.PI / 2], // z' rotation
+              "S'": [new THREE.Vector3(0, 0, 1), Math.PI / 2], // z rotation
+              S2: [new THREE.Vector3(0, 0, 1), Math.PI], // z2 rotation
+            };
+
+          const rotation = coordinateRotationMap[moveStr];
+          if (rotation && groupRef.current) {
+            const [axis, angle] = rotation;
+            const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+
+            // Apply rotation to the actual cube group to physically move it
+            groupRef.current.quaternion.multiply(q);
+
+            // Also update white quaternion tracking for consistency
+            whiteQuatRef.current.multiply(q);
+          }
+        } else if (currentWhiteFace && baseToFaceKey[base]) {
+          // End-of-move update: if we rotated the face that currently holds the white center,
+          // apply a discrete 90°/180° texture rotation to match the physical twist.
+          const rotatingFace = baseToFaceKey[base];
+          const isPrime = moveStr.includes("'");
+          const isDouble = moveStr.includes("2");
+          if (rotatingFace === currentWhiteFace) {
+            const delta = isDouble
+              ? Math.PI
+              : isPrime
+              ? Math.PI / 2
+              : -Math.PI / 2;
+            const faceNormal = getLogoFaceBasis(currentWhiteFace).normal;
+            const q = new THREE.Quaternion().setFromAxisAngle(
+              faceNormal,
+              delta
+            );
+            whiteQuatRef.current.multiply(q);
+            const twoPi = Math.PI * 2;
+            const normalizeAngle = (a: number) => {
+              let n = a % twoPi;
+              if (n > Math.PI) n -= twoPi;
+              if (n < -Math.PI) n += twoPi;
+              return n;
+            };
+            setWhiteLogoAngle((prev) => {
+              const next = normalizeAngle((prev || 0) + delta);
+              displayedAngleRef.current = next;
+              return next;
+            });
+            if (currentWhiteFace) prevWhiteFaceRef.current = currentWhiteFace;
+            return; // handled; skip projection below
+          }
+          // If rotating some other face (not the white center's), leave the logo angle unchanged here.
+          return;
+        }
+
+        // Slice moves: don't rotate orientation here; we'll transfer angle discretely and align quaternion below.
+
+        // Compute angle relative to current (post-move) white face
+        const whiteFaceAfter = getWhiteCenterFaceFromState();
+        if (whiteFaceAfter || (isSliceMove && prevWhiteFaceRef.current)) {
+          const quarter = Math.PI / 2;
+          // Resolve the target face for mapping:
+          // - Prefer computed face for slices (rotate previous face normal by move axis)
+          // - Otherwise, use state-derived face
+          let resolvedAfter: keyof CubeState["colors"] | null = whiteFaceAfter;
+          if (isSliceMove && prevWhiteFaceRef.current) {
+            const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+              moveStr as CubeMove
+            );
+            const q = new THREE.Quaternion().setFromAxisAngle(
+              axis,
+              totalRotation
+            );
+            const prevN = getLogoFaceBasis(prevWhiteFaceRef.current).normal;
+            const rotatedN = prevN.clone().applyQuaternion(q).normalize();
+            resolvedAfter = getNearestFaceFromVector(rotatedN);
+          }
+          if (!resolvedAfter) return;
+
+          const {
+            normal: faceN,
+            up: faceUp,
+            right: faceRight,
+          } = getLogoFaceBasis(resolvedAfter);
+          let thetaDesired: number | null = null;
+          if (isSliceMove && prevWhiteFaceRef.current) {
+            // Discrete transfer for slices to avoid unwanted flips
+            thetaDesired = transferAngleBetweenFaces(
+              prevWhiteFaceRef.current,
+              resolvedAfter,
+              displayedAngleRef.current || 0
+            );
+            // Apply user-refinable mapping delta on top using the PRE-MOVE bucket on the FROM face
+            {
+              const quarter = Math.PI / 2;
+              const k = Math.round((displayedAngleRef.current || 0) / quarter);
+              const bucketDeg = ((((k % 4) + 4) % 4) * 90) as
+                | 0
+                | 90
+                | 180
+                | 270;
+              // Determine slice parameter for slice-aware orientation mapping
+              const sliceParam: SliceKey = isSliceMove
+                ? (base as SliceKey)
+                : "none";
+
+              // Use enhanced function that includes E move specific logic
+              if (isSliceMove) {
+                // For slice moves, use the enhanced function with cube state and move string
+                const additionalDelta = getWhiteLogoDeltaRad(
+                  prevWhiteFaceRef.current,
+                  resolvedAfter,
+                  displayedAngleRef.current || 0,
+                  sliceParam,
+                  cubeState,
+                  moveStr
+                );
+                thetaDesired += additionalDelta;
+              } else {
+                // For regular moves, use the bucket-based function
+                thetaDesired += getWhiteLogoDeltaByBucketDeg(
+                  prevWhiteFaceRef.current,
+                  resolvedAfter,
+                  bucketDeg,
+                  sliceParam
+                );
+              }
+            }
+            // If the white center stayed on the same face, apply any configured SAME_FACE_DELTA for this move.
+            const stayedOnSameFace = prevWhiteFaceRef.current === resolvedAfter;
+            if (stayedOnSameFace) {
+              const faceRules = SAME_FACE_DELTA[resolvedAfter];
+              const moveKey = moveStr.includes("2")
+                ? `${base}2`
+                : moveStr.includes("'")
+                ? `${base}'`
+                : base;
+              const extra = faceRules?.[moveKey] || 0;
+              if (extra) {
+                thetaDesired = ((thetaDesired || 0) + extra) as number;
+              }
+            } else {
+              const from = prevWhiteFaceRef.current;
+              const to = resolvedAfter;
+              const viaKey = moveStr.includes("2")
+                ? `${base}2`
+                : moveStr.includes("'")
+                ? `${base}'`
+                : base;
+              const viaExtra = VIA_TRANSITION_DELTA[from]?.[to]?.[viaKey] || 0;
+              if (viaExtra) {
+                thetaDesired = ((thetaDesired || 0) + viaExtra) as number;
+              }
+            }
+            // Compute current projected angle and align quaternion to desired bucket
+            const logoUp0 = faceUp.clone();
+            const logoUpNow = logoUp0
+              .applyQuaternion(whiteQuatRef.current)
+              .normalize();
+            const upProj = logoUpNow
+              .clone()
+              .sub(faceN.clone().multiplyScalar(logoUpNow.dot(faceN)))
+              .normalize();
+            const x = upProj.dot(faceRight);
+            const y = upProj.dot(faceUp);
+            let thetaProj = Math.atan2(x, y);
+            thetaProj = Math.round(thetaProj / quarter) * quarter; // snap to 90°
+            // Smallest correction around face normal to realize thetaDesired
+            const twoPi = Math.PI * 2;
+            const normalize = (a: number) => {
+              let m = a % twoPi;
+              if (m > Math.PI) m -= twoPi;
+              if (m < -Math.PI) m += twoPi;
+              return m;
+            };
+            const delta = normalize(thetaDesired - thetaProj);
+            if (Math.abs(delta) > 1e-6) {
+              const qFix = new THREE.Quaternion().setFromAxisAngle(
+                faceN,
+                delta
+              );
+              whiteQuatRef.current.multiply(qFix);
+            }
+          }
+
+          // Final angle to display: desired (for slice) or projected from quaternion
+          let theta: number;
+          if (thetaDesired != null) {
+            theta = thetaDesired;
+          } else {
+            const logoUp0 = faceUp.clone();
+            const logoUpNow = logoUp0
+              .applyQuaternion(whiteQuatRef.current)
+              .normalize();
+            const upProj = logoUpNow
+              .clone()
+              .sub(faceN.clone().multiplyScalar(logoUpNow.dot(faceN)))
+              .normalize();
+            const x = upProj.dot(faceRight);
+            const y = upProj.dot(faceUp);
+            theta = Math.atan2(x, y);
+            theta = Math.round(theta / quarter) * quarter; // snap to 90°
+          }
+          const twoPi = Math.PI * 2;
+          let n = theta % twoPi;
+          if (n > Math.PI) n -= twoPi;
+          if (n < -Math.PI) n += twoPi;
+          setWhiteLogoAngle(n);
+          displayedAngleRef.current = n;
+          prevWhiteFaceRef.current = resolvedAfter;
+        }
+      },
+      [getWhiteCenterFaceFromState, cubeState]
+    );
+
+    useEffect(() => {
+      if (!pendingMove) {
+        // Clear start guard when no pending move
+        startGuardRef.current = null;
         return;
       }
 
-      // Prevent infinite loops by checking if we already have too many cubies
-      if (cubiesRef.current.length >= 27) {
+      const key = String(pendingMove).toUpperCase();
+
+      // If we already started this same pending move, don't start again
+      if (startGuardRef.current === key) {
         return;
       }
 
-      const existingIndex = cubiesRef.current.findIndex(
-        (cubie) => cubie.x === x && cubie.y === y && cubie.z === z
-      );
+      let cancelled = false;
+      let rafId: number | null = null;
 
-      if (existingIndex !== -1) {
-        cubiesRef.current[existingIndex].mesh = mesh;
+      const tryStart = () => {
+        if (cancelled) return;
+
+        // Wait until the scene and meshes are fully ready and animation system is unlocked
+        const ready =
+          !!groupRef.current &&
+          cubiesRef.current.length === 27 &&
+          !!meshesReadyRef.current &&
+          !AnimationHelper.isLocked();
+
+        if (!ready) {
+          rafId = requestAnimationFrame(tryStart);
+          return;
+        }
+
+        // Mark as started before launching animation to avoid race
+        startGuardRef.current = key;
+
+        // Clear commit guard when starting a new animation
+        // This allows intentional consecutive moves like U U
+        commitGuardRef.current = null;
+
+        onStartAnimation && onStartAnimation();
+        currentTweenRef.current = AnimationHelper.animate(
+          cubiesRef.current,
+          groupRef.current!,
+          pendingMove,
+          () => {
+            if (cancelled) return;
+
+            // Single commit path with debounce guard
+            commitMoveOnce(pendingMove);
+            currentTweenRef.current = null;
+
+            // Clear start guard after completion so future moves can start
+            startGuardRef.current = null;
+          }
+        );
+      };
+
+      // Try now and keep retrying until ready
+      tryStart();
+
+      return () => {
+        cancelled = true;
+        if (rafId !== null) cancelAnimationFrame(rafId);
+      };
+    }, [pendingMove, onStartAnimation, commitMoveOnce]);
+
+    const { camera, gl } = useThree();
+
+    // Low-performance mode optimization
+    useEffect(() => {
+      if (!gl || !lowPerf) return;
+
+      const prevPixelRatio = gl.getPixelRatio();
+
+      // Force lower pixel ratio for better performance
+      gl.setPixelRatio(Math.min(1, prevPixelRatio));
+
+      return () => {
+        gl.setPixelRatio(prevPixelRatio);
+      };
+    }, [gl, lowPerf]);
+
+    // Reliable white-center logo texture with retries & fallback
+    const [logoReady, setLogoReady] = useState(false);
+    const [tiptonsTexture, setTiptonsTexture] = useState<THREE.Texture | null>(
+      null
+    );
+    useEffect(() => {
+      let cancelled = false;
+      let attempt = 0;
+      const maxAttempts = 6;
+      const baseDelay = 250;
+      const load = () => {
+        const loader = new THREE.TextureLoader();
+        loader.load(
+          tiptonsSolverImg,
+          (tex) => {
+            if (cancelled) return;
+            if ((THREE as any).SRGBColorSpace) {
+              (tex as any).colorSpace = (THREE as any).SRGBColorSpace;
+            }
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.center.set(0.5, 0.5);
+            const maxAniso =
+              (gl?.capabilities?.getMaxAnisotropy?.() as number) || 8;
+            const targetAniso = lowPerf ? 2 : Math.min(8, maxAniso);
+            tex.anisotropy = targetAniso;
+            tex.minFilter = THREE.LinearMipmapLinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.needsUpdate = true;
+            setTiptonsTexture(tex);
+            setLogoReady(true);
+          },
+          undefined,
+          () => {
+            if (cancelled) return;
+            attempt++;
+            if (attempt < maxAttempts) {
+              const delay = baseDelay * Math.pow(1.7, attempt - 1);
+              setTimeout(load, delay);
+            } else {
+              // Fallback canvas texture so rendering still proceeds
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 64;
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.fillStyle = WHITE;
+                ctx.fillRect(0, 0, 64, 64);
+                ctx.strokeStyle = "#000000";
+                ctx.lineWidth = 6;
+                ctx.strokeRect(3, 3, 58, 58);
+              }
+              const fallback = new THREE.CanvasTexture(canvas);
+              setTiptonsTexture(fallback);
+              setLogoReady(true);
+            }
+          }
+        );
+      };
+      load();
+      return () => {
+        cancelled = true;
+      };
+    }, [gl, lowPerf]);
+    // Keep shared texture rotation in sync with computed angle
+    useEffect(() => {
+      if (!tiptonsTexture) return;
+      tiptonsTexture.rotation = whiteLogoAngle;
+      tiptonsTexture.needsUpdate = true;
+    }, [whiteLogoAngle, tiptonsTexture]);
+
+    // Gate visual output (not hook execution) until logo is ready
+    const logoTextureReady = logoReady && !!tiptonsTexture;
+
+    // Expose a minimal imperative handle for external orientation refinement
+    // (moved near the end of the component to avoid referencing handlers before initialization)
+
+    // Build a face-local basis (right/up) in cube local space
+    const getFaceBasisLocal = useCallback((face: string) => {
+      const normal =
+        face === "front"
+          ? new THREE.Vector3(0, 0, 1)
+          : face === "back"
+          ? new THREE.Vector3(0, 0, -1)
+          : face === "right"
+          ? new THREE.Vector3(1, 0, 0)
+          : face === "left"
+          ? new THREE.Vector3(-1, 0, 0)
+          : face === "top"
+          ? new THREE.Vector3(0, 1, 0)
+          : new THREE.Vector3(0, -1, 0);
+
+      const globalUp = new THREE.Vector3(0, 1, 0);
+      let right = new THREE.Vector3().crossVectors(globalUp, normal);
+      if (right.lengthSq() < 1e-6) {
+        // normal nearly collinear with up, use forward as fallback
+        const forward = new THREE.Vector3(0, 0, 1);
+        right = new THREE.Vector3().crossVectors(forward, normal);
+      }
+      right.normalize();
+      const up = new THREE.Vector3().crossVectors(normal, right).normalize();
+      return { normal, right, up };
+    }, []);
+
+    // Project a local-space direction to a 2D screen-space vector
+    const projectLocalDirToScreen = useCallback(
+      (dirLocal: THREE.Vector3) => {
+        if (!groupRef.current) return new THREE.Vector2(0, 0);
+        const originWorld = groupRef.current.getWorldPosition(
+          new THREE.Vector3()
+        );
+        const dirWorld = dirLocal
+          .clone()
+          .applyQuaternion(groupRef.current.quaternion);
+        const endWorld = originWorld.clone().add(dirWorld);
+        const originNdc = originWorld.clone().project(camera);
+        const endNdc = endWorld.clone().project(camera);
+        const ndcDelta = new THREE.Vector2(
+          endNdc.x - originNdc.x,
+          endNdc.y - originNdc.y
+        );
+        // Convert NDC to pixel space and invert Y to match browser coordinates
+        const rect = gl.domElement.getBoundingClientRect();
+        return new THREE.Vector2(
+          ndcDelta.x * (rect.width / 2),
+          -ndcDelta.y * (rect.height / 2)
+        );
+      },
+      [camera, gl]
+    );
+
+    useFrame(() => {
+      AnimationHelper.update();
+
+      // Update drag rotation if active
+      if (
+        trackingStateRef.current.isDragging &&
+        trackingStateRef.current.dragGroup
+      ) {
+        const dragState = trackingStateRef.current;
+        const rotation = dragState.currentRotation;
+
+        // Apply rotation to the drag group
+        if (dragState.dragGroup) {
+          dragState.dragGroup.setRotationFromAxisAngle(
+            dragState.rotationAxis,
+            rotation
+          );
+        }
+      }
+
+      // Update snapping animation if active
+      if (
+        trackingStateRef.current.isSnapping &&
+        trackingStateRef.current.dragGroup
+      ) {
+        const dragState = trackingStateRef.current;
+        const elapsed = Date.now() - dragState.snapAnimationStartTime;
+        const progress = Math.min(elapsed / dragState.snapAnimationDuration, 1);
+
+        // Quadratic easing out for smooth feel
+        const easedProgress = 1 - Math.pow(1 - progress, 2);
+
+        // Calculate current rotation based on progress
+        const currentRotation =
+          dragState.snapStartRotation +
+          (dragState.snapTargetRotation - dragState.snapStartRotation) *
+            easedProgress;
+
+        // Update the current rotation
+        dragState.currentRotation = currentRotation;
+
+        // Apply rotation to the drag group
+        if (dragState.dragGroup) {
+          dragState.dragGroup.setRotationFromAxisAngle(
+            dragState.rotationAxis,
+            currentRotation
+          );
+        }
+
+        // Animation complete - execute the final move
+        if (progress >= 1) {
+          // Guard so we run this block only once
+          if (dragState._snapCompleted) return;
+          dragState._snapCompleted = true;
+
+          if (dragState.finalMove && onMoveAnimationDone) {
+            // Store the move to be executed
+            const moveToExecute = dragState.finalMove as CubeMove;
+
+            // Use the same debounced commit function
+            commitMoveOnce(moveToExecute);
+
+            // Clean up visual state
+            setTimeout(() => {
+              cleanupDragState();
+              // Reset snapping state
+              trackingStateRef.current.isSnapping = false;
+            }, 0);
+          } else {
+            // No final move, just cleanup
+            cleanupDragState();
+            // Reset snapping state
+            trackingStateRef.current.isSnapping = false;
+          }
+        }
+      }
+    });
+
+    // All your sophisticated drag and hover logic goes here...
+    const handlePreciseHover = useCallback(
+      (e: HandlePreciseHoverType) => {
+        if (!groupRef.current || dragStateRef.current.isActive) return;
+        const rect = e.nativeEvent.target?.getBoundingClientRect();
+        const mouse = mouseRef.current;
+        mouse.set(
+          ((e.nativeEvent.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.nativeEvent.clientY - rect.top) / rect.height) * 2 + 1
+        );
+
+        const raycaster = raycasterRef.current;
+        // Use the scene's actual camera to avoid allocating a new camera per move (mobile stability)
+        raycaster.setFromCamera(mouse, camera);
+
+        const targets =
+          raycastTargetsRef.current.length > 0
+            ? raycastTargetsRef.current
+            : (() => {
+                const all: THREE.Mesh[] = [];
+                groupRef.current!.traverse((child) => {
+                  if (
+                    child instanceof THREE.Mesh &&
+                    child.parent === groupRef.current
+                  ) {
+                    all.push(child);
+                  }
+                });
+                raycastTargetsRef.current = all;
+                return all;
+              })();
+
+        const intersects = raycaster.intersectObjects(targets);
+        if (intersects.length === 0) {
+          lastHoveredPieceRef.current = null;
+          return;
+        }
+
+        const intersectedMesh = intersects[0].object as THREE.Mesh;
+        const intersectionPoint = intersects[0].point;
+
+        // Find the corresponding cubie
+        const cubie = cubiesRef.current.find((c) => c.mesh === intersectedMesh);
+        if (!cubie) return;
+
+        const cubieCenter = new THREE.Vector3(
+          (cubie.x - 1) * 1.05,
+          (cubie.y - 1) * 1.05,
+          (cubie.z - 1) * 1.05
+        );
+
+        const halfSize = 0.4655;
+        const relative = intersectionPoint.clone().sub(cubieCenter);
+        const withinBounds =
+          Math.abs(relative.x) <= halfSize &&
+          Math.abs(relative.y) <= halfSize &&
+          Math.abs(relative.z) <= halfSize;
+
+        if (!withinBounds) return;
+
+        const absX = Math.abs(relative.x);
+        const absY = Math.abs(relative.y);
+        const absZ = Math.abs(relative.z);
+        const faceThreshold = 0.4;
+
+        let faceName = "";
+        if (absX > faceThreshold && absX >= absY && absX >= absZ) {
+          faceName = relative.x > 0 ? "right" : "left";
+        } else if (absY > faceThreshold && absY >= absX && absY >= absZ) {
+          faceName = relative.y > 0 ? "top" : "bottom";
+        } else if (absZ > faceThreshold && absZ >= absX && absZ >= absY) {
+          faceName = relative.z > 0 ? "front" : "back";
+        }
+
+        if (!faceName) return;
+
+        const gridPos: [number, number, number] = [
+          cubie.x - 1,
+          cubie.y - 1,
+          cubie.z - 1,
+        ];
+
+        const isOuterFace =
+          (faceName === "right" && gridPos[0] === 1) ||
+          (faceName === "left" && gridPos[0] === -1) ||
+          (faceName === "top" && gridPos[1] === 1) ||
+          (faceName === "bottom" && gridPos[1] === -1) ||
+          (faceName === "front" && gridPos[2] === 1) ||
+          (faceName === "back" && gridPos[2] === -1);
+
+        if (!isOuterFace) return;
+
+        const cubieState = cubeState[cubie.x]?.[cubie.y]?.[cubie.z];
+        if (!cubieState) return;
+
+        const faceColors = {
+          right: cubieState.colors.right,
+          left: cubieState.colors.left,
+          top: cubieState.colors.top,
+          bottom: cubieState.colors.bottom,
+          front: cubieState.colors.front,
+          back: cubieState.colors.back,
+        };
+        const faceColor = faceColors[faceName as keyof typeof faceColors];
+
+        if (faceColor === "#808080" || faceColor === CUBE_COLORS.BLACK) return;
+
+        const pieceId = `${gridPos[0]},${gridPos[1]},${gridPos[2]}|${faceName}`;
+
+        if (lastHoveredPieceRef.current === pieceId) return;
+
+        lastHoveredPieceRef.current = pieceId;
+      },
+      [cubeState]
+    );
+
+    const handleLeaveCube = useCallback(() => {
+      lastHoveredPieceRef.current = null;
+    }, []);
+
+    // Detect which face of the cubie was clicked and determine move parameters
+    const detectFaceAndMove = (
+      position: [number, number, number],
+      intersectionPointWorld: THREE.Vector3
+    ) => {
+      const [x, y, z] = position;
+      const gridX = Math.round(x / 1.05 + 1);
+      const gridY = Math.round(y / 1.05 + 1);
+      const gridZ = Math.round(z / 1.05 + 1);
+
+      // Convert the world intersection point to cube-local coordinates to be rotation invariant
+      let pointInCubeLocal = intersectionPointWorld.clone();
+      if (groupRef.current) {
+        pointInCubeLocal = groupRef.current.worldToLocal(pointInCubeLocal);
+      }
+      // Now compute local offset from the cubie's static local center (position is cube-local)
+      const localPoint = pointInCubeLocal.sub(new THREE.Vector3(x, y, z));
+
+      // Determine which face was clicked based on the dominant local axis
+      const absX = Math.abs(localPoint.x);
+      const absY = Math.abs(localPoint.y);
+      const absZ = Math.abs(localPoint.z);
+
+      let clickedFace = "front";
+      if (absX > absY && absX > absZ) {
+        clickedFace = localPoint.x > 0 ? "right" : "left";
+      } else if (absY > absX && absY > absZ) {
+        clickedFace = localPoint.y > 0 ? "top" : "bottom";
       } else {
-        const cubie: AnimatedCubie = {
-          mesh: mesh,
-          originalPosition: new THREE.Vector3(
-            (x - 1) * 1.05,
-            (y - 1) * 1.05,
-            (z - 1) * 1.05
-          ),
-          x,
-          y,
-          z,
+        clickedFace = localPoint.z > 0 ? "front" : "back";
+      }
+
+      return { clickedFace, gridX, gridY, gridZ };
+    };
+
+    // Get affected cubies based on the face and move type - using AnimationHelper logic
+    const getAffectedCubiesForMove = (moveType: string) => {
+      return cubiesRef.current.filter((cubie) => {
+        // Use the exact same logic as AnimationHelper.isCubieInMove
+
+        switch (moveType) {
+          case "F":
+            return cubie.z === 2; // Front face
+          case "B":
+            return cubie.z === 0; // Back face
+          case "R":
+            return cubie.x === 2; // Right face
+          case "L":
+            return cubie.x === 0; // Left face
+          case "U":
+            return cubie.y === 2; // Top face
+          case "D":
+            return cubie.y === 0; // Bottom face
+          case "M": // Middle slice (between L and R)
+            return cubie.x === 1;
+
+          case "E": // Equatorial slice (between U and D)
+            return cubie.y === 1;
+          case "S": // Standing slice (between F and B)
+            return cubie.z === 1;
+          default:
+            return false;
+        }
+      });
+    };
+
+    // Enhanced position tracking with drag mechanics
+    const trackingStateRef = useRef<
+      TrackingStateRef & {
+        dragTimestamps?: number[];
+        dragPositions?: THREE.Vector2[];
+        dragVelocity?: number;
+      }
+    >({
+      isTracking: false,
+      startPosition: new THREE.Vector2(),
+      currentPosition: new THREE.Vector2(),
+      cubiePosition: [0, 0, 0],
+      clickedFace: "",
+      uniquePieceId: "",
+      isDragging: false,
+      lockedMoveType: "",
+      lockedDirection: "up",
+      initialSwipeDirection: "up",
+      dragGroup: null,
+      affectedCubies: [],
+      rotationAxis: new THREE.Vector3(),
+      currentRotation: 0,
+      hasStartedDrag: false,
+      // Snapping animation state
+      isSnapping: false,
+      snapAnimationStartTime: 0,
+      snapAnimationDuration: 120, // Default 120ms for the animation
+      snapStartRotation: 0,
+      snapTargetRotation: 0,
+      finalMove: "",
+      _axisLock: undefined,
+      _initialDragDirection: undefined,
+      _allowedMoves: [],
+      // Face-local axes in screen space, captured at pointer down
+      _screenFaceRight: undefined,
+      _screenFaceUp: undefined,
+      _lockThresholdPx: 0,
+      // Canonical base move and expected sign (from AnimationHelper) used to interpret rotation
+      _baseMove: undefined,
+      _expectedBaseSign: undefined,
+      // Parity to fix sign per face/axis
+      _dragSignParity: 1,
+      // Guard
+      _snapCompleted: false,
+    });
+
+    // Helper: base move to axis char
+    const baseMoveToAxis = (baseMove: string): "x" | "y" | "z" => {
+      const b = baseMove.toUpperCase();
+      if (b === "R" || b === "L" || b === "M" || b === "X") return "x";
+      if (b === "U" || b === "D" || b === "E" || b === "Y") return "y";
+      return "z"; // F, B, S, Z
+    };
+
+    // Helper: determine drag sign parity by face and axis to align visual drag with move direction
+    const getDragParity = (face: string, axis: "x" | "y" | "z"): number => {
+      // Default: no parity flip
+      let parity = 1;
+
+      switch (face) {
+        case "front":
+          // Horizontal drags on the front face tend to feel reversed relative to rotation sign
+          if (axis === "x") parity = -1;
+          break;
+        case "left":
+          // Z-axis rotations initiated from the left face need inversion
+          if (axis === "z") parity = -1;
+          break;
+        case "bottom":
+          // Bottom face: vertical and horizontal gestures often read inverted
+          if (axis === "y" || axis === "x") parity = -1;
+          break;
+        // Intentionally leave top/right/back with default parity to avoid regressions
+        default:
+          break;
+      }
+
+      return parity;
+    };
+
+    // Generate unique piece identifier based on grid position and face
+    const generateUniquePieceId = (
+      gridPos: [number, number, number],
+      face: string
+    ) => {
+      const [x, y, z] = gridPos;
+
+      // Create a unique identifier that represents the physical position on the cube
+      // This will never change regardless of cube state/colors
+      let pieceType = "";
+      let positionId = "";
+
+      // Determine piece type and position
+      const numNonZero = [x, y, z].filter((coord) => coord !== 0).length;
+
+      if (numNonZero === 3) {
+        // Corner piece
+        pieceType = "corner";
+        positionId = `${x > 0 ? "R" : "L"}${y > 0 ? "U" : "D"}${
+          z > 0 ? "F" : "B"
+        }`;
+      } else if (numNonZero === 2) {
+        // Edge piece
+        pieceType = "edge";
+        if (x === 0) positionId = `M${y > 0 ? "U" : "D"}${z > 0 ? "F" : "B"}`;
+        else if (y === 0)
+          positionId = `${x > 0 ? "R" : "L"}E${z > 0 ? "F" : "B"}`;
+        else if (z === 0)
+          positionId = `${x > 0 ? "R" : "L"}${y > 0 ? "U" : "D"}S`;
+      } else if (numNonZero === 1) {
+        // Center piece
+        pieceType = "center";
+        if (x !== 0) positionId = x > 0 ? "R" : "L";
+        else if (y !== 0) positionId = y > 0 ? "U" : "D";
+        else if (z !== 0) positionId = z > 0 ? "F" : "B";
+      }
+
+      return `${pieceType}_${positionId}_${face}`;
+    };
+
+    const handlePointerDown = (
+      e: React.PointerEvent,
+      pos: [number, number, number],
+      intersectionPoint: THREE.Vector3
+    ) => {
+      e.stopPropagation();
+
+      if (AnimationHelper.isLocked() || !meshesReadyRef.current) {
+        // If not ready, capture the interaction data and retry when ready
+        const retryInteraction = () => {
+          if (AnimationHelper.isLocked() || !meshesReadyRef.current) {
+            requestAnimationFrame(retryInteraction);
+            return;
+          }
+
+          // Create a synthetic event-like object with the essential properties
+          const syntheticEvent = {
+            stopPropagation: () => {},
+            clientX: e.clientX,
+            clientY: e.clientY,
+            pointerId: e.pointerId,
+            nativeEvent: e.nativeEvent,
+          } as React.PointerEvent;
+
+          // Restart the pointer down handling now that we're ready
+          processPointerDown(syntheticEvent, pos, intersectionPoint);
         };
 
-        cubiesRef.current.push(cubie);
+        requestAnimationFrame(retryInteraction);
+        return;
       }
 
-      if (cubiesRef.current.length === 27 && !meshesReadyRef.current) {
-        meshesReadyRef.current = true;
-      }
-    },
-    // Empty dependency array so this callback never changes
-    []
-  );
+      processPointerDown(e, pos, intersectionPoint);
+    };
 
-  return (
-    <group ref={groupRef}>
-      {cubeState.map((xLayer, x) =>
-        xLayer.map((yLayer, y) =>
-          yLayer.map((cube, z) => (
-            <CubePiece
-              key={`${x}-${y}-${z}`}
-              position={[(x - 1) * 1.05, (y - 1) * 1.05, (z - 1) * 1.05]}
-              colors={cube.colors}
-              onPointerDown={handlePointerDown}
-              onMeshReady={handleMeshReady}
-            />
-          ))
-        )
-      )}
-    </group>
-  );
-};
+    const processPointerDown = (
+      e: React.PointerEvent,
+      pos: [number, number, number],
+      intersectionPoint: THREE.Vector3
+    ) => {
+      // Disable orbit controls immediately when clicking on a cube piece
+      onOrbitControlsChange?.(false);
+
+      // Detect which face was clicked
+      const { clickedFace } = detectFaceAndMove(pos, intersectionPoint);
+
+      // Convert position to grid coordinates
+      const [x, y, z] = pos;
+      const gridX = Math.round(x / 1.05 + 1);
+      const gridY = Math.round(y / 1.05 + 1);
+      const gridZ = Math.round(z / 1.05 + 1);
+      const gridPos: [number, number, number] = [
+        gridX - 1,
+        gridY - 1,
+        gridZ - 1,
+      ];
+
+      // Generate unique piece identifier
+      const uniquePieceId = generateUniquePieceId(gridPos, clickedFace);
+
+      const startPos = new THREE.Vector2(e.clientX, e.clientY);
+      const now = Date.now();
+
+      // Compute and cache face-local screen axes
+      let screenFaceRight: THREE.Vector2 | undefined;
+      let screenFaceUp: THREE.Vector2 | undefined;
+      if (groupRef.current) {
+        const { right, up } = getFaceBasisLocal(clickedFace);
+        const right2D = projectLocalDirToScreen(right);
+        const up2D = projectLocalDirToScreen(up);
+        screenFaceRight =
+          right2D.lengthSq() > 1e-6 ? right2D.clone().normalize() : undefined;
+        screenFaceUp =
+          up2D.lengthSq() > 1e-6 ? up2D.clone().normalize() : undefined;
+      }
+
+      trackingStateRef.current = {
+        isTracking: true,
+        startPosition: startPos,
+        currentPosition: startPos.clone(),
+        cubiePosition: pos,
+        clickedFace,
+        uniquePieceId,
+        isDragging: false,
+        _pointerId:
+          (e && (e.pointerId ?? e?.nativeEvent?.pointerId)) || undefined,
+        lockedMoveType: "",
+        lockedDirection: "up",
+        initialSwipeDirection: "up",
+        dragGroup: null,
+        affectedCubies: [],
+        rotationAxis: new THREE.Vector3(),
+        currentRotation: 0,
+        hasStartedDrag: false,
+        isSnapping: false,
+        snapAnimationStartTime: 0,
+        snapAnimationDuration: 120,
+        snapStartRotation: 0,
+        snapTargetRotation: 0,
+        finalMove: "",
+        dragTimestamps: [now],
+        dragPositions: [startPos.clone()],
+        dragVelocity: 0,
+        _axisLock: undefined,
+        _initialDragDirection: undefined,
+        _allowedMoves: [],
+        _screenFaceRight: screenFaceRight,
+        _screenFaceUp: screenFaceUp,
+        _lockThresholdPx: 0,
+        _dragSignParity: 1,
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+    };
+
+    // Helper function to clean up drag state
+    const cleanupDragState = () => {
+      // Clean up drag group if it exists
+      const dragGroup = trackingStateRef.current.dragGroup;
+      if (dragGroup && groupRef.current) {
+        const tempGroup = dragGroup;
+        trackingStateRef.current.dragGroup = null;
+        const meshesToMove: THREE.Mesh[] = [];
+        tempGroup.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            meshesToMove.push(child);
+          }
+        });
+
+        meshesToMove.forEach((mesh) => {
+          const cubie = trackingStateRef.current.affectedCubies.find(
+            (c) => c.mesh === mesh
+          );
+          if (cubie) {
+            tempGroup.remove(mesh);
+            groupRef.current!.add(mesh);
+            mesh.position.copy(cubie.originalPosition);
+            mesh.rotation.set(0, 0, 0);
+          }
+        });
+
+        groupRef.current.remove(tempGroup);
+      }
+
+      // Reset animation state properties
+      trackingStateRef.current.isSnapping = false;
+      trackingStateRef.current.snapAnimationStartTime = 0;
+      trackingStateRef.current.snapStartRotation = 0;
+      trackingStateRef.current.snapTargetRotation = 0;
+
+      // Re-enable orbit controls
+      // onOrbitControlsChange?.(false);
+      AnimationHelper.unlock();
+    };
+
+    // Helper function to start drag animation
+    const startDragAnimation = (
+      suggestedMove: string,
+      swipeDirection: SwipeDirection
+    ) => {
+      if (!groupRef.current || trackingStateRef.current.hasStartedDrag) return;
+
+      // Determine canonical base move (strip prime/2)
+      const baseMove = suggestedMove.replace(/['2]/g, "");
+      trackingStateRef.current._baseMove = baseMove;
+
+      // Use the base move’s axis and expected sign
+      const [axis, totalRotation] = AnimationHelper.getMoveAxisAndDir(
+        baseMove as CubeMove
+      );
+      trackingStateRef.current.rotationAxis = axis.clone();
+      trackingStateRef.current._expectedBaseSign =
+        Math.sign(totalRotation) || 1;
+
+      // Determine parity from face/axis to align drag with expected visual direction
+      const baseAxis = baseMoveToAxis(baseMove);
+      trackingStateRef.current._dragSignParity = getDragParity(
+        trackingStateRef.current.clickedFace,
+        baseAxis
+      );
+
+      // Lock base move type (non-prime) – prime will be resolved by drag sign at release
+      trackingStateRef.current.lockedMoveType = baseMove;
+      trackingStateRef.current.lockedDirection = swipeDirection;
+      trackingStateRef.current.initialSwipeDirection = swipeDirection;
+      trackingStateRef.current.isDragging = true;
+      trackingStateRef.current.hasStartedDrag = true;
+
+      // Get affected cubies based on the base move type
+      const affectedCubies = getAffectedCubiesForMove(baseMove);
+      trackingStateRef.current.affectedCubies = affectedCubies;
+
+      // Create a new group for dragging
+      const dragGroup = new THREE.Group();
+
+      // Add affected cubie meshes to the drag group
+      affectedCubies.forEach((cubie) => {
+        if (cubie.mesh.parent === groupRef.current) {
+          const originalPosition = cubie.mesh.position.clone();
+          groupRef.current!.remove(cubie.mesh);
+          dragGroup.add(cubie.mesh);
+          cubie.mesh.position.copy(originalPosition);
+        }
+      });
+
+      // Add drag group to main group
+      groupRef.current.add(dragGroup);
+      trackingStateRef.current.dragGroup = dragGroup;
+
+      // Lock animations during drag
+      AnimationHelper.lock();
+    };
+
+    // Replace drag rotation to be based on signed projection along locked axis
+    const updateDragRotation = (dragVector: THREE.Vector2) => {
+      if (!trackingStateRef.current.isDragging) return;
+
+      // Signed projection onto locked axis
+      const axisLock = trackingStateRef.current._axisLock;
+      const faceRight = trackingStateRef.current._screenFaceRight;
+      const faceUp = trackingStateRef.current._screenFaceUp;
+
+      let signedProjection = 0;
+      if (axisLock === "horizontal" && faceRight) {
+        signedProjection = dragVector.dot(faceRight);
+      } else if (axisLock === "vertical" && faceUp) {
+        signedProjection = dragVector.dot(faceUp);
+      } else {
+        // Fallback to dominant axis of drag
+        signedProjection =
+          Math.abs(dragVector.x) > Math.abs(dragVector.y)
+            ? Math.sign(dragVector.x) * dragVector.length()
+            : Math.sign(dragVector.y) * dragVector.length();
+      }
+
+      // Parity: re-evaluate based on the face and base move axis for consistency
+      const parity =
+        trackingStateRef.current._dragSignParity ??
+        getDragParity(
+          trackingStateRef.current.clickedFace,
+          baseMoveToAxis(trackingStateRef.current._baseMove || "F")
+        );
+
+      // Rotation is from drag projection with parity fix; axis sign stays fixed to base move
+      trackingStateRef.current.currentRotation =
+        DRAG_SENSITIVITY * signedProjection * parity;
+
+      // Apply immediately to avoid one-frame delay waiting for useFrame
+      const dg = trackingStateRef.current.dragGroup;
+      if (dg) {
+        dg.setRotationFromAxisAngle(
+          trackingStateRef.current.rotationAxis,
+          trackingStateRef.current.currentRotation
+        );
+      }
+    };
+
+    // Perf helpers for pointer move throttling & object reuse
+    const lastPointerProcessTimeRef = useRef(0);
+    const pointerFrameBudgetMs = 12; // ~80 Hz max processing
+    const tmpVec2A = useRef(new THREE.Vector2());
+    const tmpVec2B = useRef(new THREE.Vector2());
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!trackingStateRef.current.isTracking) return;
+      // Ignore moves from non-initiating pointers (e.g., a second finger)
+      if (
+        trackingStateRef.current._pointerId != null &&
+        e.pointerId !== trackingStateRef.current._pointerId
+      ) {
+        return;
+      }
+
+      // Reuse vector object to reduce GC pressure
+      const currentPos = trackingStateRef.current.currentPosition;
+      currentPos.set(e.clientX, e.clientY);
+
+      // Throttle heavy math when not yet dragging to keep initial touch ultra responsive
+      const nowTs = performance.now();
+      const isDragging = trackingStateRef.current.isDragging;
+      if (
+        !isDragging &&
+        nowTs - lastPointerProcessTimeRef.current < pointerFrameBudgetMs
+      ) {
+        return; // skip this frame's processing
+      }
+      lastPointerProcessTimeRef.current = nowTs;
+
+      // Flick sampling
+      if (
+        trackingStateRef.current.dragTimestamps &&
+        trackingStateRef.current.dragPositions &&
+        trackingStateRef.current.isDragging
+      ) {
+        // Only sample for flick velocity once dragging actually started
+        trackingStateRef.current.dragTimestamps.push(Date.now());
+        // Reuse temp vector
+        const sample = tmpVec2A.current.set(currentPos.x, currentPos.y);
+        trackingStateRef.current.dragPositions.push(sample.clone());
+        if (trackingStateRef.current.dragTimestamps.length > 6) {
+          trackingStateRef.current.dragTimestamps.shift();
+          trackingStateRef.current.dragPositions.shift();
+        }
+      }
+
+      const dragVector = tmpVec2B.current
+        .set(currentPos.x, currentPos.y)
+        .sub(trackingStateRef.current.startPosition);
+
+      // Skip tiny movements early (noise filtering) to feel more “snappy”
+      if (!isDragging && dragVector.lengthSq() < 4) {
+        return;
+      }
+
+      // Always keep face-aligned screen axes up-to-date to account for whole-cube spins mid-gesture
+      if (groupRef.current) {
+        const { right, up } = getFaceBasisLocal(
+          trackingStateRef.current.clickedFace
+        );
+        const r2 = projectLocalDirToScreen(right);
+        const u2 = projectLocalDirToScreen(up);
+        if (r2.lengthSq() > 1e-6)
+          trackingStateRef.current._screenFaceRight = r2.clone().normalize();
+        if (u2.lengthSq() > 1e-6)
+          trackingStateRef.current._screenFaceUp = u2.clone().normalize();
+      }
+
+      if (!trackingStateRef.current.hasStartedDrag) {
+        // Use cached face axes; if missing, compute now
+        let faceRight = trackingStateRef.current._screenFaceRight;
+        let faceUp = trackingStateRef.current._screenFaceUp;
+        if ((!faceRight || !faceUp) && groupRef.current) {
+          const { right, up } = getFaceBasisLocal(
+            trackingStateRef.current.clickedFace
+          );
+          faceRight = projectLocalDirToScreen(right).normalize();
+          faceUp = projectLocalDirToScreen(up).normalize();
+        }
+
+        const rDot = faceRight ? dragVector.dot(faceRight) : dragVector.x;
+        const uDot = faceUp ? dragVector.dot(faceUp) : dragVector.y;
+
+        const axisLock =
+          Math.abs(rDot) >= Math.abs(uDot) ? "horizontal" : "vertical";
+        const moveDirection: SwipeDirection =
+          axisLock === "horizontal"
+            ? rDot >= 0
+              ? "right"
+              : "left"
+            : uDot >= 0
+            ? "up"
+            : "down";
+
+        const positionKey = trackingStateRef.current
+          .uniquePieceId as PositionMoveKey;
+        const suggestedMove =
+          POSITION_MOVE_MAPPING[positionKey]?.[moveDirection];
+
+        // Start only when we have a mapping and the primary-axis projected movement exceeds threshold
+        if (!suggestedMove) {
+          return;
+        }
+        // Compute primary-axis projected movement (px) to avoid tiny accidental drags
+        const primaryProjPx = Math.abs(axisLock === "horizontal" ? rDot : uDot);
+        if (primaryProjPx < LOCK_PRIMARY_PX) {
+          // not moved enough yet
+          return;
+        }
+
+        trackingStateRef.current._axisLock = axisLock;
+        trackingStateRef.current.lockedDirection = moveDirection;
+        trackingStateRef.current._initialDragDirection = moveDirection;
+        trackingStateRef.current._allowedMoves = [
+          suggestedMove,
+          suggestedMove.endsWith("'")
+            ? suggestedMove.replace("'", "")
+            : suggestedMove + "'",
+        ];
+        startDragAnimation(suggestedMove, moveDirection);
+        // Apply initial rotation immediately to avoid 1-frame delay
+        updateDragRotation(dragVector);
+        return;
+      }
+
+      // After lock, we no longer switch move types mid-drag; rotation sign determines prime vs non-prime
+      updateDragRotation(dragVector);
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      // Only respond to the initiating pointer's up event
+      if (
+        trackingStateRef.current._pointerId != null &&
+        e.pointerId !== trackingStateRef.current._pointerId
+      ) {
+        return;
+      }
+      // Now safe to remove listeners
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+
+      if (!trackingStateRef.current.isTracking) {
+        return;
+      }
+
+      // Flick gesture: calculate drag velocity on release
+      if (
+        trackingStateRef.current.dragTimestamps &&
+        trackingStateRef.current.dragPositions
+      ) {
+        const times = trackingStateRef.current.dragTimestamps;
+        const positions = trackingStateRef.current.dragPositions;
+        if (times.length >= 2 && positions.length >= 2) {
+          const dt = (times[times.length - 1] - times[0]) / 800; // seconds (restore previous scaling)
+          const dp = positions[times.length - 1].clone().sub(positions[0]);
+          const velocity = dt > 0 ? dp.length() / dt : 0; // px/sec
+          trackingStateRef.current.dragVelocity = velocity;
+        } else {
+          trackingStateRef.current.dragVelocity = 0;
+        }
+      }
+
+      if (trackingStateRef.current.isDragging) {
+        finalizeDragWithSnapping();
+      } else {
+        if (trackingStateRef.current.dragGroup) {
+          cleanupDragState();
+        }
+      }
+
+      if (!trackingStateRef.current.isSnapping) {
+        trackingStateRef.current = {
+          isTracking: false,
+          startPosition: new THREE.Vector2(),
+          currentPosition: new THREE.Vector2(),
+          cubiePosition: [0, 0, 0],
+          clickedFace: "",
+          uniquePieceId: "",
+          isDragging: false,
+          lockedMoveType: "",
+          lockedDirection: "up",
+          initialSwipeDirection: "up",
+          dragGroup: null,
+          affectedCubies: [],
+          rotationAxis: new THREE.Vector3(),
+          currentRotation: 0,
+          hasStartedDrag: false,
+          isSnapping: false,
+          snapAnimationStartTime: 0,
+          snapAnimationDuration: 100,
+          snapStartRotation: 0,
+          snapTargetRotation: 0,
+          finalMove: "",
+          dragTimestamps: [],
+          dragPositions: [],
+          dragVelocity: 0,
+        };
+      }
+    };
+
+    // Simplify finalize snapping: rely on accumulated rotation/sign
+    const finalizeDragWithSnapping = () => {
+      if (!trackingStateRef.current.isDragging || !groupRef.current) return;
+
+      const baseMove =
+        trackingStateRef.current._baseMove ||
+        trackingStateRef.current.lockedMoveType.replace(/['2]/g, "");
+      const expectedSign = trackingStateRef.current._expectedBaseSign || 1;
+
+      // Wrap current rotation to [-π, π] to avoid long spins
+      const twoPi = Math.PI * 2;
+      const normalizeAngle = (a: number) => {
+        const m = (((a + Math.PI) % twoPi) + twoPi) % twoPi; // [0, 2π)
+        return m - Math.PI; // (-π, π]
+      };
+
+      let currentRotation = normalizeAngle(
+        trackingStateRef.current.currentRotation
+      );
+      // Update stored rotation and group to the wrapped angle (visually identical)
+      trackingStateRef.current.currentRotation = currentRotation;
+      if (trackingStateRef.current.dragGroup) {
+        trackingStateRef.current.dragGroup.setRotationFromAxisAngle(
+          trackingStateRef.current.rotationAxis,
+          currentRotation
+        );
+      }
+
+      const snapIncrement = Math.PI / 2;
+
+      // Base rounding to nearest step
+      const stepsFloat = currentRotation / snapIncrement;
+      const baseSteps = Math.round(stepsFloat); // -2..2
+
+      // Distance-based control for 180°: require a long drag; flick can only add a single quarter step
+      const velocity = trackingStateRef.current.dragVelocity || 0;
+      const velocityThreshold = 100; // keep prior feel
+
+      // Compute axis-projected drag distance in pixels
+      const startPos = trackingStateRef.current.startPosition;
+      const curPos = trackingStateRef.current.currentPosition;
+      const dragVecPx = curPos.clone().sub(startPos);
+      let axisProjPx = 0;
+      const axisLock = trackingStateRef.current._axisLock;
+      const faceRight = trackingStateRef.current._screenFaceRight;
+      const faceUp = trackingStateRef.current._screenFaceUp;
+      if (axisLock === "horizontal" && faceRight) {
+        axisProjPx = dragVecPx.dot(faceRight);
+      } else if (axisLock === "vertical" && faceUp) {
+        axisProjPx = dragVecPx.dot(faceUp);
+      } else {
+        axisProjPx =
+          Math.abs(dragVecPx.x) >= Math.abs(dragVecPx.y)
+            ? Math.sign(dragVecPx.x) * dragVecPx.length()
+            : Math.sign(dragVecPx.y) * dragVecPx.length();
+      }
+      const axisProjAbsPx = Math.abs(axisProjPx);
+
+      // Only allow 180° if user dragged a long distance (or angle clearly near 180°)
+      const TWO_TURN_STEPS_MIN = 1.5; // at least 135° in angle
+      const TWO_TURN_PX_MIN = 180; // or ~180px along the locked axis
+      const allowTwoTurn =
+        Math.abs(stepsFloat) >= TWO_TURN_STEPS_MIN ||
+        axisProjAbsPx >= TWO_TURN_PX_MIN;
+
+      // Start from base rounding
+      let targetSteps = baseSteps;
+      let flickInfluenced = false;
+
+      // Compute instantaneous axis-projected velocity near release (px/sec)
+      let axisVelPxPerSec = 0;
+      const times = trackingStateRef.current.dragTimestamps;
+      const positions = trackingStateRef.current.dragPositions;
+      if (times && positions && times.length >= 2) {
+        const i2 = times.length - 1;
+        // Find a sample ~40-70ms back to estimate instantaneous speed
+        let j2 = i2 - 1;
+        for (let k = i2 - 1; k >= 0; k--) {
+          const dtMs = times[i2] - times[k];
+          if (dtMs >= 40) {
+            j2 = k;
+            break;
+          }
+        }
+        const dtMs = Math.max(1, times[i2] - times[j2]);
+        const dp = positions[i2].clone().sub(positions[j2]);
+        const axisDir =
+          axisLock === "horizontal" && faceRight
+            ? faceRight
+            : axisLock === "vertical" && faceUp
+            ? faceUp
+            : undefined;
+        const proj = axisDir
+          ? dp.dot(axisDir)
+          : Math.abs(dp.x) >= Math.abs(dp.y)
+          ? Math.sign(dp.x) * dp.length()
+          : Math.sign(dp.y) * dp.length();
+        axisVelPxPerSec = (proj * 1000) / dtMs;
+      }
+
+      // Apply drag parity to flick direction so it matches drag orientation per face/axis
+      let flickParity = trackingStateRef.current._dragSignParity ?? 1;
+      const axisVelSigned = axisVelPxPerSec * flickParity;
+
+      // Short, sharp flick: if base is 0, allow a single 90° purely from fast axis velocity, even with small distance
+      const SINGLE_FLICK_VEL_MIN = 100; // easier to trigger a single move
+      const SINGLE_FLICK_MIN_PX = 6; // avoid micro jitters
+      if (
+        targetSteps === 0 &&
+        Math.abs(axisVelSigned) > SINGLE_FLICK_VEL_MIN &&
+        axisProjAbsPx > SINGLE_FLICK_MIN_PX
+      ) {
+        targetSteps = Math.sign(axisVelSigned) || 1; // ±1
+        flickInfluenced = true;
+      }
+
+      // If not already at a half turn, allow flick to add at most one quarter step (use axis velocity for direction)
+      if (Math.abs(targetSteps) < 2 && Math.abs(velocity) > velocityThreshold) {
+        const biasSign =
+          Math.sign(axisVelSigned) || Math.sign(currentRotation) || 1;
+        const newSteps = targetSteps + biasSign;
+        // Never escalate to 180° purely from flick
+        targetSteps = Math.abs(newSteps) > 1 ? Math.sign(newSteps) : newSteps;
+        if (biasSign !== 0) flickInfluenced = true;
+      }
+
+      // If base rounding produced a 180° but drag wasn't long enough, demote to 90°
+      if (Math.abs(targetSteps) === 2 && !allowTwoTurn) {
+        targetSteps = Math.sign(targetSteps); // ±1
+      }
+
+      // If flick influenced and we are at a quarter turn, force sign to match axis flick direction
+      if (flickInfluenced && Math.abs(targetSteps) === 1) {
+        targetSteps = Math.sign(axisVelSigned) || 1;
+      }
+
+      // Clamp to valid range (allow half-turns again when thresholds permit)
+      targetSteps = Math.max(-2, Math.min(2, targetSteps));
+
+      const signedSteps = targetSteps; // -2,-1,0,1,2
+
+      let finalMove = "";
+      let targetAngle = 0;
+      if (signedSteps === 0) {
+        // No move, snap back
+        trackingStateRef.current.isDragging = false;
+        trackingStateRef.current.isSnapping = true;
+        trackingStateRef.current.snapAnimationStartTime = Date.now();
+        trackingStateRef.current.snapAnimationDuration = 150;
+        trackingStateRef.current.snapStartRotation =
+          trackingStateRef.current.currentRotation;
+        trackingStateRef.current.snapTargetRotation = 0;
+        trackingStateRef.current.finalMove = "";
+        return;
+      }
+
+      if (Math.abs(signedSteps) === 2) {
+        // Half turn
+        finalMove = baseMove + "2";
+        const baseTarget = Math.sign(currentRotation) * Math.PI || Math.PI;
+        const k = Math.round((currentRotation - baseTarget) / twoPi);
+        targetAngle = baseTarget + k * twoPi;
+      } else {
+        // Quarter turn
+        const quarterSign = flickInfluenced
+          ? Math.sign(axisVelSigned) || 1
+          : Math.sign(signedSteps) || 1;
+        finalMove = quarterSign === expectedSign ? baseMove : baseMove + "'";
+        const baseTarget = signedSteps * snapIncrement; // -π/2 or +π/2
+        const k = Math.round((currentRotation - baseTarget) / twoPi);
+        targetAngle = baseTarget + k * twoPi;
+      }
+
+      trackingStateRef.current.isDragging = false;
+      trackingStateRef.current.isSnapping = true;
+      trackingStateRef.current.snapAnimationStartTime = Date.now();
+      trackingStateRef.current.snapAnimationDuration = 120;
+      trackingStateRef.current.snapStartRotation =
+        trackingStateRef.current.currentRotation;
+      trackingStateRef.current.snapTargetRotation = targetAngle;
+      trackingStateRef.current.finalMove = finalMove as CubeMove;
+    };
+
+    // New handler for boundary pointer down detection (cleaned up)
+    const handleBoundaryPointerDown = useCallback(
+      (e: React.PointerEvent) => {
+        if (!groupRef.current || !camera || !gl) return;
+
+        // Detect multi-touch early and force-disable orbits during 2+ fingers
+        const native = (e as any).nativeEvent ?? e;
+        const pointerType: string | undefined =
+          (native && (native as any).pointerType) || (e as any).pointerType;
+        const touchesLen: number =
+          (native && (native as any).touches
+            ? (native as any).touches.length
+            : 0) ||
+          (touchCount ?? 0);
+        if (pointerType === "touch" && touchesLen >= 2) {
+          onOrbitControlsChange?.(false);
+          return;
+        }
+
+        const rect = gl.domElement.getBoundingClientRect();
+        const mouse = mouseRef.current;
+        mouse.set(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+
+        const raycaster = raycasterRef.current;
+        raycaster.setFromCamera(mouse, camera);
+
+        // Check for intersection with any cube meshes (cached list)
+        const targets =
+          raycastTargetsRef.current.length > 0
+            ? raycastTargetsRef.current
+            : (() => {
+                const all: THREE.Mesh[] = [];
+                groupRef.current!.traverse((child) => {
+                  if (child instanceof THREE.Mesh) {
+                    all.push(child);
+                  }
+                });
+                raycastTargetsRef.current = all;
+                return all;
+              })();
+
+        const intersects = raycaster.intersectObjects(targets);
+
+        if (intersects.length > 0) {
+          onOrbitControlsChange?.(false);
+        } else {
+          if (!isAnimating && touchesLen < 2) {
+            onOrbitControlsChange?.(true);
+          }
+        }
+      },
+      [camera, gl, onOrbitControlsChange, isAnimating, touchCount]
+    );
+
+    const handleBoundaryPointerUp = useCallback(() => {
+      if (!isAnimating && (touchCount ?? 0) <= 1) {
+        onOrbitControlsChange?.(true);
+      }
+    }, [isAnimating, onOrbitControlsChange, touchCount]);
+
+    // Now that boundary handlers are defined, expose them via the imperative handle
+    useImperativeHandle(
+      ref,
+      () => ({
+        spinAroundViewAxis: (angleRad: number) => {
+          if (!groupRef.current) return;
+          if (
+            trackingStateRef.current.isDragging ||
+            trackingStateRef.current.isSnapping
+          )
+            return;
+          if (AnimationHelper.isLocked()) return;
+          const axisWorld = camera
+            .getWorldDirection(new THREE.Vector3())
+            .normalize();
+          const q = new THREE.Quaternion().setFromAxisAngle(
+            axisWorld,
+            angleRad
+          );
+          groupRef.current.quaternion.premultiply(q);
+          groupRef.current.updateMatrixWorld(true);
+        },
+        abortActiveDrag: () => {
+          window.removeEventListener("pointermove", handlePointerMove);
+          window.removeEventListener("pointerup", handlePointerUp);
+          if (
+            trackingStateRef.current.isDragging ||
+            trackingStateRef.current.dragGroup
+          ) {
+            const current = trackingStateRef.current.currentRotation || 0;
+            trackingStateRef.current.isDragging = false;
+            trackingStateRef.current.isSnapping = true;
+            trackingStateRef.current.snapAnimationStartTime = Date.now();
+            trackingStateRef.current.snapAnimationDuration = 120;
+            trackingStateRef.current.snapStartRotation = current;
+            trackingStateRef.current.snapTargetRotation = 0;
+            trackingStateRef.current.finalMove = "";
+          } else {
+            cleanupDragState();
+            trackingStateRef.current.isTracking = false;
+          }
+        },
+        isDraggingSlice: () => !!trackingStateRef.current.isDragging,
+        getCurrentRotation: () => {
+          return groupRef.current ? groupRef.current.quaternion.clone() : null;
+        },
+        handlePointerDown: handleBoundaryPointerDown,
+        handlePointerUp: handleBoundaryPointerUp,
+      }),
+      [camera, handleBoundaryPointerDown, handleBoundaryPointerUp]
+    );
+
+    return (
+      <group
+        ref={groupRef}
+        onPointerLeave={handleLeaveCube}
+        onPointerMove={handlePreciseHover}
+        onPointerDown={handleBoundaryPointerDown}
+      >
+        {!logoTextureReady
+          ? null
+          : (() => {
+              const nodes: React.ReactNode[] = [];
+              cubeState.forEach((plane, x) => {
+                plane.forEach((row, y) => {
+                  row.forEach((cubie, z) => {
+                    const cubieKey = `${x},${y},${z}`;
+                    const styleEntry = CUBIE_STYLE_MAP[cubieKey];
+                    const cornerStyles = styleEntry?.cornerBuilder || [];
+                    nodes.push(
+                      <CubePiece
+                        key={cubieKey}
+                        position={[
+                          (x - 1) * CUBIE_DISTANCE,
+                          (y - 1) * CUBIE_DISTANCE,
+                          (z - 1) * CUBIE_DISTANCE,
+                        ]}
+                        gridIndex={[x, y, z]}
+                        colors={cubie.colors}
+                        roundedBoxGeometry={roundedBoxGeometry}
+                        sharedLogoTexture={tiptonsTexture}
+                        logoReady={logoReady}
+                        touchCount={touchCount}
+                        cornerStyles={cornerStyles}
+                        trackingStateRef={trackingStateRef}
+                        onPointerDown={(e, pos, intersectionPoint) => {
+                          handlePointerDown(e, pos, intersectionPoint);
+                        }}
+                        onMeshReady={(mesh, gridX, gridY, gridZ) => {
+                          if (!cubiesRef.current.some((c) => c.mesh === mesh)) {
+                            cubiesRef.current.push({
+                              mesh,
+                              x: gridX,
+                              y: gridY,
+                              z: gridZ,
+                              originalPosition: mesh.position.clone(),
+                            });
+                          }
+                          if (cubiesRef.current.length === 27) {
+                            meshesReadyRef.current = true;
+                          }
+                        }}
+                        onPointerMove={undefined}
+                      >
+                        {/* Auto render per-cubie border meshes from style map */}
+                        {styleEntry?.borderMeshes?.map((bm, idx) => {
+                          if (!bm.cylinder) return null;
+                          const { radius, length, segments = 8 } = bm.cylinder;
+                          const [px, py, pz] = bm.position;
+                          const rot = bm.rotation || [0, 0, 0];
+                          return (
+                            <mesh
+                              key={idx}
+                              position={[px, py, pz]}
+                              rotation={rot}
+                            >
+                              <cylinderGeometry
+                                args={[radius, radius, length, segments]}
+                              />
+                              <meshPhongMaterial
+                                color={bm.color || "#222"}
+                                toneMapped={true}
+                              />
+                            </mesh>
+                          );
+                        })}
+                      </CubePiece>
+                    );
+                  });
+                });
+              });
+              return nodes;
+            })()}
+      </group>
+    );
+  }
+);
 
 export default RubiksCube3D;

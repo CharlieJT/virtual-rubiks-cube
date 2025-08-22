@@ -1,30 +1,6 @@
-/**
- * White center image orientation mapping
- *
- * Purpose:
- *  Given: (from face, to face, previous image orientation bucket)
- *  Return: an additional rotation (in radians) to apply to the image
- *          after a move, to achieve your desired deterministic outcome.
- *
- * Notes:
- *  - Buckets are 0, 90, 180, 270 degrees.
- *  - Values are in DEGREES for easy editing; the helper converts to radians.
- *  - Start with all zeros; tweak specific entries as you validate paths.
- */
-
-export type FaceKey = "right" | "left" | "top" | "bottom" | "front" | "back";
-export type AngleBucketDeg = 0 | 90 | 180 | 270;
-export type SliceKey = "M" | "E" | "S" | "none"; // "none" for non-slice moves
-
-type AngleMapDeg = Record<AngleBucketDeg, number>; // delta degrees to add (e.g., -90, 0, 90, 180)
-type SliceAwareAngleMap = {
-  default: AngleMapDeg; // for regular face moves
-  M?: AngleMapDeg; // for M slice moves
-  E?: AngleMapDeg; // for E slice moves
-  S?: AngleMapDeg; // for S slice moves
-};
-type FaceToFaceMapDeg = Record<FaceKey, SliceAwareAngleMap>;
-export type OrientationMapDeg = Record<FaceKey, FaceToFaceMapDeg>;
+import CUBE_COLORS from "@/consts/cubeColours";
+import WHITE_ORIENTATION_MAP_DEG from "@/maps/whiteOrentationMapDeg";
+import type { AngleBucketDeg, FaceKey, SliceKey } from "@/types/cube";
 
 // Editable mapping. All entries are explicitly listed so you can refine easily.
 // Set values in DEGREES: -90, 0, 90, 180 (or any multiple of 90).
@@ -33,80 +9,12 @@ export type OrientationMapDeg = Record<FaceKey, FaceToFaceMapDeg>;
 //   - M: for M slice moves (affects left↔right transitions)
 //   - E: for E slice moves (affects top↔bottom transitions)
 //   - S: for S slice moves (affects front↔back transitions)
-export const WHITE_ORIENTATION_MAP_DEG: OrientationMapDeg = {
-  right: {
-    right: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
-    left: {
-      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
-      M: { 0: 0, 90: 0, 180: 0, 270: 0 },
-    },
-    top: { default: { 0: 0, 90: 270, 180: 180, 270: 270 } },
-    bottom: { default: { 0: 0, 90: 90, 180: 180, 270: 90 } },
-    front: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-    back: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-  },
-  left: {
-    right: {
-      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
-      M: { 0: 0, 90: 0, 180: 0, 270: 0 },
-    },
-    left: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
-    top: { default: { 0: 0, 90: 90, 180: 180, 270: 90 } },
-    bottom: { default: { 0: 0, 90: 270, 180: 180, 270: 270 } },
-    front: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-    back: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-  },
-  top: {
-    right: { default: { 0: 90, 90: 90, 180: 90, 270: 270 } },
-    left: { default: { 0: 270, 90: 90, 180: 270, 270: 270 } },
-    top: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
-    bottom: {
-      default: { 0: 180, 90: 0, 180: 180, 270: 0 },
-      S: { 0: 0, 90: 180, 180: 0, 270: 180 },
-    },
-    front: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
-    back: { default: { 0: 0, 90: 0, 180: 180, 270: 0 } },
-  },
-  bottom: {
-    right: { default: { 0: 270, 90: 90, 180: 270, 270: 270 } },
-    left: { default: { 0: 90, 90: 90, 180: 90, 270: 270 } },
-    top: {
-      default: { 0: 180, 90: 0, 180: 180, 270: 0 },
-      S: { 0: 0, 90: 180, 180: 0, 270: 180 },
-    },
-    bottom: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
-    front: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
-    back: { default: { 0: 0, 90: 0, 180: 180, 270: 0 } },
-  },
-  front: {
-    right: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-    left: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-    top: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
-    bottom: { default: { 0: 0, 90: 180, 180: 180, 270: 180 } },
-    front: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
-    back: {
-      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
-      M: { 0: 0, 90: 180, 180: 0, 270: 180 },
-    },
-  },
-  back: {
-    right: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-    left: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
-    top: { default: { 0: 0, 90: 0, 180: 180, 270: 0 } },
-    bottom: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
-    front: {
-      default: { 0: 0, 90: 180, 180: 0, 270: 180 },
-      M: { 0: 0, 90: 180, 180: 0, 270: 180 },
-    },
-    back: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
-  },
-};
 
 // Helpers
 const degToRad = (d: number) => (d * Math.PI) / 180;
 const radToDeg = (r: number) => (r * 180) / Math.PI;
 
-export const snapDegBucket = (deg: number): AngleBucketDeg => {
+const snapDegBucket = (deg: number): AngleBucketDeg => {
   // Normalize to [0,360)
   let n = ((deg % 360) + 360) % 360;
   // Snap to nearest 90
@@ -117,12 +25,12 @@ export const snapDegBucket = (deg: number): AngleBucketDeg => {
 /**
  * Directly get additional rotation by an explicit bucket (degrees).
  */
-export function getWhiteLogoDeltaByBucketDeg(
+export const getWhiteLogoDeltaByBucketDeg = (
   from: FaceKey,
   to: FaceKey,
   bucket: AngleBucketDeg,
   slice: SliceKey = "none"
-): number {
+) => {
   const sliceMap = WHITE_ORIENTATION_MAP_DEG[from]?.[to];
   if (!sliceMap) return 0;
 
@@ -130,43 +38,29 @@ export function getWhiteLogoDeltaByBucketDeg(
   const angleMap = (slice !== "none" && sliceMap[slice]) || sliceMap.default;
   const deg = angleMap[bucket] ?? 0;
   return degToRad(deg);
-}
+};
 
 /**
- * Check for specific E moves in standard orientation (white top, green front)
- * and return additional rotation in degrees
+ * Additional delta for E-slice moves when white is on TOP (relative-to-white-top rule):
+ * - E  => rotate another 90° clockwise (texture-space CW = -90°)
+ * - E' => rotate another 90° anti-clockwise (texture-space CCW = +90°)
+ * Returns degrees.
  */
-function getStandardOrientationEMoveDelta(
-  cubeState: any,
-  moveStr: string
-): number {
+const getStandardOrientationEMoveDelta = (cubeState: any, moveStr: string) => {
   if (!cubeState || !moveStr) return 0;
 
-  // Check if we're in standard orientation (white top, green front)
-  // White center should be on top, green center should be on front
+  // Apply only when white center is on the top face
   const topCenter = cubeState[1]?.[2]?.[1]?.colors?.top;
-  const frontCenter = cubeState[1]?.[1]?.[2]?.colors?.front;
-
-  const WHITE_COLOR = "#ffffff";
-  const GREEN_COLOR = "#00E676";
-
-  const isStandardOrientation =
-    topCenter === WHITE_COLOR && frontCenter === GREEN_COLOR;
-
-  if (!isStandardOrientation) return 0;
+  const { WHITE } = CUBE_COLORS;
+  const isWhiteTop = topCenter === WHITE;
+  if (!isWhiteTop) return 0;
 
   const move = moveStr.toUpperCase();
-
-  if (move === "E") {
-    // E move in standard orientation: +270 degree additional rotation
-    return 270;
-  } else if (move === "E'") {
-    // E' move in standard orientation: +90 degree additional rotation
-    return 90;
-  }
-
-  return 0; // No additional rotation needed
-}
+  if (move === "E") return -90; // CW
+  if (move === "E'") return 90; // CCW
+  // E2: no additional delta by default
+  return 0;
+};
 
 /**
  * Get additional rotation to apply (radians), based on mapping.
@@ -177,14 +71,14 @@ function getStandardOrientationEMoveDelta(
  * cubeState: current cube state to check for standard orientation
  * moveStr: the full move string (e.g., "E", "E'") for specific move detection
  */
-export function getWhiteLogoDeltaRad(
+export const getWhiteLogoDeltaRad = (
   from: FaceKey,
   to: FaceKey,
   prevAngleRad: number,
   slice: SliceKey = "none",
   cubeState?: any,
   moveStr?: string
-): number {
+) => {
   const prevDeg = radToDeg(prevAngleRad);
   const bucket = snapDegBucket(prevDeg);
   let baseDelta = getWhiteLogoDeltaByBucketDeg(from, to, bucket, slice);
@@ -199,4 +93,4 @@ export function getWhiteLogoDeltaRad(
   }
 
   return baseDelta;
-}
+};

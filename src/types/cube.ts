@@ -47,3 +47,24 @@ export interface Solution {
   moveCount: number;
   algorithm: string;
 }
+
+export type FaceKey = "right" | "left" | "top" | "bottom" | "front" | "back";
+
+export type AngleBucketDeg = 0 | 90 | 180 | 270;
+
+export type AngleMapDeg = Record<AngleBucketDeg, number>; // delta degrees to add (e.g., -90, 0, 90, 180)
+
+type SliceAwareAngleMap = {
+  default: AngleMapDeg; // for regular face moves
+  M?: AngleMapDeg; // for M slice moves
+  E?: AngleMapDeg; // for E slice moves
+  S?: AngleMapDeg; // for S slice moves
+};
+
+type FaceToFaceMapDeg = Record<FaceKey, SliceAwareAngleMap>;
+
+export type OrientationMapDeg = Record<FaceKey, FaceToFaceMapDeg>;
+
+export type SliceKey = "M" | "E" | "S" | "none"; // "none" for non-slice moves
+
+export type SwipeDirection = "up" | "down" | "left" | "right";

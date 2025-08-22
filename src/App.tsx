@@ -1,30 +1,22 @@
 import { useRef, useState, useCallback, useEffect } from "react";
-
-// Custom hook to detect touch devices
-function useIsTouchDevice() {
-  const [isTouch, setIsTouch] = useState(false);
-  useEffect(() => {
-    const hasTouch =
-      typeof window !== "undefined" &&
-      ("ontouchstart" in window ||
-        (typeof navigator.maxTouchPoints === "number" &&
-          navigator.maxTouchPoints > 0));
-    setIsTouch(Boolean(hasTouch));
-  }, []);
-  return isTouch;
-}
 import { Canvas } from "@react-three/fiber";
 import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
 import RubiksCube3D, {
   type RubiksCube3DHandle,
-} from "./components/RubiksCube3D_Simple";
-import ControlPanel from "./components/ControlPanel";
-import { CubeJSWrapper } from "./utils/cubejsWrapper";
-import cubejsTo3D from "./utils/cubejsTo3D";
-import { AnimationHelper } from "./utils/animationHelper";
-import { activeTouches } from "./utils/touchState";
-import type { CubeMove, Solution } from "./types/cube";
-import ConfirmModal from "./components/ConfirmModal";
+} from "@components/RubiksCube3D";
+import ControlPanel from "@components/ControlPanel";
+import { CubeJSWrapper } from "@utils/cubejsWrapper";
+import cubejsTo3D from "@utils/cubejsTo3D";
+import { AnimationHelper } from "@utils/animationHelper";
+import { activeTouches } from "@utils/touchState";
+import type { CubeMove, Solution } from "@/types/cube";
+import ConfirmModal from "@components/ConfirmModal";
+import MoveOverlay from "@components/MoveOverlay";
+import StatusBadge from "@components/UI/StatusBadge";
+import Header from "@components/UI/Header";
+import SpinTrackpad from "@components/UI/SpinTrackpad";
+import useIsTouchDevice from "@/hooks/useIsTouchDevice";
+import CUBE_COLORS from "./consts/cubeColours";
 
 const App = () => {
   const cubeRef = useRef(new CubeJSWrapper());
@@ -166,6 +158,10 @@ const App = () => {
         AnimationHelper.isLocked() ||
         now - lastMoveTimeRef.current < 100
       ) {
+        // If the system is not ready, retry the move on the next frame
+        requestAnimationFrame(() => {
+          handleButtonMove(move);
+        });
         return;
       }
 
@@ -403,29 +399,45 @@ const App = () => {
       setTouchCount(e.touches.length);
       activeTouches.count = e.touches.length;
       if (e.touches.length === 2) {
-        // If a slice drag is active, don't switch modes; let the slice finish.
+        // If a slice drag is active, give it a chance to complete before switching to spin mode
+        // Don't immediately abort - let the second touch potentially start a new move
         if (cubeViewRef.current?.isDraggingSlice?.()) {
+          // Wait a bit to see if a second move starts, if not, then switch to spin mode
+          setTimeout(() => {
+            // Only switch to spin mode if still 2+ touches and still only one drag active
+            if (
+              activeTouches.count >= 2 &&
+              cubeViewRef.current?.isDraggingSlice?.()
+            ) {
+              // Second touch didn't start a move, switch to spin mode
+              cubeViewRef.current?.abortActiveDrag();
+              initiateTwoFingerMode(e);
+            }
+          }, 100);
           return;
         }
-        // Otherwise, enter spin mode and ensure no stale drags remain
-        cubeViewRef.current?.abortActiveDrag();
-        // Enter explicit two-finger spin mode
-        pinchRef.current.active = true;
-        pinchRef.current.startDist = computeTouchDistance(
-          e.touches[0],
-          e.touches[1]
-        );
-        // store previous angle between the two touches for incremental rotation
-        const dx = e.touches[1].clientX - e.touches[0].clientX;
-        const dy = e.touches[1].clientY - e.touches[0].clientY;
-        (pinchRef.current as any).prevAngle = Math.atan2(dy, dx);
-        setTwoFingerMode(true);
-        setOrbitControlsEnabled(false);
-        if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
-        // disable pointer events on canvas so single-pointer handlers don't fire
-        const elCanvas = el.querySelector("canvas") as HTMLElement | null;
-        if (elCanvas) elCanvas.style.pointerEvents = "none";
+        // No active drag, start two-finger mode immediately
+        initiateTwoFingerMode(e);
       }
+    };
+
+    const initiateTwoFingerMode = (e: TouchEvent) => {
+      // Enter explicit two-finger spin mode
+      pinchRef.current.active = true;
+      pinchRef.current.startDist = computeTouchDistance(
+        e.touches[0],
+        e.touches[1]
+      );
+      // store previous angle between the two touches for incremental rotation
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      (pinchRef.current as any).prevAngle = Math.atan2(dy, dx);
+      setTwoFingerMode(true);
+      setOrbitControlsEnabled(false);
+      if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
+      // disable pointer events on canvas so single-pointer handlers don't fire
+      const elCanvas = el.querySelector("canvas") as HTMLElement | null;
+      if (elCanvas) elCanvas.style.pointerEvents = "none";
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -498,6 +510,7 @@ const App = () => {
         if (elCanvas) elCanvas.style.pointerEvents = "none";
       }
     };
+
     const winTouchMove = (e: TouchEvent) => {
       activeTouches.count = e.touches.length;
       setTouchCount(e.touches.length);
@@ -507,6 +520,7 @@ const App = () => {
         if (orbitControlsRef.current) orbitControlsRef.current.enabled = false;
       }
     };
+
     const winTouchEnd = (e: TouchEvent) => {
       activeTouches.count = e.touches.length;
       setTouchCount(e.touches.length);
@@ -545,6 +559,7 @@ const App = () => {
     },
     []
   );
+
   const handleTrackpadPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!trackpadDragRef.current?.active) return;
@@ -590,19 +605,27 @@ const App = () => {
 
   return (
     <>
-      <div className="min-h-[105dvh] flex flex-col bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 pb-28">
+      <div
+        className="min-h-[105dvh] flex flex-col pb-28"
+        style={{
+          background: `
+            radial-gradient(
+              circle at 50% 50%,
+              rgba(0,0,0,0) 0%,
+              rgba(0,0,0,0) 15%,
+              rgba(0,0,0,0.45) 50%,
+              rgba(0,0,0,0.6) 65%,
+              rgba(0,0,0,0.7) 72%,
+              #000000cf 80%,
+              #000000 100%
+            ),
+            linear-gradient(45deg, #aee5ff 0%, #5b8bff 50%, #c86cff 100%)
+          `,
+          backgroundBlendMode: "normal",
+        }}
+      >
         {/* Header at top */}
-        <div className="text-center py-4 shrink-0">
-          <h1 className="text-2xl lg:text-3xl font-bold text-white mb-1 drop-shadow-lg">
-            Tipton's Solver
-          </h1>
-          <p className="text-white/80 text-xs">
-            Drag to rotate • Click faces to twist
-          </p>
-        </div>
-
-        {/* Orbit feel selector removed; always use normal orbit with gentle floating */}
-
+        <Header />
         {/* Cube container fills available space */}
         <div className="flex-1 flex items-center justify-center px-2 min-h-0">
           <div
@@ -611,131 +634,42 @@ const App = () => {
             className="w-full max-w-4xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]"
           >
             {/* Status indicator - bottom left of cube container */}
-            <div className="absolute left-4 bottom-4 z-30 pointer-events-none">
-              <div
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm ${
-                  isScrambling
-                    ? "bg-blue-400 text-blue-900"
-                    : isSolving
-                    ? "bg-yellow-400 text-yellow-900"
-                    : isAutoOrienting
-                    ? "bg-orange-400 text-orange-900"
-                    : isScrambled
-                    ? "bg-red-400 text-red-900"
-                    : "bg-green-400 text-green-900"
-                }`}
-              >
-                <span>
-                  {isScrambling
-                    ? "⏳"
-                    : isSolving
-                    ? "⚡"
-                    : isAutoOrienting
-                    ? "🧭"
-                    : isScrambled
-                    ? "🔀"
-                    : "✅"}
-                </span>
-                {isScrambling
-                  ? "Scrambling"
-                  : isSolving
-                  ? "Solving"
-                  : isAutoOrienting
-                  ? "Orienting"
-                  : isScrambled
-                  ? "Scrambled"
-                  : "Solved"}
-              </div>
-            </div>
+            <StatusBadge
+              isScrambling={isScrambling}
+              isSolving={isSolving}
+              isAutoOrienting={isAutoOrienting}
+              isScrambled={isScrambled}
+            />
             {/* Orbit and precision UI moved into ControlPanel for layout consistency */}
             {/* Scramble overlay stays after scrambling until X is clicked, Solution overlay after solve/generate until X is clicked */}
-            {scrambleMoves &&
-              scrambleMoves.length > 0 &&
-              showScrambleOverlay &&
-              !showSolutionOverlay && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
-                  <div className="flex justify-between items-center w-full mb-0">
-                    <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
-                      <span>🎲</span>
-                      Scramble:
-                    </h4>
-                    <button
-                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition pointer-events-auto"
-                      aria-label="Close scramble overlay"
-                      onClick={() => setShowScrambleOverlay(false)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1 text-[0.8em] md:text-base">
-                    {scrambleMoves.map((move, i) => (
-                      <span
-                        key={i}
-                        className={`px-1.5 py-0.5 md:px-2.25 md:py-1 rounded font-mono transition-colors ${
-                          i === scrambleIndex
-                            ? "bg-yellow-400 text-yellow-900"
-                            : "bg-white/30 text-white"
-                        }`}
-                      >
-                        {move}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-end w-full mt-1 gap-1">
-                    <div className="flex items-center justify-center w-[1.3em] h-[1.3em] md:w-[1.5em] md:h-[1.5em] border-1 border-white/50 text-white rounded-full text-[0.6em]">
-                      i
-                    </div>
-                    <p className="text-xs md:text-sm text-white/50 italic">
-                      Moves are relative to white top & green front
-                    </p>
-                  </div>
-                </div>
-              )}
-            {solution && solution.steps.length > 0 && showSolutionOverlay && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col items-center w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
-                <div className="flex items-center justify-between w-full mb-0 ">
-                  <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
-                    <span>🧠</span>
-                    Solution:
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-purple-500 text-white px-1 py-0.5 md:px-2 md:py-1 rounded text-[0.8em] md:text-base font-semibold">
-                      {solution.moveCount} moves
-                    </span>
-                    <button
-                      className="ml-2 text-white/80 hover:text-white text-lg font-bold px-2 py-0.5 rounded transition pointer-events-auto"
-                      aria-label="Close solution overlay"
-                      onClick={() => setShowSolutionOverlay(false)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1 text-[0.8em] md:text-base">
-                  {solution.steps.map((step, i) => (
-                    <span
-                      key={i}
-                      className={`px-1.5 py-0.5 md:px-2.25 md:py-1 rounded font-mono transition-colors ${
-                        i === solutionIndex
-                          ? "bg-purple-400 text-purple-900"
-                          : "bg-white/30 text-white"
-                      }`}
-                    >
-                      {step.move}
-                    </span>
-                  ))}
-                </div>
-                {/* Information section */}
-                <div className="flex items-center justify-end w-full mt-1 gap-1">
-                  <div className="flex items-center justify-center w-[1.3em] h-[1.3em] md:w-[1.5em] md:h-[1.5em] border-1 border-white/50 text-white rounded-full text-[0.6em]">
-                    i
-                  </div>
-                  <p className="text-xs md:text-sm text-white/50 italic">
-                    Moves are relative to white top & green front
-                  </p>
-                </div>
-              </div>
-            )}
+            <MoveOverlay
+              title="Scramble:"
+              icon={<span>🎲</span>}
+              moves={scrambleMoves || []}
+              highlightIndex={scrambleIndex}
+              show={
+                !!(
+                  scrambleMoves &&
+                  scrambleMoves.length > 0 &&
+                  showScrambleOverlay &&
+                  !showSolutionOverlay
+                )
+              }
+              onClose={() => setShowScrambleOverlay(false)}
+              colorTheme="scramble"
+            />
+            <MoveOverlay
+              title="Solution:"
+              icon={<span>🧠</span>}
+              moves={solution ? solution.steps.map((s) => s.move) : []}
+              highlightIndex={solutionIndex}
+              moveCount={solution?.moveCount}
+              show={
+                !!(solution && solution.steps.length > 0 && showSolutionOverlay)
+              }
+              onClose={() => setShowSolutionOverlay(false)}
+              colorTheme="solution"
+            />
             <Canvas
               camera={{ position: [5, 5, 5], fov: 53 }}
               className="w-full h-full pt-9"
@@ -756,7 +690,6 @@ const App = () => {
                 const onLost = (ev: Event) => {
                   // Prevent default to allow manual restore
                   ev.preventDefault();
-                  // Hint: we can display a subtle message or reduce DPR on restore
                 };
                 const onRestored = () => {
                   try {
@@ -800,8 +733,7 @@ const App = () => {
                 onIncline={() => setDprRef.current?.(isTouchDevice ? 2.8 : 2.0)}
               />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
-              <ambientLight intensity={0.9} color="#eeeeee" />
-              {/* Postprocessing removed to keep build lean; relying on higher DPR + MSAA on touch */}
+              <ambientLight intensity={0.95} color={CUBE_COLORS.WHITE} />
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
@@ -828,47 +760,29 @@ const App = () => {
                 maxDistance={15}
               />
             </Canvas>
-            {/* Spin Trackpad - bottom right (only show on desktop/non-touch devices) */}
-            {!isTouchDevice && (
-              <div
-                className="absolute right-3 bottom-3 z-30 select-none"
-                aria-label="Spin trackpad"
-              >
-                <div
-                  onPointerDown={handleTrackpadPointerDown}
-                  onPointerMove={handleTrackpadPointerMove}
-                  onPointerUp={handleTrackpadPointerUp}
-                  onPointerCancel={handleTrackpadPointerUp}
-                  className="flex flex-col w-32 h-14 md:w-40 md:h-16 rounded-xl bg-white/30 backdrop-blur-md border border-white/40 shadow-lg items-center justify-center text-white text-xs md:text-sm font-semibold cursor-ew-resize"
-                  title="Drag left/right to spin"
-                >
-                  <div>Drag here to spin</div>
-                  <div>←→</div>
-                </div>
-              </div>
-            )}
+            <SpinTrackpad
+              onPointerDown={handleTrackpadPointerDown}
+              onPointerMove={handleTrackpadPointerMove}
+              onPointerUp={handleTrackpadPointerUp}
+              onPointerCancel={handleTrackpadPointerUp}
+              isTouchDevice={isTouchDevice}
+            />
           </div>
-          {/* Quality toggle removed: always High quality */}
         </div>
       </div>
 
-      {/* Control panel fixed at bottom (mobile-safe) - scramble/solve buttons remain here */}
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <div className="w-full max-w-6xl mx-auto pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
-          <ControlPanel
-            onScramble={handleScramble}
-            onSolve={() => setConfirmSolveOpen(true)}
-            onGenerateSolution={handleGenerateSolution}
-            solution={solution}
-            isScrambled={isScrambled}
-            isSolving={isSolving}
-            isScrambling={isScrambling}
-            scrambleMoves={scrambleMoves}
-            scrambleIndex={scrambleIndex}
-            solutionIndex={solutionIndex}
-          />
-        </div>
-      </div>
+      <ControlPanel
+        onScramble={handleScramble}
+        onSolve={() => setConfirmSolveOpen(true)}
+        onGenerateSolution={handleGenerateSolution}
+        solution={solution}
+        isScrambled={isScrambled}
+        isSolving={isSolving}
+        isScrambling={isScrambling}
+        scrambleMoves={scrambleMoves}
+        scrambleIndex={scrambleIndex}
+        solutionIndex={solutionIndex}
+      />
 
       {/* Modal stays above everything */}
       <ConfirmModal

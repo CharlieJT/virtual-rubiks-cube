@@ -11,7 +11,7 @@ export class CubeJSWrapper {
     this.cube.move("");
     if (!CubeJSWrapper.solvedString) {
       try {
-        const tmp: any = new (Cube as any)();
+        const tmp = new Cube();
         tmp.move("");
         CubeJSWrapper.solvedString = tmp.asString();
       } catch {

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import TWEEN from "@tweenjs/tween.js";
-import type { CubeMove } from "../types/cube";
+import type { CubeMove } from "@/types/cube";
 
 type TweenType = InstanceType<typeof TWEEN.Tween>;
 

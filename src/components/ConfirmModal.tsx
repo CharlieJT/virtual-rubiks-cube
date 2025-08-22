@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
+import Button from "@components/UI/Button";
 
 interface ConfirmModalProps {
   title?: string;
@@ -52,13 +53,13 @@ const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
         </h3>
         <p className="text-gray-800 mb-6">{message}</p>
         <div className="flex gap-4 justify-end">
-          <button
+          <Button
             onClick={onCancel}
             className="px-6 py-2 rounded-lg font-bold bg-cyan-50 text-blue-900 border-2 border-cyan-400 hover:bg-cyan-100 transition-colors"
           >
             {cancelText}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onConfirm}
             disabled={isSolving}
             className={`px-6 py-1 rounded-lg font-bold w-[125px] text-white border-none relative transition-opacity ${
@@ -74,7 +75,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = (props) => {
             ) : (
               confirmText
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

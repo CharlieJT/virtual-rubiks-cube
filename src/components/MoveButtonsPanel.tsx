@@ -41,7 +41,7 @@ interface MoveButtonsPanelProps {
   onMove: (move: string) => void;
 }
 
-export function MoveButtonsPanel({ onMove }: MoveButtonsPanelProps) {
+const MoveButtonsPanel = ({ onMove }: MoveButtonsPanelProps) => {
   return (
     <div className="grid grid-cols-6 gap-2 mb-4">
       {moves.map((move) => (
@@ -55,4 +55,6 @@ export function MoveButtonsPanel({ onMove }: MoveButtonsPanelProps) {
       ))}
     </div>
   );
-}
+};
+
+export default MoveButtonsPanel;
