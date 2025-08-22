@@ -2,164 +2,217 @@
 
 [Live Demo](https://virtual-rubiks-cube.netlify.app/)
 
-An interactive 3D Rubik's cube built with React, TypeScript, Three.js, and Tailwind CSS.
+An advanced interactive 3D Rubik's cube built with React, TypeScript, Three.js, and Tailwind CSS. Features sophisticated touch/drag controls, smooth animations, and smart white center logo orientation tracking.
 
 ## Features
 
-- **3D Interactive Cube**: Fully rendered 3D Rubik's cube with realistic lighting, shadows, and thick black borders
-- **Orbit Controls**: Smooth camera controls with rotation, zoom, and pan (inertia disabled for responsive control)
-- **Animated Moves**: Ultra-smooth 150ms animations for all cube moves with proper queuing to prevent jank
-- **Smart Scrambling**: Generate random scrambles that visually animate on the cube
-- **Manual Move Controls**: Comprehensive button panel for all standard moves
-- **Move Notation**: Supports all standard notation including:
-  - Face moves: F, B, L, R, U, D
-  - Prime moves: F', B', L', R', U', D'
-  - Double moves: F2, B2, L2, R2, U2, D2
-  - Slice moves: M, M', M2, E, E', E2, S, S', S2
-  - Whole cube rotations: x, y, z, x', y', z' (visual only)
+### 3D Interactive Experience
+
+- **Realistic 3D Rendering**: Fully rendered 3D Rubik's cube with advanced lighting, shadows, and black center sphere
+- **Multi-Touch Support**: Drag individual cube faces to perform moves with touch/pointer events
+- **Smart Drag Detection**: Face-aware drag system that detects which slice to rotate based on swipe direction
+- **Orbit Controls**: Smooth camera controls with rotation, zoom, and pan
+- **Two-Finger Spin Mode**: Dedicated two-finger gesture for cube rotation separate from slice moves
+
+### Advanced Move System
+
+- **Drag-to-Move**: Click and drag on cube faces to perform intuitive moves
+- **Comprehensive Move Buttons**: Complete button panel for all standard moves
+- **Smart Move Queuing**: Prevents animation conflicts with proper move sequencing
+- **Multi-Touch Prevention**: First finger commits to a move; second finger is ignored until release
+
+### Animation & Visual Polish
+
+- **Smooth 120ms Animations**: Ultra-responsive move animations with quadratic easing
+- **White Center Logo Tracking**: Intelligent orientation system for the white center piece logo
+- **Visual Snap Feedback**: Moves snap to 90° increments with visual feedback
+- **Rounded Cube Aesthetics**: Custom geometry with rounded corners and realistic borders
+
+### Move Notation Support
+
+- **Face Moves**: F, B, L, R, U, D (Front, Back, Left, Right, Up, Down)
+- **Slice Moves**: M, E, S (Middle, Equatorial, Standing)
+- **Whole Cube Rotations**: x, y, z (visual cube rotations)
+- **Modifiers**: Prime (') and double (2) moves for all types
+- **Advanced Slice Handling**: Proper E-slice orientation logic for complex scrambles
 
 ## Technology Stack
 
-- **React 18** with TypeScript for the UI framework
-- **Three.js** and **React Three Fiber** for 3D rendering and animations
-- **@react-three/drei** for additional 3D helpers (OrbitControls)
-- **@tweenjs/tween.js** for smooth animation system
-- **cubejs** library for cube state management and algorithms
-- **Tailwind CSS** for modern styling
-- **Vite** for fast development and building
+### Core Framework
+
+- **React 19** with TypeScript for modern UI development
+- **Three.js** and **React Three Fiber** for high-performance 3D rendering
+- **@react-three/drei** for enhanced 3D utilities and controls
+
+### Cube Logic & Animation
+
+- **cubejs** library for accurate cube state management and algorithms
+- **Custom Animation System**: RequestAnimationFrame-based animations with precise timing
+- **Advanced Touch Handling**: Multi-touch gesture recognition and pointer tracking
+
+### Styling & Build
+
+- **Tailwind CSS 4.x** for modern, responsive styling
+- **Vite** for lightning-fast development and optimized builds
+- **TypeScript 5.8** for type safety and enhanced developer experience
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (version 16 or higher)
+- Node.js (version 18 or higher)
 - npm or yarn
 
 ### Installation
 
-1. Clone the repository:
-
 ```bash
+# Clone the repository
 git clone <repository-url>
 cd virtual-rubiks-cube
-```
 
-2. Install dependencies:
-
-```bash
+# Install dependencies
 npm install
-```
 
-3. Start the development server:
-
-```bash
+# Start development server
 npm run dev
+
+# Build Tailwind CSS (if needed)
+npm run tw:build
 ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+### Development Scripts
 
-## Usage
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Build optimized production bundle
+- `npm run preview` - Preview production build locally
+- `npm run lint` - Run ESLint for code quality
+- `npm run tw:build` - Build Tailwind CSS
+- `npm run tw:watch` - Watch and rebuild Tailwind CSS
 
-### Controls
+## Usage Guide
 
-- **Orbit Controls**: Left-click and drag to rotate the view
-- **Zoom**: Mouse wheel to zoom in/out
+### Basic Controls
+
+- **Orbit View**: Left-click and drag to rotate camera around cube
+- **Zoom**: Mouse wheel or pinch to zoom in/out
 - **Pan**: Right-click and drag to pan the view
-- **Move Buttons**: Use the comprehensive control panel to execute moves
+- **Reset View**: Double-click to reset camera position
 
 ### Cube Interaction
 
-- **Scramble**: Click the "Scramble Cube" button to randomize the cube with animated moves
-- **Move Buttons**: Click any move button to execute that move with smooth animation
-- **Rapid Input Protection**: Built-in debouncing prevents animation conflicts from rapid button presses
+- **Drag Moves**: Click and drag on any cube face to perform moves
+  - Horizontal drag: Rotate that layer left/right
+  - Vertical drag: Rotate that layer up/down
+- **Move Buttons**: Use the comprehensive control panel for precise moves
+- **Scramble**: Generate and execute random scrambles with smooth animations
+- **Solve**: Generate solution using advanced algorithms
 
-### Move Notation
+### Advanced Features
 
-The cube supports standard Rubik's cube notation:
+- **Multi-Touch Gestures**: Two-finger pinch/rotate for camera control
+- **Smart Drag Locking**: First touch commits to a move direction
+- **Visual Feedback**: Moves snap to 90° with smooth easing
+- **White Logo Tracking**: Watch the Tipton's Solver logo maintain proper orientation
 
-- **F, B, L, R, U, D**: Face rotations (Front, Back, Left, Right, Up, Down)
-- **M, E, S**: Slice moves (Middle, Equatorial, Standing)
-- **x, y, z**: Whole cube rotations (visual only, don't change logical state)
-- **'**: Prime (counter-clockwise) moves (e.g., F', R', U', M', x')
-- **2**: Double moves (e.g., F2, R2, U2, M2, x2)
+## Project Architecture
 
-### Animation System
-
-- **150ms Duration**: All moves animate smoothly in exactly 150 milliseconds
-- **Move Queuing**: Moves are properly queued to prevent visual glitches
-- **Animation Locking**: Prevents new moves during animation for stability
-- **Delta Rotation**: Uses precise rotation tracking for accurate animations
-
-## Development
-
-### Project Structure
+### Component Structure
 
 ```
 src/
 ├── components/
-│   ├── RubiksCube3D.tsx      # Main 3D cube component with animation system
-│   ├── ControlPanel.tsx      # UI controls for scrambling and solving
-│   └── MoveButtonsPanel.tsx  # Comprehensive move button interface
-├── types/
-│   ├── cube.ts              # TypeScript type definitions
-│   └── cubejs.d.ts          # CubeJS library type declarations
+│   ├── RubiksCube3D.tsx           # Main 3D cube with advanced touch handling
+│   ├── ControlPanel.tsx           # Scramble/solve controls
+│   ├── MoveButtonsPanel.tsx       # Comprehensive move buttons
+│   ├── MoveOverlay.tsx           # Move display overlay
+│   ├── ConfirmModal.tsx          # Confirmation dialogs
+│   └── UI/                       # Reusable UI components
+│       ├── Button.tsx
+│       ├── Header.tsx
+│       ├── SpinTrackpad.tsx
+│       └── StatusBadge.tsx
 ├── utils/
-│   ├── animationHelper.ts   # Custom animation system with requestAnimationFrame
-│   ├── cubeLogic.ts         # Cube state management and basic algorithms
-│   ├── cubejsWrapper.ts     # Wrapper for CubeJS library integration
-│   └── cubejsTo3D.ts        # Converts CubeJS state to 3D representation
-├── App.tsx                  # Main application component
-└── main.tsx                 # Application entry point
+│   ├── animationHelper.ts        # Custom RAF-based animation system
+│   ├── cubejsTo3D.ts            # CubeJS to 3D state conversion
+│   ├── cubejsWrapper.ts         # Enhanced CubeJS integration
+│   ├── touchState.ts            # Global touch state management
+│   └── whiteCenterOrientationMap.ts # Smart white center orientation
+├── maps/                         # Configuration and mapping data
+│   ├── cubieStyleMap.ts         # Cube piece styling
+│   ├── stickerCornerMap.ts      # Sticker appearance mapping
+│   ├── whiteOrientationMapDeg.ts # White center rotation rules
+│   └── viaTransitionDelta.ts    # Transition delta calculations
+├── consts/                      # Constants and configuration
+│   ├── cubeColours.ts           # Color definitions
+│   └── faceColors.ts            # Face-to-color mapping
+└── types/
+    └── cube.ts                  # TypeScript type definitions
 ```
 
-### Scripts
+### Key Technical Features
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
+#### Advanced Touch System
 
-## Technical Highlights
+- **Pointer ID Tracking**: Prevents move conflicts from multiple touches
+- **Face-Local Coordinates**: Accurate drag detection in 3D space
+- **Gesture Recognition**: Distinguishes between moves and camera controls
+- **Smooth Snap Animation**: Visual feedback with quadratic easing
 
-### Animation System
+#### Smart Animation System
 
-- **Custom RequestAnimationFrame**: Replaced TWEEN.js with custom animation system for better performance
-- **Delta Rotation Tracking**: Precise rotation calculations for smooth movements
-- **Move Queue Management**: Prevents animation conflicts and ensures sequential execution
-- **Animation Locking**: Thread-safe animation state management
+- **RequestAnimationFrame**: Optimized 60fps animations
+- **Move Queue Management**: Prevents visual glitches from rapid input
+- **Animation Locking**: Thread-safe state management during moves
+- **Delta Rotation Tracking**: Precise rotation calculations
 
-### 3D Rendering
+#### White Center Orientation
 
-- **BoxGeometry with Materials**: Each cubie uses optimized geometry with 6 separate materials
-- **Thick Black Borders**: 3D mesh "beams" create realistic cube edge appearance
-- **Optimized Lighting**: SpotLight and AmbientLight setup for realistic appearance
-- **No Inertia Controls**: Disabled OrbitControls damping for responsive interaction
+- **Logo Tracking**: Maintains proper orientation of center piece logos
+- **E-Slice Intelligence**: Special handling for equatorial slice moves
+- **Face Transition Rules**: Complex mapping for orientation preservation
+- **Standard Orientation Detection**: Context-aware rotation adjustments
 
-### Performance Optimizations
+## Performance Optimizations
 
-- **Debounced Input**: 100ms debouncing prevents rapid button press issues
-- **Mesh Reference Management**: Efficient cubie reference tracking and updates
-- **State Synchronization**: Cube state updates only after animation completion
-
-## Future Enhancements
-
-- [ ] Implement full Kociemba solving algorithm
-- [ ] Add move history and undo functionality
-- [ ] Implement timer for solving
-- [ ] Add different cube sizes (2x2, 4x4, 5x5)
-- [ ] Save/load cube states
-- [ ] Drag-to-move functionality on cube faces
-- [ ] Custom color schemes
-- [ ] Tutorial mode for learning algorithms
+- **Mesh Reference Management**: Efficient cubie tracking and updates
+- **Throttled Pointer Events**: Optimized touch handling for mobile devices
+- **Geometry Reuse**: Shared geometries and materials across cube pieces
+- **Animation Batching**: Grouped updates for smooth 60fps performance
+- **Low-Performance Mode**: Optional reduced quality for older devices
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with proper TypeScript types
+4. Test on both desktop and mobile devices
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Development Guidelines
+
+- Maintain TypeScript strict mode compliance
+- Follow the existing component architecture
+- Test touch interactions on mobile devices
+- Ensure smooth 60fps animations
+- Document complex 3D math and cube logic
+
+## Future Roadmap
+
+- [ ] **Enhanced Solving**: Implement advanced solving algorithms (CFOP, Roux)
+- [ ] **Move History**: Undo/redo functionality with move timeline
+- [ ] **Timer Integration**: Speedcubing timer with statistics
+- [ ] **Multiple Cube Sizes**: Support for 2x2, 4x4, 5x5 cubes
+- [ ] **Custom Themes**: User-selectable color schemes and cube styles
+- [ ] **Algorithm Trainer**: Interactive tutorial system for learning algorithms
+- [ ] **Competition Mode**: Online competitions and leaderboards
+- [ ] **Accessibility**: Enhanced keyboard navigation and screen reader support
 
 ## License
 
 This project is open source and available under the MIT License.
+
+---
+
+_Built with ❤️ for the cubing community_
