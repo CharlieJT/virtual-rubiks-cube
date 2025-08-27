@@ -131,8 +131,11 @@ src/
 ├── assets/
 │ └── tiptons-solver.png
 ├── components/
+│ ├── App/
 │ ├── ConfirmModal.tsx
 │ ├── ControlPanel.tsx
+│ ├── InfoModal.tsx
+│ ├── Modal.tsx
 │ ├── MoveButtonsPanel.tsx
 │ ├── MoveOverlay.tsx
 │ ├── RubiksCube3D/
@@ -144,6 +147,8 @@ src/
 │ ├── Button.tsx
 │ ├── Footer.tsx
 │ ├── Header.tsx
+│ ├── InfoButton.tsx
+│ ├── Modal.tsx
 │ ├── SpinTrackpad.tsx
 │ └── StatusBadge.tsx
 ├── consts/
@@ -184,6 +189,7 @@ src/
 └── vite-env.d.ts
 
 ```
+
 - **Face-Local Coordinates**: Accurate drag detection in 3D space
 - **Gesture Recognition**: Distinguishes between moves and camera controls
 - **Smooth Snap Animation**: Visual feedback with quadratic easing
@@ -246,4 +252,9 @@ This project is open source and available under the MIT License.
 ---
 
 _Built with ❤️ for the cubing community_
+
+```
+
+```
+
 ```
