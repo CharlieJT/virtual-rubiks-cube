@@ -131,7 +131,6 @@ src/
 │ ├── ConfirmModal.tsx
 │ ├── ControlPanel.tsx
 │ ├── InfoModal.tsx
-│ ├── Modal.tsx
 │ ├── MoveButtonsPanel.tsx
 │ ├── MoveOverlay.tsx
 │ ├── RubiksCube3D/
