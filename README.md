@@ -121,10 +121,6 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 ### Component Structure
 
 ```
-### Component Structure
-
-```
-
 src/
 ├── App.css
 ├── App.tsx
@@ -252,6 +248,8 @@ This project is open source and available under the MIT License.
 ---
 
 _Built with ❤️ for the cubing community_
+
+```
 
 ```
 
