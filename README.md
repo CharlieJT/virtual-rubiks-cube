@@ -91,6 +91,8 @@ npm run tw:build
 
 ## Usage Guide
 
+Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to explore smooth animations, multi-touch gestures, and smart cube logic in the browser. Have fun scrambling, solving, and experimenting with the controls!
+
 ### Basic Controls
 
 - **Orbit View**: Left-click and drag to rotate camera around cube

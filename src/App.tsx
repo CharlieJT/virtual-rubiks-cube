@@ -8,6 +8,7 @@ import cubejsTo3D from "@utils/cubejsTo3D";
 import { AnimationHelper } from "@utils/animationHelper";
 import type { CubeMove, Solution } from "@/types/cube";
 import ConfirmModal from "@components/ConfirmModal";
+import InfoModal from "@components/InfoModal";
 import MoveOverlay from "@components/MoveOverlay";
 import StatusBadge from "@components/UI/StatusBadge";
 import Header from "@components/UI/Header";
@@ -20,6 +21,7 @@ import usePrecisionMode from "@/hooks/usePrecisionMode";
 import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
 import useTrackpadHandlers from "@/hooks/useTrackpadHandlers";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
+import InfoButton from "@components/UI/InfoButton";
 
 const App = () => {
   const cubeRef = useRef(new CubeJSWrapper());
@@ -357,6 +359,8 @@ const App = () => {
   const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } =
     useDprManager(isTouchDevice);
 
+  const [infoOpen, setInfoOpen] = useState(false);
+
   return (
     <>
       <div
@@ -380,6 +384,8 @@ const App = () => {
       >
         {/* Header at top */}
         <Header />
+        {/* Info icon top right */}
+        <InfoButton onClick={() => setInfoOpen(true)} />
         {/* Cube container fills available space */}
         <div className="flex-1 flex items-center justify-center px-2 min-h-0">
           <div
@@ -546,6 +552,7 @@ const App = () => {
         onConfirm={handleSolve}
         isSolving={isSolving}
       />
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
       <Footer />
     </>
   );

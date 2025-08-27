@@ -3,7 +3,7 @@ import React from "react";
 const Header: React.FC = () => (
   <div className="text-center py-4 shrink-0">
     <h1
-      className="text-4xl lg:text-5xl font-black mb-1 drop-shadow-2xl text-blue-100 flex items-center justify-center gap-3 tracking-tight"
+      className="text-2xl md:text-4xl lg:text-5xl font-black mb-1 drop-shadow-2xl text-blue-100 flex items-center justify-center gap-3 tracking-tight"
       style={{
         letterSpacing: "-0.03em",
       }}
