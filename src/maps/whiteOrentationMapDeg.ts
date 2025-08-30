@@ -74,7 +74,7 @@ const WHITE_ORIENTATION_MAP_DEG: OrientationMapDeg = {
     right: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
     left: { default: { 0: 0, 90: 90, 180: 0, 270: 270 } },
     top: { default: { 0: 0, 90: 0, 180: 180, 270: 0 } },
-    bottom: { default: { 0: 0, 90: 0, 180: 0, 270: 0 } },
+    bottom: { default: { 0: 0, 90: 0, 180: 180, 270: 0 } },
     front: {
       default: { 0: 0, 90: 180, 180: 0, 270: 180 },
       M: { 0: 0, 90: 180, 180: 0, 270: 180 },
