@@ -151,76 +151,79 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 src/
 ├── App.css
 ├── App.tsx
-├── assets/
-│ └── tiptons-solver.png
-├── components/
-│ ├── App/
-│ ├── BestTimesModal.tsx
-│ ├── ConfirmModal.tsx
-│ ├── ControlPanel.tsx
-│ ├── InfoModal.tsx
-│ ├── MoveButtonsPanel.tsx
-│ ├── MoveOverlay.tsx
-│ ├── RubiksCube3D/
-│ │ ├── CubePiece.tsx
-│ │ ├── geometry.ts
-│ │ ├── index.tsx
-│ │ └── types.ts
-│ ├── SevenSegmentDisplay.tsx
-│ ├── SolveSuccessModal.tsx
-│ ├── SolutionAlreadyGeneratedModal.tsx
-│ ├── SolutionGeneratedModal.tsx
-│ ├── TimerCancelModal.tsx
-│ ├── TimerDisplay.tsx
-│ ├── TimerModal.tsx
-│ └── UI/
-│ ├── BestTimesButton.tsx
-│ ├── Button.tsx
-│ ├── Footer.tsx
-│ ├── Header.tsx
-│ ├── InfoButton.tsx
-│ ├── Modal.tsx
-│ ├── SpinTrackpad.tsx
-│ └── StatusBadge.tsx
-├── consts/
-│ ├── cubeColours.ts
-│ ├── faceColors.ts
-│ └── moves.ts
-├── hooks/
-│ ├── useAnimation.ts
-│ ├── useBestTimes.ts
-│ ├── useDprManager.ts
-│ ├── useDragLogic.ts
-│ ├── useHoverLogic.tsx
-│ ├── useIsTouchDevice.tsx
-│ ├── useLogoTexture.tsx
-│ ├── usePrecisionMode.ts
-│ ├── useRoundedBoxGeometry.ts
-│ ├── useTimer.ts
-│ ├── useTrackpadHandlers.ts
-│ ├── useTwoFingerSpin.ts
-│ └── useWhiteLogo.ts
 ├── index.css
 ├── main.tsx
-├── maps/
-│ ├── cubieStyleMap.ts
-│ ├── positionMoveMapping.ts
-│ ├── sameFaceDelta.ts
-│ ├── stickerCornerMap.ts
-│ ├── viaTransitionDelta.ts
-│ └── whiteOrentationMapDeg.ts
 ├── tw.css
+├── vite-env.d.ts
+├── assets/
+│   └── tiptons-solver.png
+├── components/
+│   ├── BestTimesModal.tsx
+│   ├── ConfirmModal.tsx
+│   ├── ControlPanel.tsx
+│   ├── InfoModal.tsx
+│   ├── MoveButtonsPanel.tsx
+│   ├── MoveOverlay.tsx
+│   ├── QuitTimerModal.tsx
+│   ├── ResetTimerModal.tsx
+│   ├── RubiksCube3D/
+│   │   ├── CubePiece.tsx
+│   │   ├── geometry.ts
+│   │   ├── index.tsx
+│   │   └── types.ts
+│   ├── SevenSegmentDisplay.tsx
+│   ├── SolutionAlreadyGeneratedModal.tsx
+│   ├── SolutionGeneratedModal.tsx
+│   ├── SolveSuccessModal.tsx
+│   ├── TimerCancelModal.tsx
+│   ├── TimerDisplay.tsx
+│   ├── TimerModal.tsx
+│   └── UI/
+│       ├── Backdrop.tsx
+│       ├── BestTimesButton.tsx
+│       ├── Button.tsx
+│       ├── CurvedArrow.tsx
+│       ├── Footer.tsx
+│       ├── Header.tsx
+│       ├── InfoButton.tsx
+│       ├── Modal.tsx
+│       ├── SpinTrackpad.tsx
+│       ├── StatusBadge.tsx
+│       └── UndoRedoButtons.tsx
+├── consts/
+│   ├── cubeColours.ts
+│   ├── faceColors.ts
+│   └── moves.ts
+├── hooks/
+│   ├── useAnimation.ts
+│   ├── useBestTimes.ts
+│   ├── useDprManager.ts
+│   ├── useDragLogic.ts
+│   ├── useHoverLogic.tsx
+│   ├── useIsTouchDevice.tsx
+│   ├── useLogoTexture.tsx
+│   ├── usePrecisionMode.ts
+│   ├── useRoundedBoxGeometry.ts
+│   ├── useTimer.ts
+│   ├── useTrackpadHandlers.ts
+│   ├── useTwoFingerSpin.ts
+│   └── useWhiteLogo.ts
+├── maps/
+│   ├── cubieStyleMap.ts
+│   ├── positionMoveMapping.ts
+│   ├── sameFaceDelta.ts
+│   ├── stickerCornerMap.ts
+│   ├── viaTransitionDelta.ts
+│   └── whiteOrentationMapDeg.ts
 ├── types/
-│ ├── cube.ts
-│ └── cubejs.d.ts
+│   ├── cube.ts
+│   └── cubejs.d.ts
 ├── utils/
-│ ├── animationHelper.ts
-│ ├── cubejsTo3D.ts
-│ ├── cubejsWrapper.ts
-│ ├── touchState.ts
-│ └── whiteCenterOrientationMap.ts
-└── vite-env.d.ts
-
+│   ├── animationHelper.ts
+│   ├── cubejsTo3D.ts
+│   ├── cubejsWrapper.ts
+│   ├── touchState.ts
+│   └── whiteCenterOrientationMap.ts
 ```
 
 - **Face-Local Coordinates**: Accurate drag detection in 3D space
