@@ -16,9 +16,15 @@ import {
 const useDragLogic = (
   groupRef: React.RefObject<THREE.Group | null>,
   cubiesRef: React.RefObject<AnimatedCubie[]>,
-  _commitMoveOnce: (move: CubeMove) => void
+  _commitMoveOnce: (move: CubeMove) => void,
+  isTimerMode: boolean = false
 ) => {
   const { camera, gl } = useThree();
+
+  // Animation durations based on timer mode
+  const snapDuration = isTimerMode ? 60 : 120; // Default snap duration
+  const snapDurationSlow = isTimerMode ? 75 : 150; // Slower snaps
+  const snapDurationFast = isTimerMode ? 50 : 100; // Faster snaps
 
   // Enhanced position tracking with drag mechanics
   const trackingStateRef = useRef<
@@ -46,7 +52,7 @@ const useDragLogic = (
     // Snapping animation state
     isSnapping: false,
     snapAnimationStartTime: 0,
-    snapAnimationDuration: 120, // Default 120ms for the animation
+    snapAnimationDuration: snapDuration, // Default duration based on timer mode
     snapStartRotation: 0,
     snapTargetRotation: 0,
     finalMove: "",
@@ -471,26 +477,23 @@ const useDragLogic = (
     let flickParity = trackingStateRef.current._dragSignParity ?? 1;
     const axisVelSigned = axisVelPxPerSec * flickParity;
 
-    // Short, sharp flick: if base is 0, allow a single 90° purely from fast axis velocity, even with small distance
-    const SINGLE_FLICK_VEL_MIN = 100; // easier to trigger a single move
-    const SINGLE_FLICK_MIN_PX = 6; // avoid micro jitters
+    // Flick behavior: move to the next 90° in the flick direction RELATIVE to the current angle
+    // This ensures a small opposite-direction flick from -50° snaps to 0°, not to +90°.
+    const SINGLE_FLICK_VEL_MIN = 100; // px/sec threshold for flick
+    const SINGLE_FLICK_MIN_PX = 25; // minimal axis-projected distance to qualify
+    const flickDir = Math.sign(axisVelSigned);
     if (
-      targetSteps === 0 &&
-      Math.abs(axisVelSigned) > SINGLE_FLICK_VEL_MIN &&
-      axisProjAbsPx > SINGLE_FLICK_MIN_PX
+      flickDir !== 0 &&
+      axisProjAbsPx > SINGLE_FLICK_MIN_PX &&
+      (Math.abs(axisVelSigned) > SINGLE_FLICK_VEL_MIN ||
+        Math.abs(velocity) > velocityThreshold)
     ) {
-      targetSteps = Math.sign(axisVelSigned) || 1; // ±1
+      // Compute the next integer step boundary in the flick direction
+      // stepsFloat is the current angle in quarter-turn units (-2..2), e.g., -0.55 for ~-50°
+      const nextStepInFlickDir =
+        flickDir > 0 ? Math.ceil(stepsFloat) : Math.floor(stepsFloat);
+      targetSteps = nextStepInFlickDir;
       flickInfluenced = true;
-    }
-
-    // If not already at a half turn, allow flick to add at most one quarter step (use axis velocity for direction)
-    if (Math.abs(targetSteps) < 2 && Math.abs(velocity) > velocityThreshold) {
-      const biasSign =
-        Math.sign(axisVelSigned) || Math.sign(currentRotation) || 1;
-      const newSteps = targetSteps + biasSign;
-      // Never escalate to 180° purely from flick
-      targetSteps = Math.abs(newSteps) > 1 ? Math.sign(newSteps) : newSteps;
-      if (biasSign !== 0) flickInfluenced = true;
     }
 
     // If base rounding produced a 180° but drag wasn't long enough, demote to 90°
@@ -498,9 +501,10 @@ const useDragLogic = (
       targetSteps = Math.sign(targetSteps); // ±1
     }
 
-    // If flick influenced and we are at a quarter turn, force sign to match axis flick direction
+    // If flick influenced and we are at a quarter turn, keep direction consistent with flick
     if (flickInfluenced && Math.abs(targetSteps) === 1) {
-      targetSteps = Math.sign(axisVelSigned) || 1;
+      const dir = Math.sign(axisVelSigned) || Math.sign(targetSteps) || 1;
+      targetSteps = dir;
     }
 
     // Clamp to valid range (allow half-turns again when thresholds permit)
@@ -515,7 +519,7 @@ const useDragLogic = (
       trackingStateRef.current.isDragging = false;
       trackingStateRef.current.isSnapping = true;
       trackingStateRef.current.snapAnimationStartTime = Date.now();
-      trackingStateRef.current.snapAnimationDuration = 150;
+      trackingStateRef.current.snapAnimationDuration = snapDurationSlow;
       trackingStateRef.current.snapStartRotation =
         trackingStateRef.current.currentRotation;
       trackingStateRef.current.snapTargetRotation = 0;
@@ -543,7 +547,7 @@ const useDragLogic = (
     trackingStateRef.current.isDragging = false;
     trackingStateRef.current.isSnapping = true;
     trackingStateRef.current.snapAnimationStartTime = Date.now();
-    trackingStateRef.current.snapAnimationDuration = 120;
+    trackingStateRef.current.snapAnimationDuration = snapDuration;
     trackingStateRef.current.snapStartRotation =
       trackingStateRef.current.currentRotation;
     trackingStateRef.current.snapTargetRotation = targetAngle;
@@ -740,7 +744,7 @@ const useDragLogic = (
         hasStartedDrag: false,
         isSnapping: false,
         snapAnimationStartTime: 0,
-        snapAnimationDuration: 100,
+        snapAnimationDuration: snapDurationFast,
         snapStartRotation: 0,
         snapTargetRotation: 0,
         finalMove: "",
@@ -844,7 +848,7 @@ const useDragLogic = (
       hasStartedDrag: false,
       isSnapping: false,
       snapAnimationStartTime: 0,
-      snapAnimationDuration: 120,
+      snapAnimationDuration: snapDuration,
       snapStartRotation: 0,
       snapTargetRotation: 0,
       finalMove: "",

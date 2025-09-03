@@ -130,7 +130,8 @@ export class AnimationHelper {
   static animateWholeCube(
     parentGroup: THREE.Group,
     move: CubeMove,
-    onComplete?: () => void
+    onComplete?: () => void,
+    duration: number = 150
   ): TweenType | null {
     if (this.locked) return null;
 
@@ -140,7 +141,6 @@ export class AnimationHelper {
 
     const normalizedAxis = axis.clone().normalize();
     const startTime = performance.now();
-    const duration = 150;
     let animationId: number;
     let currentRotationAmount = 0;
 
@@ -176,14 +176,15 @@ export class AnimationHelper {
     cubies: AnimatedCubie[],
     parentGroup: THREE.Group,
     move: CubeMove,
-    onComplete?: () => void
+    onComplete?: () => void,
+    duration: number = 150
   ): TweenType | null {
     if (this.locked) return null;
 
     const cleanMove = move.replace(/['2]/g, "");
     const baseMove = cleanMove[0].toUpperCase();
     if (baseMove === "X" || baseMove === "Y" || baseMove === "Z") {
-      return this.animateWholeCube(parentGroup, move, onComplete);
+      return this.animateWholeCube(parentGroup, move, onComplete, duration);
     }
 
     this.lock();
@@ -212,7 +213,6 @@ export class AnimationHelper {
     const normalizedAxis = axis.clone().normalize();
 
     const startTime = performance.now();
-    const duration = 150;
     let animationId: number;
     let currentRotationAmount = 0;
 

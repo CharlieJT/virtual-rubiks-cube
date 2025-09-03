@@ -34,8 +34,8 @@ const MoveOverlay: React.FC<MoveOverlayProps> = ({
       : "bg-yellow-400 text-yellow-900";
 
   return (
-    <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col w-full max-w-[95vw] text-[1em] md:text-base pointer-events-none">
-      <div className="flex justify-between items-center w-full mb-0">
+    <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-white/20 rounded-lg px-2 md:px-3 pt-1 md:pt-2 pb-1 shadow-xl backdrop-blur-md flex flex-col w-full max-w-[100vw] text-[1em] md:text-base pointer-events-none">
+      <div className="flex justify-between items-center w-full mb-0 md:mb-1">
         <h4 className="text-white font-semibold text-[0.85em] md:text-lg flex items-center gap-2">
           <span>{icon}</span>
           {title}

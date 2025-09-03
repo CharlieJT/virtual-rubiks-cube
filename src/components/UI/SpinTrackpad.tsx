@@ -1,5 +1,6 @@
 import React from "react";
 import { GoArrowLeft, GoArrowRight } from "react-icons/go";
+import CurvedArrow from "./CurvedArrow";
 
 interface SpinTrackpadProps {
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -35,40 +36,7 @@ const SpinTrackpad: React.FC<SpinTrackpadProps> = ({
           <div className="flex items-center justify-center h-6.5">
             <GoArrowLeft className="w-5 h-5 text-white drop-shadow" />
             <span className="relative">
-              <span
-                style={{
-                  display: "inline-block",
-                  transform: "rotate(-30deg) scale(1.05)",
-                  position: "absolute",
-                  left: -1,
-                  top: 1,
-                }}
-              >
-                <svg
-                  width="40"
-                  height="40"
-                  viewBox="0 0 32 32"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  {/* Curved arrow wrapping around the cube */}
-                  <path
-                    d="M8 16c0-5 4-9 9-9s9 4 9 9c0 3.5-2.1 6.5-5.2 8"
-                    stroke="#fff"
-                    strokeWidth="1.6"
-                    fill="none"
-                  />
-                  {/* Arrowhead */}
-                  <path
-                    d="M21.5 24.5l-2.2-0.5 2-2"
-                    stroke="#fff"
-                    strokeWidth="1.6"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
+              <CurvedArrow rotation={-30} />
               <svg
                 width="40"
                 height="40"

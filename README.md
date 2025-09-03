@@ -14,12 +14,23 @@ An advanced interactive 3D Rubik's cube built with React, TypeScript, Three.js, 
 - **Orbit Controls**: Smooth camera controls with rotation, zoom, and pan
 - **Two-Finger Spin Mode**: Dedicated two-finger gesture for cube rotation separate from slice moves
 
+### Timer & Best Times System
+
+- **Speedcubing Timer**: Authentic seven-segment display timer with MM:SS.ss format
+- **Timer Sessions**: Start timed solving sessions with automatic scrambles
+- **Best Times Tracking**: Automatically saves and ranks your top 10 fastest solves
+- **Personal Best Detection**: Real-time notifications when you achieve new best times
+- **Best Times Leaderboard**: View your personal top 10 times (accessible via top-left list icon)
+- **LocalStorage Persistence**: Your best times are saved between sessions
+- **Celebratory Animations**: Special cube reset animations for solve completion
+
 ### Advanced Move System
 
 - **Drag-to-Move**: Click and drag on cube faces to perform intuitive moves
 - **Comprehensive Move Buttons**: Complete button panel for all standard moves
 - **Smart Move Queuing**: Prevents animation conflicts with proper move sequencing
 - **Multi-Touch Prevention**: First finger commits to a move; second finger is ignored until release
+- **Timer-Optimized Animations**: Faster 75ms animations during timed solves for better performance
 
 ### Animation & Visual Polish
 
@@ -91,6 +102,13 @@ npm run tw:build
 
 ## Usage Guide
 
+#### Undo & Redo
+
+- Use the Undo and Redo buttons in the Control Panel (between Solve and More) to step backward or forward through your move history.
+- Undo/Redo works for all manual moves (drag or button).
+- If you undo moves and then make a new move, the redo history is cleared.
+- Undo/Redo is disabled during timer sessions.
+
 Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to explore smooth animations, multi-touch gestures, and smart cube logic in the browser. Have fun scrambling, solving, and experimenting with the controls!
 
 ### Basic Controls
@@ -108,6 +126,15 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 - **Move Buttons**: Use the comprehensive control panel for precise moves
 - **Scramble**: Generate and execute random scrambles with smooth animations
 - **Solve**: Generate solution using advanced algorithms
+
+### Timer & Speedcubing
+
+- **Start Timer Session**: Click the timer button to begin a timed solving session
+- **Automatic Scrambling**: Timer sessions include automatic cube scrambling
+- **Best Times Tracking**: Your fastest times are automatically saved and ranked
+- **Personal Records**: Get notified when you achieve new personal bests
+- **View Leaderboard**: Click the list icon (top-left) to view your top 10 times
+- **Session Management**: Cancel, reset, or continue timer sessions as needed
 
 ### Advanced Features
 
@@ -128,6 +155,7 @@ src/
 │ └── tiptons-solver.png
 ├── components/
 │ ├── App/
+│ ├── BestTimesModal.tsx
 │ ├── ConfirmModal.tsx
 │ ├── ControlPanel.tsx
 │ ├── InfoModal.tsx
@@ -138,7 +166,15 @@ src/
 │ │ ├── geometry.ts
 │ │ ├── index.tsx
 │ │ └── types.ts
+│ ├── SevenSegmentDisplay.tsx
+│ ├── SolveSuccessModal.tsx
+│ ├── SolutionAlreadyGeneratedModal.tsx
+│ ├── SolutionGeneratedModal.tsx
+│ ├── TimerCancelModal.tsx
+│ ├── TimerDisplay.tsx
+│ ├── TimerModal.tsx
 │ └── UI/
+│ ├── BestTimesButton.tsx
 │ ├── Button.tsx
 │ ├── Footer.tsx
 │ ├── Header.tsx
@@ -152,6 +188,7 @@ src/
 │ └── moves.ts
 ├── hooks/
 │ ├── useAnimation.ts
+│ ├── useBestTimes.ts
 │ ├── useDprManager.ts
 │ ├── useDragLogic.ts
 │ ├── useHoverLogic.tsx
@@ -159,6 +196,7 @@ src/
 │ ├── useLogoTexture.tsx
 │ ├── usePrecisionMode.ts
 │ ├── useRoundedBoxGeometry.ts
+│ ├── useTimer.ts
 │ ├── useTrackpadHandlers.ts
 │ ├── useTwoFingerSpin.ts
 │ └── useWhiteLogo.ts
@@ -232,13 +270,15 @@ src/
 ## Future Roadmap
 
 - [ ] **Enhanced Solving**: Implement advanced solving algorithms (CFOP, Roux)
-- [ ] **Move History**: Undo/redo functionality with move timeline
-- [ ] **Timer Integration**: Speedcubing timer with statistics
+- [x] **Move History**: ✅ Undo/redo functionality with move timeline
+- [x] **Timer Integration**: ✅ Speedcubing timer with statistics and best times tracking
 - [ ] **Multiple Cube Sizes**: Support for 2x2, 4x4, 5x5 cubes
 - [ ] **Custom Themes**: User-selectable color schemes and cube styles
 - [ ] **Algorithm Trainer**: Interactive tutorial system for learning algorithms
 - [ ] **Competition Mode**: Online competitions and leaderboards
 - [ ] **Accessibility**: Enhanced keyboard navigation and screen reader support
+- [ ] **Statistics Dashboard**: Detailed solving statistics and trend analysis
+- [ ] **Import/Export**: Backup and restore best times data
 
 ## License
 

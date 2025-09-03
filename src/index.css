@@ -105,6 +105,20 @@ body {
 }
 @keyframes confetti {
   0% {
+    transform: translateY(-20vh) rotate(var(--initial-rotation, 0deg))
+      skew(var(--skew-x, 0deg), var(--skew-y, 0deg));
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(120vh)
+      rotate(calc(var(--initial-rotation, 0deg) + 720deg))
+      skew(var(--skew-x, 0deg), var(--skew-y, 0deg));
+    opacity: 0;
+  }
+}
+
+@keyframes buttonConfetti {
+  0% {
     transform: translate(0, 0) rotate(0);
     opacity: 0;
   }
@@ -126,9 +140,18 @@ body {
 .confetti {
   position: absolute;
   width: 6px;
+  height: 12px;
+  border-radius: 1px;
+  animation: confetti 4s linear forwards;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.button-confetti {
+  position: absolute;
+  width: 6px;
   height: 6px;
   border-radius: 1px;
-  animation: confetti 700ms ease-out both;
+  animation: buttonConfetti 700ms ease-out both;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 

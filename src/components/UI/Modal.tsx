@@ -1,14 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import Backdrop from "./Backdrop";
+import Button from "./Button";
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title?: string;
+  title?: React.ReactNode;
   children?: React.ReactNode;
   showCloseButton?: boolean;
   className?: string;
   footer?: React.ReactNode;
+  disableBackdropClick?: boolean;
+  disablePointerEvents?: boolean;
+  centerTitle?: boolean;
+  titlePadding?: string;
+  theme?: "default" | "red" | "orange";
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -19,9 +26,35 @@ const Modal: React.FC<ModalProps> = ({
   showCloseButton = true,
   className = "",
   footer,
+  disableBackdropClick = false,
+  disablePointerEvents = false,
+  centerTitle = false,
+  titlePadding,
+  theme = "default",
 }) => {
   const [visible, setVisible] = useState(false);
   const [entered, setEntered] = useState(false);
+
+  // Theme configurations
+  const themeConfig = {
+    default: {
+      border: "border-cyan-400",
+      closeButton: "text-cyan-500 hover:text-blue-700",
+      titleGradient: "from-cyan-400 via-blue-500 to-indigo-500",
+    },
+    red: {
+      border: "border-red-500",
+      closeButton: "text-red-500 hover:text-red-700",
+      titleGradient: "from-red-400 via-red-500 to-red-600",
+    },
+    orange: {
+      border: "border-orange-500",
+      closeButton: "text-orange-500 hover:text-orange-700",
+      titleGradient: "from-orange-400 via-orange-500 to-orange-600",
+    },
+  };
+
+  const currentTheme = themeConfig[theme];
 
   useEffect(() => {
     if (isOpen) {
@@ -38,6 +71,8 @@ const Modal: React.FC<ModalProps> = ({
 
   useEffect(() => {
     if (!isOpen && !visible) return;
+    if (disablePointerEvents) return; // Don't add keyboard handlers if pointer events are disabled
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
@@ -49,40 +84,60 @@ const Modal: React.FC<ModalProps> = ({
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "unset";
     };
-  }, [isOpen, visible, onClose]);
+  }, [isOpen, visible, onClose, disablePointerEvents]);
 
   if (!isOpen && !visible) return null;
 
   return createPortal(
-    <>
-      <div
-        className={`fixed inset-0 z-[9998] bg-black/70 cursor-pointer transition-all duration-200 ${
-          entered ? "opacity-100" : "opacity-0"
-        }`}
-        onClick={onClose}
-        aria-label="Close modal overlay"
-        style={{ pointerEvents: isOpen ? "auto" : "none" }}
-      ></div>
+    <div
+      className={
+        disablePointerEvents ? "pointer-events-none" : "pointer-events-auto"
+      }
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9997,
+        pointerEvents: disablePointerEvents ? "none" : "auto",
+      }}
+    >
+      <Backdrop
+        isOpen={isOpen}
+        onClose={onClose}
+        opacity="dark"
+        entered={entered}
+        withTransition={true}
+        disableClick={disableBackdropClick || disablePointerEvents}
+      />
       <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
         <div
-          className={`bg-white border-4 mx-4 border-cyan-400 rounded-2xl min-w-[320px] max-w-[400px] shadow-lg relative flex flex-col pointer-events-auto transition-all duration-200 ${
+          className={`bg-white border-4 mx-4 ${
+            currentTheme.border
+          } rounded-2xl min-w-[320px] max-w-[400px] shadow-lg relative flex flex-col transition-all duration-200 ${
+            disablePointerEvents ? "pointer-events-none" : "pointer-events-auto"
+          } ${
             entered ? "opacity-100 scale-100" : "opacity-0 scale-0 "
           } ${className}`}
           style={{ maxHeight: "74vh", overflow: "hidden" }}
         >
           {showCloseButton && (
-            <button
+            <Button
               onClick={onClose}
-              className="absolute top-3 right-3 text-4xl font-bold text-cyan-500 hover:text-blue-700 transition-colors"
+              className={`absolute top-3 right-3 text-4xl font-bold ${currentTheme.closeButton} transition-colors cursor-pointer`}
               aria-label="Close"
             >
               &times;
-            </button>
+            </Button>
           )}
           {/* Header */}
           {title && (
-            <div className="pl-5 pr-10 pt-5 pb-3 shrink-0">
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 bg-clip-text text-transparent">
+            <div className={titlePadding || `pl-6 pr-10 pt-5 ${""} shrink-0`}>
+              <h3
+                className={`text-2xl font-bold bg-gradient-to-r ${
+                  currentTheme.titleGradient
+                } bg-clip-text text-transparent ${
+                  centerTitle ? "text-center" : ""
+                }`}
+              >
                 {title}
               </h3>
             </div>
@@ -105,7 +160,7 @@ const Modal: React.FC<ModalProps> = ({
           {footer && <div className="px-5 pb-5 pt-3 shrink-0">{footer}</div>}
         </div>
       </div>
-    </>,
+    </div>,
     document.body
   );
 };

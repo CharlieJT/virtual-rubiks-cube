@@ -234,6 +234,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       isAnimating,
       onOrbitControlsChange,
       touchCount = 0,
+      isTimerMode = false,
+      moveSource = null,
+      queueFast = false,
+      queueFastMs = null,
+      inputDisabled = false,
     }: RubiksCube3DProps,
     ref
   ) => {
@@ -290,13 +295,25 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       [onMoveAnimationDone, applyMoveToWhiteLogoAngle]
     );
 
+    // Separate function for drag moves (manual)
+    const commitDragMove = useCallback(
+      (move: CubeMove) => {
+        // For drag moves, call commitMoveOnce but somehow indicate it's manual
+        // Simplest approach: set a global flag temporarily
+        (window as any).__isManualDragMove = true;
+        commitMoveOnce(move);
+        (window as any).__isManualDragMove = false;
+      },
+      [commitMoveOnce]
+    );
+
     const { trackingStateRef, processPointerDown, cleanupDragState } =
-      useDragLogic(groupRef, cubiesRef, commitMoveOnce);
+      useDragLogic(groupRef, cubiesRef, commitDragMove, isTimerMode);
 
     const { updateSnappingAnimation, updateDragRotation } = useAnimation(
       trackingStateRef,
       cleanupDragState,
-      commitMoveOnce
+      commitDragMove
     );
 
     const { handleBoundaryPointerDown } = useImperativeHandle3D(
@@ -306,7 +323,9 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       cleanupDragState,
       touchCount,
       isAnimating,
-      onOrbitControlsChange
+      onOrbitControlsChange,
+      isTimerMode,
+      inputDisabled
     );
 
     const handlePointerDown = (
@@ -315,6 +334,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       intersectionPoint: THREE.Vector3
     ) => {
       e.stopPropagation();
+
+      if (inputDisabled) {
+        // Force-disable orbits and ignore pointer interactions
+        onOrbitControlsChange && onOrbitControlsChange(false);
+        return;
+      }
 
       if (AnimationHelper.isLocked() || !meshesReadyRef.current) {
         // If not ready, capture the interaction data and retry when ready
@@ -355,6 +380,13 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       tiptonsTexture.rotation = whiteLogoAngle;
       tiptonsTexture.needsUpdate = true;
     }, [whiteLogoAngle, tiptonsTexture]);
+
+    // Keep orbit controls disabled while input is disabled
+    useEffect(() => {
+      if (inputDisabled) {
+        onOrbitControlsChange && onOrbitControlsChange(false);
+      }
+    }, [inputDisabled, onOrbitControlsChange]);
 
     // Gate visual output (not hook execution) until logo is ready
     const logoTextureReady = logoReady && !!tiptonsTexture;
@@ -398,6 +430,23 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         // This allows intentional consecutive moves like U U
         commitGuardRef.current = null;
 
+        // Determine animation duration based on move source
+        let animationDuration = 150; // Default duration
+        if (moveSource === "undo" || moveSource === "redo") {
+          animationDuration = 80; // Faster animation for undo/redo moves
+        } else if (isTimerMode) {
+          animationDuration = 120; // Slightly faster for timer mode
+        }
+
+        // If fast-queue mode is enabled (solve during transition), accelerate further for queued moves
+        if (moveSource === "queue") {
+          if (typeof queueFastMs === "number") {
+            animationDuration = queueFastMs;
+          } else if (queueFast) {
+            animationDuration = 60;
+          }
+        }
+
         onStartAnimation && onStartAnimation();
         currentTweenRef.current = AnimationHelper.animate(
           cubiesRef.current,
@@ -412,7 +461,8 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
             // Clear start guard after completion so future moves can start
             startGuardRef.current = null;
-          }
+          },
+          animationDuration // Pass the custom duration
         );
       };
 
@@ -423,7 +473,13 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         cancelled = true;
         if (rafId !== null) cancelAnimationFrame(rafId);
       };
-    }, [pendingMove, onStartAnimation, commitMoveOnce]);
+    }, [
+      pendingMove,
+      onStartAnimation,
+      commitMoveOnce,
+      moveSource,
+      isTimerMode,
+    ]);
 
     useFrame(() => {
       AnimationHelper.update();
@@ -439,8 +495,8 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       <group
         ref={groupRef}
         onPointerLeave={handleLeaveCube}
-        onPointerMove={handlePreciseHover}
-        onPointerDown={handleBoundaryPointerDown}
+        onPointerMove={inputDisabled ? undefined : handlePreciseHover}
+        onPointerDown={inputDisabled ? undefined : handleBoundaryPointerDown}
       >
         {!logoTextureReady
           ? null

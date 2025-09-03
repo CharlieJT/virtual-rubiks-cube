@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Button from "@components/UI/Button";
 
 interface InfoButtonProps {
   onClick: () => void;
@@ -13,14 +14,13 @@ const InfoButton: React.FC<InfoButtonProps> = ({
 }) => {
   const [hovered, setHovered] = useState(false);
   const bgColor = hovered ? "#4060cb" : "transparent";
-  const borderColor = hovered ? "#2a3a7a" : "#4060cb";
-  const textColor = hovered ? "#2a3a7a" : "#4060cb";
+  const mainColor = hovered ? "#2a3a7a" : "#4060cb";
   return (
-    <button
+    <Button
       className={`absolute top-5 right-4 z-[10000] bg-transparent border-2 rounded-full w-11 h-11 flex items-center justify-center shadow-lg transition-colors ${className}`}
       style={{
         fontSize: 24,
-        borderColor,
+        borderColor: mainColor,
         backgroundColor: bgColor,
         ...style,
       }}
@@ -28,11 +28,12 @@ const InfoButton: React.FC<InfoButtonProps> = ({
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      type="button"
     >
-      <span className="font-extrabold text-2xl" style={{ color: textColor }}>
+      <span className="font-extrabold text-2xl" style={{ color: mainColor }}>
         i
       </span>
-    </button>
+    </Button>
   );
 };
 

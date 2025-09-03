@@ -97,8 +97,13 @@ export interface RubiksCube3DProps {
   onStartAnimation?: () => void;
   isAnimating?: boolean;
   onOrbitControlsChange?: (enabled: boolean) => void;
-  onDragMove?: (move: CubeMove) => void; // New prop for drag moves
+  onDragMove?: (move: string) => void; // New prop for drag moves
   touchCount?: number; // number of active touches reported by parent App
+  isTimerMode?: boolean; // Whether timer mode is active for faster animations
+  moveSource?: "queue" | "manual" | "undo" | "redo" | null; // Source of the pending move for animation speed control
+  queueFast?: boolean; // When true, make queued moves animate extra fast (for solve-during-transition effect)
+  queueFastMs?: number | null; // Optional override for queued move duration in ms (takes precedence over queueFast)
+  inputDisabled?: boolean; // When true, block all cube interactions (orbit, spins, drags)
 }
 
 export type RubiksCube3DHandle = {
@@ -111,6 +116,14 @@ export type RubiksCube3DHandle = {
   isDraggingSlice: () => boolean;
   // Get the current rotation quaternion of the cube (for auto-orient functionality)
   getCurrentRotation: () => THREE.Quaternion | null;
+  // Dramatic spinning animation for solve completion
+  celebratorySpin: (onComplete?: () => void) => void;
+  // Smoothly animate the cube back to its initial position
+  resetToInitialPosition: (
+    orbitControlsRef?: React.RefObject<any>,
+    cubeRef?: React.RefObject<any>,
+    onComplete?: () => void
+  ) => void;
   handlePointerDown: (e: React.PointerEvent) => void;
   handlePointerUp: () => void;
 };

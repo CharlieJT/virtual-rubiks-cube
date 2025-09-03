@@ -108,14 +108,25 @@ export const useImperativeHandle3D = (
   cleanupDragState: () => void,
   touchCount: number,
   isAnimating?: boolean,
-  onOrbitControlsChange?: (enabled: boolean) => void
+  onOrbitControlsChange?: (enabled: boolean) => void,
+  isTimerMode: boolean = false,
+  inputDisabled: boolean = false
 ) => {
   const { camera, gl } = useThree();
+
+  // Calculate duration based on timer mode
+  const snapDuration = isTimerMode ? 60 : 120;
 
   // New handler for boundary pointer down detection (cleaned up)
   const handleBoundaryPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (!groupRef.current || !camera || !gl) return;
+
+      // If input is disabled, ensure orbits are off and ignore interactions
+      if (inputDisabled) {
+        onOrbitControlsChange?.(false);
+        return;
+      }
 
       // Detect multi-touch early and force-disable orbits during 2+ fingers
       const native = (e as any).nativeEvent ?? e;
@@ -159,14 +170,27 @@ export const useImperativeHandle3D = (
         }
       }
     },
-    [camera, gl, onOrbitControlsChange, isAnimating, touchCount, groupRef]
+    [
+      camera,
+      gl,
+      onOrbitControlsChange,
+      isAnimating,
+      touchCount,
+      groupRef,
+      inputDisabled,
+    ]
   );
 
   const handleBoundaryPointerUp = useCallback(() => {
+    if (inputDisabled) {
+      // Keep orbits disabled while input is disabled
+      onOrbitControlsChange?.(false);
+      return;
+    }
     if (!isAnimating && (touchCount ?? 0) <= 1) {
       onOrbitControlsChange?.(true);
     }
-  }, [isAnimating, onOrbitControlsChange, touchCount]);
+  }, [isAnimating, onOrbitControlsChange, touchCount, inputDisabled]);
 
   // Now that boundary handlers are defined, expose them via the imperative handle
   useImperativeHandle(
@@ -199,7 +223,7 @@ export const useImperativeHandle3D = (
             trackingStateRef.current.isDragging = false;
             trackingStateRef.current.isSnapping = true;
             trackingStateRef.current.snapAnimationStartTime = Date.now();
-            trackingStateRef.current.snapAnimationDuration = 120;
+            trackingStateRef.current.snapAnimationDuration = snapDuration;
             trackingStateRef.current.snapStartRotation = current;
             trackingStateRef.current.snapTargetRotation = 0;
             trackingStateRef.current.finalMove = "";
@@ -214,6 +238,189 @@ export const useImperativeHandle3D = (
       isDraggingSlice: () => !!trackingStateRef.current?.isDragging,
       getCurrentRotation: () => {
         return groupRef.current ? groupRef.current.quaternion.clone() : null;
+      },
+      celebratorySpin: (onComplete?: () => void) => {
+        if (!groupRef.current) {
+          onComplete?.();
+          return;
+        }
+
+        const initialQuaternion = new THREE.Quaternion(0, 0, 0, 1); // Identity quaternion
+        const currentQuaternion = groupRef.current.quaternion.clone();
+
+        let animationFrame = 0;
+        const totalFrames = 60; // 1 second at 60fps - make it slower and more visible
+
+        const animate = () => {
+          if (animationFrame < totalFrames && groupRef.current) {
+            const progress = animationFrame / totalFrames;
+            // Ease in & out effect using smoothstep function
+            const easedProgress = progress * progress * (8 - 2 * progress);
+
+            // Add some extra rotation to make the movement more dramatic
+            const extraRotation = new THREE.Quaternion();
+            extraRotation.setFromAxisAngle(
+              new THREE.Vector3(0, 1, 0),
+              Math.PI * 2 * progress
+            ); // Full Y rotation
+
+            // Interpolate between current rotation and initial rotation
+            const baseInterpolation = currentQuaternion
+              .clone()
+              .slerp(initialQuaternion, easedProgress);
+
+            // Combine the interpolation with the extra rotation for dramatic effect
+            const finalQuaternion = baseInterpolation
+              .clone()
+              .multiply(extraRotation);
+
+            groupRef.current.quaternion.copy(finalQuaternion);
+
+            animationFrame++;
+            requestAnimationFrame(animate);
+          } else {
+            // Animation complete, ensure we're exactly at identity
+            if (groupRef.current) {
+              groupRef.current.quaternion.copy(initialQuaternion);
+            }
+            onComplete?.();
+          }
+        };
+
+        animate();
+      },
+      resetToInitialPosition: (
+        orbitControlsRef?: React.RefObject<any>,
+        _cubeRef?: React.RefObject<any>,
+        onComplete?: () => void
+      ) => {
+        if (!orbitControlsRef?.current || !groupRef.current) {
+          onComplete?.();
+          return;
+        }
+
+        const controls = orbitControlsRef.current;
+        const cubeGroup = groupRef.current;
+
+        // Note: We don't dispatch any extra moves here; real solver moves (if needed)
+        // are enqueued in ensureSolvedThen() so they don't conflict with this rotation.
+
+        // Instead of trying to animate the camera ourselves, let's directly set the controls
+        // to their target state and animate only the cube rotation
+        const camera = controls.object;
+
+        // Log current state
+
+        // Capture current cube rotation
+        const currentCubeQuaternion = cubeGroup.quaternion.clone();
+
+        // Instead of using quaternion math, let's use center-based detection
+        // similar to how auto-orient works
+
+        // Calculate the target cube orientation based on current camera position
+        // Goal: white on top AND side faces aligned (fix yaw around Y after orbiting)
+        let targetCubeQuaternion: THREE.Quaternion;
+
+        // Camera vectors
+        const camPos = camera.position.clone();
+        const camTarget = controls.target.clone();
+        const camForward = camTarget.clone().sub(camPos).normalize(); // direction from camera to cube
+        const camUp = camera.up.clone().normalize();
+
+        // Step 1: align cube's +Y (white) to camera up
+        const cubeUp = new THREE.Vector3(0, 1, 0);
+        const alignUpQuat = new THREE.Quaternion().setFromUnitVectors(
+          cubeUp,
+          camUp
+        );
+
+        // Step 2: compute yaw so cube's +Z (green/front) aligns to camera forward projected in the up plane
+        const cubeFront = new THREE.Vector3(0, 0, 1).applyQuaternion(
+          alignUpQuat
+        );
+        const frontProj = cubeFront.clone().projectOnPlane(camUp).normalize();
+        // We want the cube front to face the camera, i.e., toward -camForward
+        const viewProj = camForward
+          .clone()
+          .negate()
+          .projectOnPlane(camUp)
+          .normalize();
+
+        let yawQuat = new THREE.Quaternion();
+        // Handle degenerate case: if viewProj is near zero (camera looking straight up/down), skip yaw
+        if (viewProj.lengthSq() > 1e-6 && frontProj.lengthSq() > 1e-6) {
+          // Signed angle from frontProj to viewProj around camUp
+          const cross = new THREE.Vector3().copy(frontProj).cross(viewProj);
+          const sin = THREE.MathUtils.clamp(cross.dot(camUp), -1, 1);
+          const cos = THREE.MathUtils.clamp(frontProj.dot(viewProj), -1, 1);
+          const angle = Math.atan2(sin, cos);
+          yawQuat.setFromAxisAngle(camUp, angle);
+        } else {
+          yawQuat.identity();
+        }
+
+        // Final target quaternion: first align up, then yaw around that up
+        targetCubeQuaternion = yawQuat.clone().multiply(alignUpQuat);
+
+        // Apply an additional fixed yaw offset to match the expected Y-layer orientation
+        // Adjust sign if needed (+/- 45°). Using +45° by default per observation.
+        const yOffsetRad = THREE.MathUtils.degToRad(-45);
+        const extraYaw = new THREE.Quaternion().setFromAxisAngle(
+          camUp,
+          yOffsetRad
+        );
+        targetCubeQuaternion.premultiply(extraYaw);
+
+        // Don't move the camera - keep it at current position
+        // Only rotate the cube to show white on top from current camera angle
+        const startCameraPosition = camera.position.clone();
+        const startCameraTarget = controls.target.clone();
+
+        let animationFrame = 0;
+        const totalFrames = 60; // 1 second at 60fps
+
+        const animate = () => {
+          if (animationFrame <= totalFrames) {
+            const progress = animationFrame / totalFrames;
+            // Stronger ease-in-out curve (quintic)
+            const easedProgress =
+              progress < 0.5
+                ? 16 * progress * progress * progress * progress * progress
+                : 1 - Math.pow(-2 * progress + 2, 5) / 2;
+
+            // Don't animate camera - keep it at current position
+            // Only animate cube rotation
+            const newCameraPosition = startCameraPosition;
+            const newCameraTarget = startCameraTarget;
+
+            // Set camera position directly
+            camera.position.copy(newCameraPosition);
+            controls.target.copy(newCameraTarget);
+
+            // Force camera to look at target and update controls
+            camera.lookAt(newCameraTarget);
+            camera.updateMatrixWorld(true);
+
+            // Update controls to match the new state
+            controls.update();
+
+            // Animate cube rotation
+            const interpolatedCubeQuaternion = currentCubeQuaternion
+              .clone()
+              .slerp(targetCubeQuaternion, easedProgress);
+            cubeGroup.quaternion.copy(interpolatedCubeQuaternion);
+
+            if (animationFrame === totalFrames) {
+              // Last frame - animation is complete
+              onComplete?.();
+            } else {
+              animationFrame++;
+              requestAnimationFrame(animate);
+            }
+          }
+        };
+
+        animate();
       },
       handlePointerDown: handleBoundaryPointerDown,
       handlePointerUp: handleBoundaryPointerUp,
