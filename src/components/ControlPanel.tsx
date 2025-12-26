@@ -28,6 +28,7 @@ interface ControlPanelProps {
   showSolutionGeneratedModal?: boolean;
   showSolutionAlreadyGeneratedModal?: boolean;
   inputDisabled?: boolean;
+  onLearnToSolve?: () => void;
 }
 
 const ControlPanel = ({
@@ -50,6 +51,7 @@ const ControlPanel = ({
   showSolutionGeneratedModal = false,
   showSolutionAlreadyGeneratedModal = false,
   inputDisabled = false,
+  onLearnToSolve,
 }: ControlPanelProps) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -69,6 +71,11 @@ const ControlPanel = ({
   const handleStartTimer = () => {
     setShowDropdown(false);
     onStartTimer();
+  };
+
+  const handleLearnToSolve = () => {
+    setShowDropdown(false);
+    onLearnToSolve?.();
   };
 
   // Close dropdown when clicking outside
@@ -167,6 +174,14 @@ const ControlPanel = ({
                         >
                           <span className="text-lg">⏱️</span>
                           Timer Session
+                        </Button>
+                        <Button
+                          className="w-full px-4 py-2 text-left hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700 cursor-pointer"
+                          onClick={handleLearnToSolve}
+                          disabled={isSolving || isScrambling}
+                        >
+                          <span className="text-lg">📚</span>
+                          Learn to Solve
                         </Button>
                         {/* Only show Generate Solution if cube is scrambled (not solved) */}
                         {isScrambled && (

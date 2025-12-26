@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { getCubieGeometry, getStickerGeometryForCorners } from "./geometry";
 import type { CubePieceProps } from "./types";
@@ -28,6 +29,12 @@ const CubePiece = React.memo(
     cornerStyles = [],
     children,
     trackingStateRef,
+    highlightIntensity = 0,
+    isHighlighted = false,
+    pulse = false,
+    pulseSpeed = 1.2,
+    pulseMin = 0.18,
+    pulseMax = 0.28,
     // Shared resources passed from parent to avoid per-cubie allocations
     roundedBoxGeometry,
     sharedLogoTexture,
@@ -36,7 +43,45 @@ const CubePiece = React.memo(
     roundedBoxGeometry: THREE.BufferGeometry;
     sharedLogoTexture: THREE.Texture | null;
     logoReady: boolean;
+    isHighlighted?: boolean;
+    pulse?: boolean;
+    pulseSpeed?: number;
+    pulseMin?: number;
+    pulseMax?: number;
   }) => {
+    // Track per-face materials and base colors for animation
+    const stickerMatsRef = useRef<Record<string, THREE.MeshPhongMaterial>>({});
+    const baseColorsRef = useRef<Record<string, THREE.Color>>({});
+    const tRef = useRef(0);
+
+    useFrame((_, delta) => {
+      if (!pulse || !isHighlighted) return;
+      // Update time using cycles per second -> radians per second = 2πf
+      const omega = 2 * Math.PI * (pulseSpeed || 1.2);
+      tRef.current += delta * omega;
+      const s = Math.sin(tRef.current); // [-1,1]
+      const brightenAmt = Math.max(0, s) * (pulseMax || 0.25); // 0..pulseMax
+      const dullAmt = Math.max(0, -s) * (pulseMin || 0.18); // 0..pulseMin
+      const grey = new THREE.Color("#808080");
+      const white = new THREE.Color(0xffffff);
+      for (const face in stickerMatsRef.current) {
+        const mat = stickerMatsRef.current[face];
+        const base = baseColorsRef.current[face];
+        if (!mat || !base) continue;
+        // Start from base, apply brighten then dull blend
+        const c = base.clone();
+        if (brightenAmt > 0) c.lerp(white, Math.min(0.85, brightenAmt));
+        if (dullAmt > 0) c.lerp(grey, Math.min(0.85, dullAmt));
+        mat.color.copy(c);
+        // Subtle emissive pulse too
+        const emissiveBase = base.clone();
+        const emissiveColor = emissiveBase.multiplyScalar(0.4);
+        mat.emissive.copy(emissiveColor);
+        mat.emissiveIntensity = 0.05 + brightenAmt * 0.25;
+        mat.shininess = 12 + brightenAmt * 16;
+        mat.needsUpdate = true;
+      }
+    });
     const meshRef = useRef<THREE.Mesh>(null);
     // Reference roundedBoxGeometry to avoid unused param TS warning (kept for future optimization work)
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
@@ -297,24 +342,73 @@ const CubePiece = React.memo(
               sharedLogoTexture &&
               logoReady &&
               isWhite(col as string);
+            // Visual emphasis handling:
+            // - If this cubie is the highlighted target and intensity>0: brighten toward white
+            // - If this cubie is NOT highlighted and intensity>0: dull toward grey
+            const hi = highlightIntensity;
             return (
               <group key={f.key} position={f.pos} rotation={f.rot as any}>
                 <mesh geometry={geom}>
-                  {/* Sticker material: if this is the white center with logo, use the logo texture and white color; otherwise use color */}
+                  {/* Sticker material: if this is the white center with logo, use the logo texture; color still modulates brightness so it can dull */}
                   <meshPhongMaterial
+                    ref={(m) => {
+                      if (m) {
+                        stickerMatsRef.current[f.key] = m;
+                        // Capture base color used before any animation
+                        try {
+                          baseColorsRef.current[f.key] = m.color.clone();
+                        } catch {}
+                      }
+                    }}
                     map={showLogo ? sharedLogoTexture || undefined : undefined}
                     color={
                       (() => {
-                        if (showLogo) return new THREE.Color(0xffffff);
-                        const c = new THREE.Color(col as any);
-                        return c;
+                        // Start from base: for logo we multiply the texture by color; for normal stickers we use the sticker color
+                        const base = showLogo
+                          ? new THREE.Color(0xffffff)
+                          : new THREE.Color(col as any);
+                        const intensity = (hi as number) || 0;
+                        if (intensity > 0) {
+                          if (isHighlighted) {
+                            // Brighten highlighted target
+                            const factor = Math.min(0.7, 0.25 + intensity);
+                            return base
+                              .clone()
+                              .lerp(new THREE.Color(0xffffff), factor);
+                          } else {
+                            // Dull non-targets toward grey
+                            const dullFactor = Math.min(0.85, 0.2 + intensity);
+                            return base
+                              .clone()
+                              .lerp(new THREE.Color("#808080"), dullFactor);
+                          }
+                        }
+                        return base;
                       })() as any
                     }
                     transparent={!!showLogo}
-                    shininess={showLogo ? 12 : 0}
-                    specular={showLogo ? (0x333333 as any) : (0x111111 as any)}
-                    emissive={showLogo ? (0x111111 as any) : (0x000000 as any)}
-                    emissiveIntensity={showLogo ? 0.04 : 0}
+                    shininess={(hi || 0) > 0 ? (isHighlighted ? 24 : 2) : 8}
+                    specular={
+                      (hi || 0) > 0
+                        ? isHighlighted
+                          ? (0x222222 as any)
+                          : (0x111111 as any)
+                        : (0x222222 as any)
+                    }
+                    emissive={
+                      (hi || 0) > 0
+                        ? isHighlighted
+                          ? (new THREE.Color(col as any) as any)
+                          : (0x111111 as any)
+                        : (0x111111 as any)
+                    }
+                    emissiveIntensity={
+                      (hi || 0) > 0
+                        ? isHighlighted
+                          ? Math.min(0.35, 0.12 + (hi || 0) * 0.6)
+                          : 0.05
+                        : 0.06
+                    }
                     side={THREE.FrontSide}
                     polygonOffset
                     polygonOffsetFactor={-2}

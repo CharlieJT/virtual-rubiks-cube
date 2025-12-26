@@ -88,6 +88,10 @@ export interface CubePieceProps {
   trackingStateRef?: React.MutableRefObject<
     TrackingStateRef & { _pointerId?: number }
   >;
+  // Optional visual highlight: brighten this cubie (all stickers)
+  highlightIntensity?: number; // 0 = off; typical 0.2..0.6
+  // Whether this cubie is the target highlight (vs being dulled as a non-target)
+  isHighlighted?: boolean;
 }
 
 export interface RubiksCube3DProps {
@@ -104,12 +108,24 @@ export interface RubiksCube3DProps {
   queueFast?: boolean; // When true, make queued moves animate extra fast (for solve-during-transition effect)
   queueFastMs?: number | null; // Optional override for queued move duration in ms (takes precedence over queueFast)
   inputDisabled?: boolean; // When true, block all cube interactions (orbit, spins, drags)
+  disableSliceDrag?: boolean; // When true, block face/slice dragging but keep orbits/spins working
+  // When true, prevent inner-slice moves (M, E, S) from being started via drag; only face turns allowed
+  preventSliceMoves?: boolean;
+  children?: React.ReactNode; // Optional children rendered inside the cube group (same transform)
+  // Optional positions to highlight visually (grid coordinates 0..2)
+  highlightPositions?: Array<[number, number, number]>;
+  highlightIntensity?: number;
+  // Intensity to dull non-highlighted cubies (0 = off). When > 0, all non-targets lerp toward grey.
+  dullOthersIntensity?: number;
 }
 
 export type RubiksCube3DHandle = {
   // Rotate the whole cube around the current camera view axis by angleRad.
   // Positive = CCW as seen by the viewer; negative = CW.
   spinAroundViewAxis: (angleRad: number) => void;
+  // Rotate the whole cube around the Y-axis (vertical) by angleRad.
+  // Positive = CCW when looking down from above.
+  spinAroundYAxis: (angleRad: number) => void;
   // Abort any active face/slice drag immediately (used when entering two-finger spin mode)
   abortActiveDrag: () => void;
   // Whether a face/slice drag is currently active

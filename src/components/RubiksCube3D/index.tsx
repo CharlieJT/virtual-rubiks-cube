@@ -239,6 +239,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       queueFast = false,
       queueFastMs = null,
       inputDisabled = false,
+      children,
+      highlightPositions,
+      highlightIntensity,
+      dullOthersIntensity,
+      disableSliceDrag = false,
+      preventSliceMoves = false,
     }: RubiksCube3DProps,
     ref
   ) => {
@@ -308,7 +314,13 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     );
 
     const { trackingStateRef, processPointerDown, cleanupDragState } =
-      useDragLogic(groupRef, cubiesRef, commitDragMove, isTimerMode);
+      useDragLogic(
+        groupRef,
+        cubiesRef,
+        commitDragMove,
+        isTimerMode,
+        preventSliceMoves
+      );
 
     const { updateSnappingAnimation, updateDragRotation } = useAnimation(
       trackingStateRef,
@@ -333,12 +345,19 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       pos: [number, number, number],
       intersectionPoint: THREE.Vector3
     ) => {
+      // Keep TrackballControls from orbiting while starting a slice drag
       e.stopPropagation();
 
       if (inputDisabled) {
         // Force-disable orbits and ignore pointer interactions
         onOrbitControlsChange && onOrbitControlsChange(false);
         return;
+      }
+
+      // Respect face-drag disablement
+      if (disableSliceDrag) {
+        onOrbitControlsChange && onOrbitControlsChange(true);
+        return; // do not start a slice drag
       }
 
       if (AnimationHelper.isLocked() || !meshesReadyRef.current) {
@@ -381,12 +400,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       tiptonsTexture.needsUpdate = true;
     }, [whiteLogoAngle, tiptonsTexture]);
 
-    // Keep orbit controls disabled while input is disabled
+    // Do not auto-disable orbit when inputDisabled is true; parent controls orbits as needed
+    // Keeping no-op here to avoid changing previous timing assumptions
     useEffect(() => {
-      if (inputDisabled) {
-        onOrbitControlsChange && onOrbitControlsChange(false);
-      }
-    }, [inputDisabled, onOrbitControlsChange]);
+      // intentionally no orbit toggle on inputDisabled changes
+    }, [inputDisabled]);
 
     // Gate visual output (not hook execution) until logo is ready
     const logoTextureReady = logoReady && !!tiptonsTexture;
@@ -485,10 +503,14 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       AnimationHelper.update();
 
       // Update drag rotation if active
-      updateDragRotation();
+      if (!disableSliceDrag) {
+        updateDragRotation();
+      }
 
       // Update snapping animation if active
-      updateSnappingAnimation();
+      if (!disableSliceDrag) {
+        updateSnappingAnimation();
+      }
     });
 
     return (
@@ -498,6 +520,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         onPointerMove={inputDisabled ? undefined : handlePreciseHover}
         onPointerDown={inputDisabled ? undefined : handleBoundaryPointerDown}
       >
+        {children}
         {!logoTextureReady
           ? null
           : (() => {
@@ -508,6 +531,9 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                     const cubieKey = `${x},${y},${z}`;
                     const styleEntry = CUBIE_STYLE_MAP[cubieKey];
                     const cornerStyles = styleEntry?.cornerBuilder || [];
+                    const isHighlighted = !!highlightPositions?.some(
+                      ([hx, hy, hz]) => hx === x && hy === y && hz === z
+                    );
                     nodes.push(
                       <CubePiece
                         key={cubieKey}
@@ -523,6 +549,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                         logoReady={logoReady}
                         touchCount={touchCount}
                         cornerStyles={cornerStyles}
+                        isHighlighted={isHighlighted}
+                        highlightIntensity={
+                          isHighlighted
+                            ? highlightIntensity ?? 0
+                            : dullOthersIntensity ?? 0
+                        }
                         trackingStateRef={trackingStateRef}
                         onPointerDown={(e, pos, intersectionPoint) => {
                           handlePointerDown(e, pos, intersectionPoint);

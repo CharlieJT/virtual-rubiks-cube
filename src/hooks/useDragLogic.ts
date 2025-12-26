@@ -17,7 +17,8 @@ const useDragLogic = (
   groupRef: React.RefObject<THREE.Group | null>,
   cubiesRef: React.RefObject<AnimatedCubie[]>,
   _commitMoveOnce: (move: CubeMove) => void,
-  isTimerMode: boolean = false
+  isTimerMode: boolean = false,
+  preventSliceMoves: boolean = false
 ) => {
   const { camera, gl } = useThree();
 
@@ -657,6 +658,13 @@ const useDragLogic = (
       // Start only when we have a mapping and the primary-axis projected movement exceeds threshold
       if (!suggestedMove) {
         return;
+      }
+      // If configured, block inner-slice moves (M/E/S) from starting
+      if (preventSliceMoves) {
+        const base = suggestedMove.replace(/['2]/g, "").toUpperCase();
+        if (base === "M" || base === "E" || base === "S") {
+          return; // ignore slice starts
+        }
       }
       // Compute primary-axis projected movement (px) to avoid tiny accidental drags
       const primaryProjPx = Math.abs(axisLock === "horizontal" ? rDot : uDot);

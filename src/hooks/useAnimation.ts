@@ -163,6 +163,8 @@ export const useImperativeHandle3D = (
       const intersects = raycaster.intersectObjects(targets);
 
       if (intersects.length > 0) {
+        // Disable orbit when pressing on the cube, but let the event continue
+        // so the cubie's own onPointerDown can initiate slice dragging.
         onOrbitControlsChange?.(false);
       } else {
         if (!isAnimating && touchesLen < 2) {
@@ -198,6 +200,8 @@ export const useImperativeHandle3D = (
     () => ({
       spinAroundViewAxis: (angleRad: number) => {
         if (!groupRef.current) return;
+        // Respect global input lock (e.g., tutorial locked slide)
+        if (inputDisabled) return;
         if (
           trackingStateRef.current?.isDragging ||
           trackingStateRef.current?.isSnapping
@@ -208,6 +212,21 @@ export const useImperativeHandle3D = (
           .getWorldDirection(new THREE.Vector3())
           .normalize();
         const q = new THREE.Quaternion().setFromAxisAngle(axisWorld, angleRad);
+        groupRef.current.quaternion.premultiply(q);
+        groupRef.current.updateMatrixWorld(true);
+      },
+      spinAroundYAxis: (angleRad: number) => {
+        if (!groupRef.current) return;
+        // Respect global input lock (e.g., tutorial locked slide)
+        if (inputDisabled) return;
+        if (
+          trackingStateRef.current?.isDragging ||
+          trackingStateRef.current?.isSnapping
+        )
+          return;
+        if (AnimationHelper.isLocked()) return;
+        const yAxis = new THREE.Vector3(0, 1, 0);
+        const q = new THREE.Quaternion().setFromAxisAngle(yAxis, angleRad);
         groupRef.current.quaternion.premultiply(q);
         groupRef.current.updateMatrixWorld(true);
       },
@@ -362,14 +381,20 @@ export const useImperativeHandle3D = (
         // Final target quaternion: first align up, then yaw around that up
         targetCubeQuaternion = yawQuat.clone().multiply(alignUpQuat);
 
-        // Apply an additional fixed yaw offset to match the expected Y-layer orientation
-        // Adjust sign if needed (+/- 45°). Using +45° by default per observation.
-        const yOffsetRad = THREE.MathUtils.degToRad(-45);
+        // Apply an additional yaw offset if requested by caller; default to -45deg
+        // Callers can set controls.__resetOpts = { extraYawRad: number } prior to invoking.
+        const extraOpts = (controls as any).__resetOpts || {};
+        const yOffsetRad =
+          typeof extraOpts.extraYawRad === "number"
+            ? extraOpts.extraYawRad
+            : THREE.MathUtils.degToRad(-45);
         const extraYaw = new THREE.Quaternion().setFromAxisAngle(
           camUp,
           yOffsetRad
         );
         targetCubeQuaternion.premultiply(extraYaw);
+        // Clear one-shot options
+        if ((controls as any).__resetOpts) delete (controls as any).__resetOpts;
 
         // Don't move the camera - keep it at current position
         // Only rotate the cube to show white on top from current camera angle

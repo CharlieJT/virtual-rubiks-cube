@@ -22,11 +22,20 @@ import SolveSuccessModal from "@components/SolveSuccessModal";
 import SolutionGeneratedModal from "@components/SolutionGeneratedModal";
 import SolutionAlreadyGeneratedModal from "@components/SolutionAlreadyGeneratedModal";
 import BestTimesModal from "@components/BestTimesModal";
+import LearnToSolveModal from "@components/LearnToSolveModal";
+import TutorialPage from "@components/TutorialPage";
+import NotationLesson from "@components/lessons/NotationLesson";
+import WhiteCrossLesson from "@components/lessons/WhiteCrossLesson";
+import WhiteCornersLesson from "@components/lessons/WhiteCornersLesson";
+import SecondLayerLesson from "@components/lessons/SecondLayerLesson";
+import YellowCrossLesson from "@components/lessons/YellowCrossLesson";
+import YellowEdgesLesson from "@components/lessons/YellowEdgesLesson";
+import YellowCornersLesson from "@components/lessons/YellowCornersLesson";
+import OrientYellowCornersLesson from "@components/lessons/OrientYellowCornersLesson";
 import BestTimesButton from "@components/UI/BestTimesButton";
 import useIsTouchDevice from "@/hooks/useIsTouchDevice";
 import useTimer from "@/hooks/useTimer";
 import { useBestTimes, type BestTimeResult } from "@/hooks/useBestTimes";
-import CUBE_COLORS from "@/consts/cubeColours";
 import useDprManager from "@/hooks/useDprManager";
 import usePrecisionMode from "@/hooks/usePrecisionMode";
 import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
@@ -88,6 +97,8 @@ const App = () => {
 
   // UI states
   const [showBestTimesModal, setShowBestTimesModal] = useState(false);
+  const [showLearnToSolveModal, setShowLearnToSolveModal] = useState(false);
+  const [tutorialLessonId, setTutorialLessonId] = useState<string | null>(null);
 
   // Move history for undo/redo functionality
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
@@ -627,6 +638,26 @@ const App = () => {
     setShowBestTimesModal(false);
   }, [resetBestTimes]);
 
+  // Learn to solve modal handlers
+  const handleLearnToSolveOpen = useCallback(() => {
+    setShowLearnToSolveModal(true);
+  }, []);
+
+  const handleLearnToSolveClose = useCallback(() => {
+    setShowLearnToSolveModal(false);
+  }, []);
+
+  // Tutorial page handlers
+  const handleTutorialStart = useCallback((lessonId: string) => {
+    setTutorialLessonId(lessonId);
+    setShowLearnToSolveModal(false);
+  }, []);
+
+  const handleTutorialBack = useCallback(() => {
+    setTutorialLessonId(null);
+    setShowLearnToSolveModal(true);
+  }, []);
+
   // Undo/Redo handlers
   const handleUndo = useCallback(() => {
     // Prevent rapid clicking
@@ -1061,6 +1092,39 @@ const App = () => {
 
   const [infoOpen, setInfoOpen] = useState(false);
 
+  // Helper function to render the appropriate lesson component
+  const renderLessonComponent = (lessonId: string) => {
+    const onBack = handleTutorialBack;
+
+    switch (lessonId) {
+      case "notation":
+        return <NotationLesson onBack={onBack} />;
+      case "white-cross":
+        return <WhiteCrossLesson onBack={onBack} />;
+      case "white-corners":
+        return <WhiteCornersLesson onBack={onBack} />;
+      case "second-layer":
+        return <SecondLayerLesson onBack={onBack} />;
+      case "yellow-cross":
+        return <YellowCrossLesson onBack={onBack} />;
+      case "yellow-edges":
+        return <YellowEdgesLesson onBack={onBack} />;
+      case "yellow-corners":
+        return <YellowCornersLesson onBack={onBack} />;
+      case "orient-yellow-corners":
+        return <OrientYellowCornersLesson onBack={onBack} />;
+      default:
+        return (
+          <TutorialPage lessonId={lessonId} title="Tutorial" onBack={onBack} />
+        );
+    }
+  };
+
+  // If tutorial is active, show tutorial page instead of main app
+  if (tutorialLessonId) {
+    return renderLessonComponent(tutorialLessonId);
+  }
+
   return (
     <>
       <div
@@ -1211,7 +1275,7 @@ const App = () => {
             >
               <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
-              <ambientLight intensity={1.1} color={CUBE_COLORS.WHITE} />
+              <ambientLight intensity={0.95} color={"#fff"} />
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
@@ -1280,6 +1344,7 @@ const App = () => {
         showSolutionGeneratedModal={showSolutionGeneratedModal}
         showSolutionAlreadyGeneratedModal={showSolutionAlreadyGeneratedModal}
         inputDisabled={inputDisabled}
+        onLearnToSolve={handleLearnToSolveOpen}
       />
 
       {/* Modal stays above everything */}
@@ -1336,6 +1401,11 @@ const App = () => {
         bestTimes={getFormattedBestTimes()}
         hasTimes={hasTimes}
         onReset={handleBestTimesReset}
+      />
+      <LearnToSolveModal
+        isOpen={showLearnToSolveModal}
+        onClose={handleLearnToSolveClose}
+        onStartTutorial={handleTutorialStart}
       />
 
       <Footer />
