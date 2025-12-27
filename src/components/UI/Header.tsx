@@ -17,7 +17,7 @@ const Header: React.FC = () => (
       Tipton's Solver
     </h1>
     <p className="text-white/80 text-xs italic tracking-wide mt-1">
-      Drag to rotate • Click faces to twist
+      Drag to rotate • Swipe faces to twist
     </p>
   </div>
 );

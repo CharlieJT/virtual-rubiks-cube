@@ -143,6 +143,8 @@ const App = () => {
   const [showSolutionOverlay, setShowSolutionOverlay] = useState(false);
   const [scrambleIndex, setScrambleIndex] = useState<number>(-1);
   const [solutionIndex, setSolutionIndex] = useState<number>(-1);
+  // Track the source of solution overlay: "generate" means it should persist on manual moves, "solve" means it should hide
+  const solutionOverlaySourceRef = useRef<"generate" | "solve" | null>(null);
   const [isScramblingState, setIsScramblingState] = useState(false);
   // Track remaining scramble moves to robustly end scrambling across devices
   const scrambleRemainingRef = useRef(0);
@@ -258,6 +260,7 @@ const App = () => {
     setScrambleMoves(scramble);
     setShowScrambleOverlay(true);
     setShowSolutionOverlay(false);
+    solutionOverlaySourceRef.current = null;
     // Index will become 0 when the first move starts
   }, [enqueueMoves, isAnimating]);
 
@@ -295,6 +298,7 @@ const App = () => {
         setSolution(null);
         setShowSolutionOverlay(false);
         setSolutionIndex(-1);
+        solutionOverlaySourceRef.current = null;
         setIsSolving(false);
         setIsAutoOrienting(false);
 
@@ -830,27 +834,34 @@ const App = () => {
           );
         }
 
-        // Clear any generated solution when the user changes the cube via manual or undo/redo
-        const isUndoRedo =
-          lastMoveSourceRef.current === "undo" ||
-          lastMoveSourceRef.current === "redo";
-        if (isManualMove || isUndoRedo) {
-          setSolution(null);
-          setLastSolvedState(null);
-          setSolutionIndex(-1);
-          // Reset solution generation states
-          setIsGenerating(false);
-          setShowSolutionGeneratedModal(false);
-          setShowSolutionAlreadyGeneratedModal(false);
-          // Scramble list no longer represents current state after manual edits or undo/redo
+        // Handle overlay clearing based on the source for manual moves only
+        // (Undo/redo does not hide overlays - they stay visible)
+        if (isManualMove) {
+          // For manual moves, clear overlays based on their source:
+          // - Solution from "Generate Solution" → keep visible (source is "generate")
+          // - Solution from "Solve" → hide (source is "solve")
+          // - Scramble overlay → always hide
+          if (solutionOverlaySourceRef.current === "solve") {
+            // Hide solution overlay if it came from "Solve"
+            setSolution(null);
+            setLastSolvedState(null);
+            setSolutionIndex(-1);
+            setIsGenerating(false);
+            setShowSolutionGeneratedModal(false);
+            setShowSolutionAlreadyGeneratedModal(false);
+            solutionOverlaySourceRef.current = null;
+          }
+          // Solution overlay from "Generate Solution" stays visible (we don't clear it)
+
+          // Always clear scramble overlay on manual moves
           setScrambleMoves(null);
           setScrambleIndex(-1);
+          setShowScrambleOverlay(false);
 
-          // Add only manual moves to history
-          if (isManualMove) {
-            addMoveToHistory(move);
-          }
+          // Add manual moves to history
+          addMoveToHistory(move);
         }
+        // Note: Undo/redo does NOT hide overlays - they stay visible
       }
 
       // Reset animation state
@@ -944,6 +955,7 @@ const App = () => {
       setLastSolvedState(cubeRef.current.getState());
       setSolutionIndex(-1);
       setShowSolutionOverlay(true);
+      solutionOverlaySourceRef.current = "generate";
 
       // Update generation states
       setIsGenerating(false);
@@ -990,6 +1002,7 @@ const App = () => {
         setScrambleMoves(null);
         setScrambleIndex(-1);
         setShowSolutionOverlay(true);
+        solutionOverlaySourceRef.current = "solve";
         // Now close modal and hide spinner
         setConfirmSolveOpen(false);
       }, 0);
@@ -1146,7 +1159,10 @@ const App = () => {
                       showSolutionOverlay
                     )
                   }
-                  onClose={() => setShowSolutionOverlay(false)}
+                  onClose={() => {
+                    setShowSolutionOverlay(false);
+                    solutionOverlaySourceRef.current = null;
+                  }}
                   colorTheme="solution"
                 />
               </>
