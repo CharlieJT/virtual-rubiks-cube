@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Canvas } from "@react-three/fiber";
 import { Vector3 } from "three";
-import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
+import { TrackballControls, PerformanceMonitor, Html } from "@react-three/drei";
 import RubiksCube3D from "@components/RubiksCube3D";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import type { CubeMove, CubeState } from "@/types/cube";
@@ -16,36 +16,32 @@ import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
 import useTrackpadHandlers from "@/hooks/useTrackpadHandlers";
 import SpinTrackpad from "@components/UI/SpinTrackpad";
 import useDprManager from "@/hooks/useDprManager";
+import { useTutorialOrbitControls } from "@/hooks/useTutorialOrbitControls";
 import CUBE_COLORS from "@/consts/cubeColours";
-// Reset modal removed; instant reset button now
-// Arrow removed; using cubie highlight instead
-
-// Typewriter effect for slide descriptions
-import { useState as useReactState, useEffect as useReactEffect } from "react";
-
-function TypewriterText({ text, keyProp }: { text: string; keyProp: any }) {
-  const [displayed, setDisplayed] = useReactState("");
-  // Increase minHeight for all slides (e.g. 10em for more comfort)
-  const minHeight = "8.6em";
-  useReactEffect(() => {
-    let i = 0;
-    setDisplayed("");
-    const interval = setInterval(() => {
-      setDisplayed(text.slice(0, i));
-      i++;
-      if (i > text.length) clearInterval(interval);
-    }, 15);
-    return () => clearInterval(interval);
-  }, [text, keyProp]);
-  return (
-    <span
-      className="text-sm md:text-md text-gray-700 whitespace-pre-line block"
-      style={{ minHeight, display: "block" }}
-    >
-      {displayed}
-    </span>
-  );
-}
+import TypewriterText from "@components/tutorials/TypewriterText";
+import PracticeStatusIndicator from "@components/tutorials/PracticeStatusIndicator";
+import CompletionTick from "@components/tutorials/CompletionTick";
+import AlgorithmSequence from "@components/tutorials/AlgorithmSequence";
+import MultiPartSequence from "@components/tutorials/MultiPartSequence";
+import getSlidesForLesson, {
+  type Slide,
+} from "@components/tutorials/slideDefinitions";
+import {
+  createTutorialCubeState,
+  isWhiteCrossSolved as checkWhiteCrossSolved,
+  isWhiteCornersSolved as checkWhiteCornersSolved,
+  isSecondLayerSolved as checkSecondLayerSolved,
+  getSlideCameraConfig,
+  findWhiteGreenRedCorner,
+  findRedGreenSecondLayerEdge,
+  findGreenWhiteEdge,
+  getCubieColorSet,
+} from "@/utils/tutorialHelpers";
+import {
+  isYellowCrossSolved,
+  getYellowEdgeMatchStatus,
+} from "@/utils/yellowEdgesHelpers";
+import { CUBIE_SIZE, STICKER_LIFT } from "@components/RubiksCube3D/geometry";
 
 interface TutorialPageProps {
   lessonId: string;
@@ -53,36 +49,11 @@ interface TutorialPageProps {
   onBack: () => void;
 }
 
-// Helper to list unique, visible sticker colors on a cubie (ignore grey + black)
-const getCubieColorSet = (piece: CubeState) => {
-  const colors = new Set<string>();
-  const grey = "#808080";
-  const black = CUBE_COLORS.BLACK;
-  Object.values(piece.colors).forEach((c) => {
-    if (c && c !== grey && c !== black) colors.add(c);
-  });
-  return colors;
-};
-
-// Build a greyscaled cube for the tutorial baseline per lesson (simple rules)
-const createTutorialCubeState = (lessonId: string, base: CubeState[][][]) => {
-  // Default: leave as-is
-  if (!lessonId) return base;
-  // For white-cross, default to show all; slides will further filter
-  if (lessonId === "white-cross") return base;
-  // Fallback: no-op
-  return base;
-};
-
 const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   // Core cube state/refs
-  const orbitPrevRef = useRef<any>(null);
   const cubeRef = useRef(new CubeJSWrapper());
   const [cube3D, setCube3D] = useState(() =>
     cubejsTo3D(cubeRef.current.getCube())
-  );
-  const [tutorialCube3D, setTutorialCube3D] = useState(() =>
-    createTutorialCubeState(lessonId, cube3D)
   );
 
   // Animation/move state
@@ -118,7 +89,6 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   }, [isResetting]);
 
   // UI/controls
-  const [orbitControlsEnabled, setOrbitControlsEnabled] = useState(true);
   const [inputDisabled, setInputDisabled] = useState(false);
   const [showLessonContent, setShowLessonContent] = useState(false);
   const queueFast = false;
@@ -170,10 +140,41 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   const [midStage3Played, setMidStage3Played] = useState(false);
   const [midStage3Progress, setMidStage3Progress] = useState(false);
   const [midStage3Line, setMidStage3Line] = useState(false);
+  const [midStage4Played, setMidStage4Played] = useState(false);
+  const [midStage4Progress, setMidStage4Progress] = useState(false);
+  const [midStage4Line, setMidStage4Line] = useState(false);
+  const [midStage5Played, setMidStage5Played] = useState(false);
+  const [midStage5Progress, setMidStage5Progress] = useState(false);
+  const [midStage5Line, setMidStage5Line] = useState(false);
   // Remount keys to force fresh SVG mount per stage (ensures dash animation reliably fires like slide 7)
   const [midStage1Key, setMidStage1Key] = useState(0);
   const [midStage2Key, setMidStage2Key] = useState(0);
   const [midStage3Key, setMidStage3Key] = useState(0);
+  const [midStage4Key, setMidStage4Key] = useState(0);
+  const [midStage5Key, setMidStage5Key] = useState(0);
+  // Track which sequence is showing for second-layer-setup-solution-4
+  const [showSecondSequence, setShowSecondSequence] = useState(false);
+  const [secondSequenceLocked, setSecondSequenceLocked] = useState(false);
+  // Track which sequence is showing for yellow-cross-dot
+  const [showSecondSequenceDot, setShowSecondSequenceDot] = useState(false);
+  const [secondSequenceDotLocked, setSecondSequenceDotLocked] = useState(false);
+  // Track which sequence is showing for yellow-edges-solution-2
+  const [showSecondSequenceYellowEdges2, setShowSecondSequenceYellowEdges2] =
+    useState(false);
+  const [
+    secondSequenceYellowEdges2Locked,
+    setSecondSequenceYellowEdges2Locked,
+  ] = useState(false);
+  // Track if yaw has been changed for slide 8 (practice-setup-solution-6)
+  const slide8YawChangedRef = useRef(false);
+  // Track if yaw has been changed for slide 6 (midlayer-green-white-extraction)
+  const slide6YawChangedRef = useRef(false);
+  // Track yaw state for slide 8 of white cross (midlayer-green-white-extraction): 0=initial(-90deg), 1=after first seq(0deg), 2=after second D'(0deg)
+  const slide8WhiteCrossYawStateRef = useRef(0);
+  // Track if yaw has been changed for yellow-edges-solution-2
+  const yellowEdges2YawChangedRef = useRef(false);
+  // Track if yaw has been changed for yellow-edges-solution-3
+  const yellowEdges3YawChangedRef = useRef(false);
 
   // Practice slide completion state
   const [practiceCompleted, setPracticeCompleted] = useState(false);
@@ -187,447 +188,203 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   >(null);
 
   // end fix box state  // Slides for this lesson
-  type Slide = {
-    id: string;
-    title: string;
-    description: string;
-    allowFaceMoves: boolean;
-    setup?: (cube: CubeJSWrapper) => void;
-    filter?: (piece: CubeState) => boolean;
-  };
   const slides: Slide[] = useMemo(() => {
-    const s: Slide[] = [];
-    if (lessonId === "notation") {
-      // Notation lesson: lightweight, no fix box logic, optional demo buttons
-      s.push({
-        id: "notation-intro",
-        title: "🧩 Rubik’s Cube Notation (Including Prime)",
-        description:
-          "In this short intro, you’ll learn the notation used everywhere in tutorials: face letters (U, D, L, R, F, B), clockwise vs. counter-clockwise (prime ′), and double turns (2).\nYou’ll try them on the virtual cube as you go.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-      s.push({
-        id: "notation-faces",
-        title: "The Six Faces",
-        description:
-          "U – Up (top)\nD – Down (bottom)\nL – Left\nR – Right\nF – Front (facing you)\nB – Back (opposite the front)\n\nIn this lesson, assume White is on top (U) and Green is at the front (F).",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-      s.push({
-        id: "notation-turns",
-        title: "Turn Symbols",
-        description:
-          "Letter alone → 90° clockwise (looking at that face). Example: F\nLetter + prime (′) → 90° counter-clockwise. Example: F′\nLetter + 2 → 180° turn. Example: F2\nTry: F → F′ → F2, and watch each step confirm.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-      s.push({
-        id: "notation-example",
-        title: "Example: R U R′ U′",
-        description:
-          "Practice this classic four-move pattern. Try: R → U → R′ → U′. Each correct move will tick off.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-      s.push({
-        id: "notation-example-2",
-        title: "Harder: F R U R′ U′ F′",
-        description:
-          "A slightly longer pattern. Try: F → R → U → R′ → U′ → F′. Keep the same White-on-top, Green-in-front orientation.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-      s.push({
-        id: "notation-example-3",
-        title: "Challenge: R U2 R′ U′",
-        description:
-          "Mix in a double turn. Try: R → U2 → R′ → U′. Notice how U2 is a 180° turn.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-      // Slide 7: 10-step pattern (not just 5 forward + 5 inverse)
-      s.push({
-        id: "notation-10-step",
-        title: "Ten-step pattern",
-        description:
-          "Try: F → U → R → U′ → R′ → F′ → R → U → R′ → U′.\nThis sequence isn’t just ‘first 5 then the reverse’—focus on reading each symbol.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-      // Slide 8: Pro tip (orientation)
-      s.push({
-        id: "notation-protip",
-        title: "Pro Tip",
-        description:
-          "Keep the same cube orientation while following moves.\nIf you get turned around, hit Reset and try again.",
-        allowFaceMoves: false,
-        setup: (cube: CubeJSWrapper) => cube.reset(),
-      });
-    } else if (lessonId === "white-cross") {
-      s.push({
-        id: "intro",
-        title: "What we're aiming to achieve",
-        description:
-          "Your first goal is to create a white cross around the white center piece. Each white edge should match the color of the center piece on its side. Drag the cube to spin and see how the cross and matching edges look from different angles.",
-        allowFaceMoves: false,
-        setup: (cube: CubeJSWrapper) => {
-          // Ensure a solved cube whenever we land on slide 1
-          cube.reset();
-        },
-        // Lock cube: no orbit/spin allowed on this slide
-        filter: (piece: CubeState) => {
-          // Keep all centers
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          // Keep only white edges (two-color pieces that include WHITE)
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-      s.push({
-        id: "find-green-white",
-        title: "Target the green/white edge",
-        description:
-          "There are four white edge pieces to position around the white center. In this example, we’re focusing on the green/white edge piece. Notice how it should be placed so the white sticker matches the white center and the green sticker matches the green center.",
-        allowFaceMoves: false,
-        setup: (cube: CubeJSWrapper) => {
-          // Ensure a solved cube whenever we land on slide 2
-          cube.reset();
-        },
-        filter: (piece: CubeState) => {
-          // Show centers and ALL white edges
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) {
-            return true;
-          }
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-      // Step 3: F2 case (white sticker matches yellow center, green matches green center)
-      s.push({
-        id: "flip-green-white-f2",
-        title: "Misoriented edge",
-        description:
-          "Here, the green/white edge is misoriented: the green sticker matches the green center, but the white sticker matches the yellow center. To correct this, perform F2 using the notation you've learned to position it between the white and green centers. Complete the sequence below, Reset and repeat a few times until it feels natural.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Build the F2 case: white sticker matches yellow center, green matches green center
-          cube.reset();
-          cube.applyMoves(["F2"]); // F2 puts white on yellow, green on green
-        },
-        filter: (piece: CubeState) => {
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 4: Flipped case (white sticker matches green center, green matches white center)
-      s.push({
-        id: "flip-green-white",
-        title: "Flipped edge",
-        description:
-          "Sometimes this edge is flipped: the white sticker faces the green center and the green sticker faces the white center. To flip it, perform F U' R U. Complete the sequence below, Reset and practice it a few times until you feel comfortable with it.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Build the flipped case so that applying F U' R U' restores the edge
-          cube.reset();
-          cube.applyMoves(["F", "U'", "R", "U"]); // inverse of the teaching sequence
-        },
-        filter: (piece: CubeState) => {
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 5: Flipped & misoriented (piece is both flipped and misaligned)
-      s.push({
-        id: "flipped-misoriented-green-white",
-        title: "Flipped & misoriented edge",
-        description:
-          "The green/white edge is both flipped and misoriented. Fix it in two parts: first do F2 to orient the edge between the white & green centers (like you learned in step 3), then do F U' R U to flip it (like you learned in step 4). Reset and practice both parts together until it sticks.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Build the flipped & misoriented case: solved by F', U', R, U. Apply inverse: D', R', U, F
-          cube.reset();
-          cube.applyMoves(["U'", "R'", "U", "F"]);
-        },
-        filter: (piece: CubeState) => {
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 6: Misaligned on D-layer (edge lined up with red/yellow); solution D' F2
-      s.push({
-        id: "misaligned-green-white",
-        title: "Misaligned edge",
-        description:
-          "In this example, the green/white edge piece is underneath the red center, which is wrong. We fix this in two parts: first do D' to align the edge with the green center, then do F2 to orient it into position. Complete the sequence below, then press Reset and practice both parts together until it sticks.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Create a state that is solved by D' F2. Apply the inverse from solved: F2 D
-          cube.reset();
-          cube.applyMoves(["F2", "D"]);
-        },
-        filter: (piece: CubeState) => {
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 7: Flipped, misoriented & misaligned
-      s.push({
-        id: "flipped-misoriented-misaligned-green-white",
-        title: "Flipped, misoriented & misaligned edge",
-        description:
-          "We can see in this example that the green/white edge piece is also underneath the red center, but it's flipped. We fix this in three parts: first D' to line up with green center, then F2 to rotate between green & white centers, then F' U' R U to orient it correctly. Work through each step below; press Reset and practice until it sticks.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          cube.reset();
-          cube.applyMoves(["U'", "R'", "U", "F", "D"]);
-        },
-        filter: (piece: CubeState) => {
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // NEW Step 8: Mid-layer extraction case (edge trapped between blue/red centers)
-      s.push({
-        id: "midlayer-green-white-extraction",
-        title: "Edge trapped in mid-layer",
-        description:
-          "The green/white edge is stuck in the middle layer between the blue and red centers. With red center facing front (towards you), do R' D' R. Then with green facing front, move the edge to meet green center with D' & then F2 to rotate into place. Again, practice this until it sticks.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          cube.reset();
-          // Build the trapped case (solved -> apply F2 D2 B)
-          cube.applyMoves(["F2", "D", "B'", "D", "B"]);
-        },
-        filter: (piece: CubeState) => {
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          // Show all WHITE edges on this slide
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 9: Recap & mental model
-      s.push({
-        id: "recap-mental-model",
-        title: "Quick recap: the mental model",
-        description:
-          "A short recap of how to reason about the green/white edge.",
-        allowFaceMoves: false,
-        setup: (cube: CubeJSWrapper) => {
-          // Keep the cube solved so we can talk through the idea clearly
-          cube.reset();
-        },
-        filter: (piece: CubeState) => {
-          // Keep all centers and all white edges highlighted for context
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 10: Free practice with 2 white edges out of place
-      s.push({
-        id: "practice-two-edges",
-        title: "Practice: 2 white edges",
-        description:
-          "Now practice with 2 white edges out of place. Use the techniques you've learned to solve the white cross. If you get stuck, go back to previous slides to practice the individual cases.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Start from solved, then apply the scramble to get red/white and green/white out of place
-          cube.reset();
-          cube.applyMoves(["F", "U'", "R", "U", "F2", "D2", "R2", "D'"]);
-        },
-        filter: (piece: CubeState) => {
-          // Show all centers and all white edges
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 11: Free practice with 3 white edges out of place
-      s.push({
-        id: "practice-three-edges",
-        title: "Practice: 3 white edges",
-        description:
-          "This is a bit trickier - there are 3 white edges that are out of place. Based on what you've learned, see if you can solve the cross. Remember, you can reset or go back to previous slides if you get stuck.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Start from solved, then apply the advanced scramble
-          cube.reset();
-          cube.applyMoves([
-            "F",
-            "R2",
-            "D'",
-            "B",
-            "L",
-            "D'",
-            "L'",
-            "D",
-            "L",
-            "D",
-            "L'",
-            "B",
-            "D2",
-            "B'",
-          ]);
-        },
-        filter: (piece: CubeState) => {
-          // Show all centers and all white edges
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-
-      // Step 12: Full cross challenge
-      s.push({
-        id: "practice-full-cross",
-        title: "Final Challenge: Complete Cross",
-        description:
-          "This is a full cross challenge to see if you can solve the entire white cross based on what you've learned. Remember, you can reset or go back to previous slides to practice if you get stuck.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Start from solved, then apply the full cross challenge scramble
-          cube.reset();
-          cube.applyMoves([
-            "R",
-            "D'",
-            "B2",
-            "R",
-            "U",
-            "R'",
-            "B'",
-            "D2",
-            "R",
-            "F'",
-            "R",
-            "D2",
-            "L'",
-            "D2",
-            "B2",
-            "L",
-            "F",
-            "U'",
-            "F",
-            "U'",
-          ]);
-        },
-        filter: (piece: CubeState) => {
-          // Show all centers and all white edges
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          const set = getCubieColorSet(piece);
-          return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-        },
-      });
-    } else if (lessonId === "white-corners") {
-      s.push({
-        id: "intro",
-        title: "What we're aiming to achieve",
-        description:
-          "Now that you have a white cross, it's time to complete the white face by positioning the four white corner pieces. Each white corner should be positioned correctly with the white sticker on the bottom face, and the other two stickers matching their respective center colors. You should only be able to orbit the cube to see all the pieces that need to be positioned.",
-        allowFaceMoves: false,
-        setup: (cube: CubeJSWrapper) => {
-          // Ensure a solved cube whenever we land on slide 1
-          cube.reset();
-        },
-        filter: (piece: CubeState) => {
-          // Keep all centers
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          // Keep white edges (two-color pieces that include WHITE)
-          const set = getCubieColorSet(piece);
-          if (set.size === 2 && set.has(CUBE_COLORS.WHITE)) return true;
-          // Keep white corners (three-color pieces that include WHITE)
-          if (set.size === 3 && set.has(CUBE_COLORS.WHITE)) return true;
-          return false;
-        },
-      });
-      s.push({
-        id: "mechanical-approach",
-        title: "A more mechanical approach",
-        description:
-          "From this point forward, we'll take a more mechanical approach. Instead of intuitive problem-solving, we'll focus on recognizing specific scenarios and applying the correct algorithm to solve each piece. Here, we're focusing on the green/white/red corner piece - notice how it needs to be positioned between the green, red & white center pieces.",
-        allowFaceMoves: true,
-        setup: (cube: CubeJSWrapper) => {
-          // Start with solved cube - visual spin will be applied separately
-          cube.reset();
-        },
-        filter: (piece: CubeState) => {
-          // Keep all centers
-          const { x, y, z } = piece.position;
-          const isCenter =
-            [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-          if (isCenter) return true;
-          // Keep white edges (two-color pieces that include WHITE)
-          const set = getCubieColorSet(piece);
-          if (set.size === 2 && set.has(CUBE_COLORS.WHITE)) return true;
-          // Keep only the green/white/red corner (we'll focus on this specific piece)
-          if (
-            set.size === 3 &&
-            set.has(CUBE_COLORS.WHITE) &&
-            set.has(CUBE_COLORS.GREEN) &&
-            set.has(CUBE_COLORS.RED)
-          )
-            return true;
-          return false;
-        },
-      });
-    }
-    return s;
+    return getSlidesForLesson(lessonId);
   }, [lessonId]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const activeSlide = slides[currentSlide];
+
+  // Derive tutorialCube3D from cube3D using useMemo to ensure they're always in sync
+  const tutorialCube3D = useMemo(() => {
+    const base = createTutorialCubeState(lessonId, cube3D);
+    const grey = "#808080";
+
+    // Apply filter first if it exists
+    let filtered = base;
+    if (activeSlide?.filter) {
+      filtered = base.map((layer) =>
+        layer.map((row) =>
+          row.map((piece) => {
+            const visible = activeSlide.filter!(piece);
+            if (visible) {
+              return piece;
+            }
+            return {
+              ...piece,
+              colors: {
+                front: grey,
+                back: grey,
+                left: grey,
+                right: grey,
+                top: grey,
+                bottom: grey,
+              },
+            };
+          })
+        )
+      );
+    }
+
+    // For yellow-cross lesson, grey out non-yellow colors on yellow edge pieces
+    // This runs after filtering so we only process visible pieces
+    if (lessonId === "yellow-cross") {
+      return filtered.map((layer) =>
+        layer.map((row) =>
+          row.map((piece) => {
+            const set = getCubieColorSet(piece);
+            // Check if this is a yellow edge piece (2 colors, one is yellow)
+            if (set.size === 2 && set.has(CUBE_COLORS.YELLOW)) {
+              // This is a yellow edge piece - grey out the non-yellow color, keep yellow
+              const newColors = { ...piece.colors };
+              // Find which color is not yellow and grey it out
+              const faceKeys: Array<keyof typeof piece.colors> = [
+                "front",
+                "back",
+                "left",
+                "right",
+                "top",
+                "bottom",
+              ];
+              for (const face of faceKeys) {
+                const color = piece.colors[face];
+                // Only grey out colors that are NOT yellow (preserve yellow)
+                if (
+                  color &&
+                  color !== CUBE_COLORS.YELLOW &&
+                  color !== grey &&
+                  color !== CUBE_COLORS.BLACK
+                ) {
+                  newColors[face] = grey;
+                }
+              }
+              return { ...piece, colors: newColors };
+            }
+            return piece;
+          })
+        )
+      );
+    }
+
+    return filtered;
+  }, [lessonId, cube3D, activeSlide]);
+
+  // Check if we should show yellow edge indicators on slide 2 and slide 3
+  const shouldShowYellowEdgeIndicators = useMemo(() => {
+    return (
+      lessonId === "yellow-edges" &&
+      (activeSlide?.id === "yellow-edges-solution" ||
+        activeSlide?.id === "yellow-edges-solution-2" ||
+        activeSlide?.id === "yellow-edges-solution-3") &&
+      checkSecondLayerSolved(cube3D) &&
+      isYellowCrossSolved(cube3D)
+    );
+  }, [lessonId, activeSlide?.id, cube3D]);
+
+  // Get yellow edge match status
+  const yellowEdgeMatchStatus = useMemo(() => {
+    if (!shouldShowYellowEdgeIndicators) return new Map<string, boolean>();
+    return getYellowEdgeMatchStatus(cube3D);
+  }, [shouldShowYellowEdgeIndicators, cube3D]);
+
+  // Function to render piece children for yellow edge indicators
+  const yellowEdgePieceChildren = useMemo(() => {
+    if (!shouldShowYellowEdgeIndicators) return undefined;
+    return (x: number, y: number, z: number, piece: CubeState) => {
+      // Only render indicators for yellow edge pieces on bottom face (y=0) with yellow on bottom
+      if (y !== 0) return null;
+      const set = getCubieColorSet(piece);
+      if (
+        set.size !== 2 ||
+        !set.has(CUBE_COLORS.YELLOW) ||
+        piece.colors.bottom !== CUBE_COLORS.YELLOW
+      ) {
+        return null;
+      }
+
+      const key = `${x},${y},${z}`;
+      const matches = yellowEdgeMatchStatus.get(key) ?? false;
+      const half = CUBIE_SIZE / 2;
+      const stickerY = -(half + STICKER_LIFT); // Bottom face sticker position
+
+      return (
+        <group
+          position={[0, stickerY - 0.02, 0]}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <Html
+            center
+            transform
+            distanceFactor={0}
+            occlude
+            style={{ pointerEvents: "none" }}
+          >
+            <div
+              style={{
+                width: "24px",
+                height: "24px",
+                borderRadius: "50%",
+                backgroundColor: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: `1px solid ${
+                  matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED
+                }`,
+                // boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                opacity: 1,
+                background: matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED,
+              }}
+            >
+              {matches ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ transform: "rotate(270deg)" }}
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              )}
+            </div>
+          </Html>
+        </group>
+      );
+    };
+  }, [shouldShowYellowEdgeIndicators, cube3D, yellowEdgeMatchStatus]);
+
+  // Orbit controls hook
+  const {
+    orbitControlsEnabled,
+    setOrbitControlsEnabled,
+    handleOrbitControlsChange,
+    disableOrbitTemporarily,
+    clearControlsInternal,
+    orbitPrevRef,
+  } = useTutorialOrbitControls({
+    activeSlide,
+    orbitControlsRef,
+    isTransitioningRef,
+    forceOrbitDisabledRef,
+  });
 
   // Expected Fix sequence for the current slide
   const fixSequence: string[] = useMemo(() => {
@@ -648,9 +405,17 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       case "notation-10-step":
         return ["F", "U", "R", "U'", "R'", "F'", "R", "U", "R'", "U'"];
       case "recap-mental-model":
+      case "recap-white-corners":
+      case "second-layer-recap":
       case "practice-two-edges":
       case "practice-three-edges":
       case "practice-full-cross":
+      case "practice-white-corners":
+      case "practice-white-corners-2":
+      case "practice-white-corners-3":
+      case "practice-second-layer":
+      case "practice-second-layer-2":
+      case "practice-second-layer-3":
         return [];
       case "flip-green-white-f2":
         return ["F2"];
@@ -666,10 +431,236 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       case "midlayer-green-white-extraction":
         // Three conceptual stages: (B' D' B) free (displayed as R' D' R), then D' align, then F2 place
         return ["B'", "D'", "B", "D'", "F2"];
+      case "practice-setup-solution":
+        // Solution sequence: R U R' relative to yellow top/red front (visual)
+        // Logical state is white top/green front, so remap: R→F (red front to green front), U→D
+        // So remap: R U R' → F D F'
+        return ["F", "D", "F'"];
+      case "practice-setup-solution-2":
+        // Solution sequence: L' U' L relative to yellow top/green front (visual)
+        // Logical state is white top/green front, so remap: L→R (when flipped, L and R swap), U→D
+        // So remap: L' U' L → R' D' R
+        return ["R'", "D'", "R"];
+      case "practice-setup-solution-3":
+        // Two-part solution (both relative to yellow top/red front, visual):
+        // Part 1: R U2 R' U' → Logical: F D2 F' D'
+        // Part 2: R U R' → Logical: F D F'
+        return ["F", "D2", "F'", "D'", "F", "D", "F'"];
+      case "practice-setup-solution-4":
+        // Two-part solution (both relative to yellow top/red front, visual):
+        // Part 1: R U R' U' → Logical: F D F' D'
+        // Part 2: R U R' → Logical: F D F'
+        return ["F", "D", "F'", "D'", "F", "D", "F'"];
+      case "practice-setup-solution-5":
+        // Three-part solution (all relative to yellow top/red front, visual):
+        // Part 1: R U R' U' → Logical: F D F' D'
+        // Part 2: R U2 R' U' → Logical: F D2 F' D'
+        // Part 3: R U R' → Logical: F D F'
+        return ["F", "D", "F'", "D'", "F", "D2", "F'", "D'", "F", "D", "F'"];
+      case "yellow-cross-line":
+        // Solution sequence: F R U R' U' F' relative to yellow top/green front (visual)
+        // Logical state is white top/green front, so remap: F→R, R→F, U→D
+        // So remap: F R U R' U' F' → R F D F' D' R' (logical for tracking)
+        // Display: F R U R' U' F' (visual notation shown to user)
+        return ["R", "F", "D", "F'", "D'", "R'"];
+      case "yellow-cross-triangle":
+        // Solution: F R U R' U' F' / F R U R' U' F' relative to yellow top/red front (visual)
+        // Logical state is white top/green front, so remap: F→R, R→F, U→D (same as line)
+        // So remap: F R U R' U' F' → R F D F' D' R' (twice for tracking)
+        return [
+          "R",
+          "F",
+          "D",
+          "F'",
+          "D'",
+          "R'",
+          "R",
+          "F",
+          "D",
+          "F'",
+          "D'",
+          "R'",
+        ];
+      case "yellow-cross-dot":
+        // Solution: F R U R' U' F' / U2 / F R U R' U' F' / F R U R' U' F' relative to yellow top/red front (visual)
+        // Logical state is white top/green front, so remap: F→R, R→F, U→D
+        // So remap: F R U R' U' F' → R F D F' D' R', U2 → D2
+        // Parts: 1) R F D F' D' R' (6 moves), 2) D2 (1 move), 3) R F D F' D' R' (6 moves), 4) R F D F' D' R' (6 moves)
+        return [
+          "R",
+          "F",
+          "D",
+          "F'",
+          "D'",
+          "R'",
+          "D2",
+          "R",
+          "F",
+          "D",
+          "F'",
+          "D'",
+          "R'",
+          "R",
+          "F",
+          "D",
+          "F'",
+          "D'",
+          "R'",
+        ];
+      case "yellow-edges-solution":
+        // Solution: R U R' U R U2 R' U relative to yellow top/red front (visual)
+        // Logical state is white top/green front, so remap: R→F, U→D
+        // So remap: R U R' U R U2 R' U → F D F' D F D2 F' D
+        return ["F", "D", "F'", "D", "F", "D2", "F'", "D"];
+      case "yellow-edges-solution-2":
+        // Multi-part solution:
+        // Part 1: U relative to yellow top/red front (visual) → D (logical, yellow top = bottom)
+        // Part 2: R U R' U R U2 R' U relative to yellow top/green front (visual)
+        //   Logical: yellow top/green front → white top/green front, so U→D, R→L
+        //   So: R U R' U R U2 R' U → L D L' D L D2 L' D
+        // Total: D (part 1) + L D L' D L D2 L' D (part 2) = 9 moves
+        return ["D", "L", "D", "L'", "D", "L", "D2", "L'", "D"];
+      case "yellow-edges-solution-3":
+        // Multi-part solution:
+        // Part 1: U2 relative to yellow top/red front (visual) → D2 (logical, yellow top = bottom)
+        // Part 2: R U R' U R U2 R' U relative to yellow top/blue front (visual)
+        //   Logical: yellow top/blue front → white top/green front, so U→D, R→R (blue front maps to blue front)
+        //   So: R U R' U R U2 R' U → R D R' D R D2 R' D
+        // Total: D2 (part 1) + R D R' D R D2 R' D (part 2) = 9 moves
+        return ["D2", "R", "D", "R'", "D", "R", "D2", "R'", "D"];
+      case "second-layer-setup-solution-3":
+        // Two-part solution:
+        // Part 1: U R U R' U' relative to yellow top/green front (visual)
+        //   When yellow top/green front (visual): green is front, orange is right
+        //   In logical (white top/green front): green is front, red is right, orange is left
+        //   So visual R (orange) → logical L (orange left), U→D
+        //   Therefore: U R U R' U' → D L D L' D' (logical)
+        // Part 2: L' U' L relative to yellow top/orange front (visual)
+        //   When yellow top/orange front (visual): orange is front, blue is right
+        //   In logical (white top/green front): green is front, red is right, orange is left, blue is back
+        //   So visual L (green) → logical F (green front), U→D
+        //   Therefore: L' U' L → F' D' F (logical)
+        return ["D", "L", "D", "L'", "D'", "F'", "D'", "F"];
+      case "practice-setup-solution-6":
+        // Three-part solution:
+        // Part 1: R U R' U' relative to yellow top/green front (visual)
+        // When flipped, visual R → logical L (left and right swap)
+        // Logical: L D L' D' (white top/green front, flipped)
+        // Part 2: U relative to yellow top/green front (visual)
+        // Logical: D (white top/green front, flipped)
+        // Part 3: R U R' relative to yellow top/red front (visual)
+        // Logical: F D F' (white top/green front, red front to green front, flipped)
+        return ["L", "D", "L'", "D'", "D", "F", "D", "F'"];
+      case "second-layer-setup-solution":
+        // Two-part solution:
+        // Part 1: U' L' U' L U relative to yellow top/green front (visual)
+        // When flipped, visual L → logical R (left and right swap), U→D
+        // Logical: D' R' D' R D (white top/green front, flipped)
+        // Part 2: R U R' relative to yellow top/red front (visual)
+        // Logical: F D F' (white top/green front, red front to green front, flipped)
+        return ["D'", "R'", "D'", "R", "D", "F", "D", "F'"];
+      case "second-layer-setup-solution-2":
+        // Two-part solution:
+        // Part 1: U R U R' U' relative to yellow top/red front (visual)
+        // Logical: R→F, U→D → D F D F' D'
+        // Part 2: L' U' L relative to yellow top/green front (visual)
+        // Logical: L→R (when flipped, L and R swap), U→D → R' D' R
+        return ["D", "F", "D", "F'", "D'", "R'", "D'", "R"];
+      case "second-layer-setup-solution-4":
+        // Five-part solution:
+        // Part 1: U R U R' U' relative to yellow top/red front (visual)
+        //   Logical: R→F, U→D → D F D F' D'
+        // Part 2: L' U' L relative to yellow top/green front (visual)
+        //   Logical: L→R (when yellow top/green front, visual L maps to logical R), U→D → R' D' R
+        // Part 3: U2 relative to yellow top/green front (visual)
+        //   Logical: U→D → D2
+        // Part 4: U R U R' U' relative to yellow top/red front (visual) - same as Part 1
+        //   Logical: D F D F' D'
+        // Part 5: L' U' L relative to yellow top/green front (visual) - same as Part 2
+        //   Logical: R' D' R
+        return [
+          "D",
+          "F",
+          "D",
+          "F'",
+          "D'",
+          "R'",
+          "D'",
+          "R",
+          "D2",
+          "D",
+          "F",
+          "D",
+          "F'",
+          "D'",
+          "R'",
+          "D'",
+          "R",
+        ];
       default:
         return [];
     }
   }, [activeSlide?.id]);
+
+  // Display sequence for Fix box (what user sees)
+  const fixSequenceDisplay: string[] = useMemo(() => {
+    if (activeSlide?.id === "practice-setup-solution") {
+      // Show R U R' (visual notation, yellow top/red front) in Fix box
+      return ["R", "U", "R'"];
+    }
+    if (activeSlide?.id === "practice-setup-solution-2") {
+      // Show L' U' L (visual notation, yellow top/green front) in Fix box
+      return ["L'", "U'", "L"];
+    }
+    if (activeSlide?.id === "yellow-cross-line") {
+      // Show F R U R' U' F' (visual notation, yellow top/green front) in Fix box
+      return ["F", "R", "U", "R'", "U'", "F'"];
+    }
+    if (activeSlide?.id === "yellow-edges-solution") {
+      // Show R U R' U R U2 R' U (visual notation, yellow top/red front) in Fix box
+      return ["R", "U", "R'", "U", "R", "U2", "R'", "U"];
+    }
+    // Note: practice-setup-solution-3, -4, -5, -6 use MultiPartSequence, so fixSequenceDisplay not needed here
+    // yellow-cross-triangle also uses MultiPartSequence
+    return fixSequence;
+  }, [activeSlide?.id, fixSequence]);
+
+  // Show second sequence for second-layer-setup-solution-4 when fixIndex reaches 9 (with delay)
+  useEffect(() => {
+    if (
+      activeSlide?.id === "second-layer-setup-solution-4" &&
+      fixIndex === 9 &&
+      !showSecondSequence &&
+      !secondSequenceLocked
+    ) {
+      // Add 500ms delay before showing second sequence
+      const timer = setTimeout(() => {
+        setShowSecondSequence(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeSlide?.id, fixIndex, showSecondSequence, secondSequenceLocked]);
+
+  // Show second sequence for yellow-cross-dot when fixIndex reaches 7 (with delay)
+  useEffect(() => {
+    if (
+      activeSlide?.id === "yellow-cross-dot" &&
+      fixIndex === 7 &&
+      !showSecondSequenceDot &&
+      !secondSequenceDotLocked
+    ) {
+      // Add 500ms delay before showing second sequence
+      const timer = setTimeout(() => {
+        setShowSecondSequenceDot(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    activeSlide?.id,
+    fixIndex,
+    showSecondSequenceDot,
+    secondSequenceDotLocked,
+  ]);
 
   // Reset fix progress whenever slide changes
   useEffect(() => {
@@ -697,9 +688,26 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setMidStage3Played(false);
     setMidStage3Progress(false);
     setMidStage3Line(false);
+    setMidStage4Played(false);
+    setMidStage4Progress(false);
+    setMidStage4Line(false);
+    setMidStage5Played(false);
+    setMidStage5Progress(false);
+    setMidStage5Line(false);
     setMidStage1Key(0);
     setMidStage2Key(0);
     setMidStage3Key(0);
+    setMidStage4Key(0);
+    setMidStage5Key(0);
+    // Reset sequence visibility for second-layer-setup-solution-4 (instant, no delay)
+    setShowSecondSequence(false);
+    setSecondSequenceLocked(false);
+    // Reset sequence visibility for yellow-cross-dot (instant, no delay)
+    setShowSecondSequenceDot(false);
+    setSecondSequenceDotLocked(false);
+    // Reset sequence visibility for yellow-edges-solution-2 (instant, no delay)
+    setShowSecondSequenceYellowEdges2(false);
+    setSecondSequenceYellowEdges2Locked(false);
   }, [activeSlide?.id, fixSequence.length]);
 
   // Trigger a tick animation (can be used mid-sequence and at completion)
@@ -715,101 +723,85 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   // Derived flag: when Fix sequence finished for this slide, lock face moves but keep orbit enabled
   const fixCompleted = fixSequence.length > 0 && fixIndex >= fixSequence.length;
 
-  // Controls enable/disable (must be defined before effects/hooks that reference it)
-  const handleOrbitControlsChange = useCallback(
-    (enabled: boolean) => {
-      if (isTransitioningRef.current) return;
-      // Never enable orbits on the locked slide; otherwise keep orbit on for slides
-      // that don't allow face moves (view-only), and defer to caller for others.
-      let next: boolean;
-      if (forceOrbitDisabledRef.current) {
-        next = false;
-      } else {
-        const orbitLockedIds = new Set(["find-green-white", "notation-protip"]);
-        if (activeSlide?.id && orbitLockedIds.has(activeSlide.id)) {
-          next = false;
-        } else if (activeSlide && !activeSlide.allowFaceMoves) {
-          next = true;
-        } else {
-          next = enabled;
-        }
-      }
-      setOrbitControlsEnabled(next);
-      if (orbitControlsRef.current) {
-        orbitControlsRef.current.enabled = next;
-        if (typeof orbitControlsRef.current.update === "function") {
-          orbitControlsRef.current.update();
-        }
-      }
-    },
-    [activeSlide]
-  );
-  const disableOrbitTemporarily = useCallback(() => {
-    const controls: any = orbitControlsRef.current;
-    if (!controls) return;
-    // If we're already in a controlled transition, don't re-snapshot/override
-    if (isTransitioningRef.current) return;
-    isTransitioningRef.current = true;
-    orbitPrevRef.current = {
-      enabled: Boolean(controls.enabled),
-      noRotate: Boolean(controls.noRotate),
-      damping: Number(controls.dynamicDampingFactor ?? 0.35),
-      staticMoving: Boolean(controls.staticMoving),
-      rotateSpeed: Number(controls.rotateSpeed ?? 1.2),
-    };
-    // Fully disable user input and internal momentum
-    controls.enabled = false;
-    controls.noRotate = true;
-    if (typeof controls.staticMoving === "boolean")
-      controls.staticMoving = true;
-    if (typeof controls.dynamicDampingFactor === "number")
-      controls.dynamicDampingFactor = 0;
-    if (typeof controls.rotateSpeed === "number") controls.rotateSpeed = 0;
-    if (typeof controls.update === "function") controls.update();
-  }, []);
-
-  // Utility: clear TrackballControls internal deltas/state to avoid momentum snaps
-  const clearControlsInternal = useCallback(() => {
-    const controls: any = orbitControlsRef.current;
-    if (!controls) return;
-    // TrackballControls internals
-    if (controls.movePrev?.set) controls.movePrev.set(0, 0);
-    if (controls.moveCurr?.set) controls.moveCurr.set(0, 0);
-    if (controls.lastAxis?.set) controls.lastAxis.set(0, 0, 0);
-    if (typeof controls.lastAngle === "number") controls.lastAngle = 0;
-    if (typeof controls.touchZoomDistanceStart === "number")
-      controls.touchZoomDistanceStart = 0;
-    if (typeof controls.touchZoomDistanceEnd === "number")
-      controls.touchZoomDistanceEnd = 0;
-    if (controls.panStart?.set) controls.panStart.set(0, 0);
-    if (controls.panEnd?.set) controls.panEnd.set(0, 0);
-    if (controls.zoomStart?.set) controls.zoomStart.set(0, 0);
-    if (controls.zoomEnd?.set) controls.zoomEnd.set(0, 0);
-    // OrbitControls fields (noop for Trackball, safe to set)
-    if (controls.rotateStart?.set) controls.rotateStart.set(0, 0);
-    if (controls.rotateEnd?.set) controls.rotateEnd.set(0, 0);
-    if (typeof controls.state !== "undefined") controls.state = -1; // STATE.NONE
-    // Sync lastPosition/quaternion to current camera to avoid immediate correction
-    if (controls.object) {
-      if (controls.lastPosition?.copy)
-        controls.lastPosition.copy(controls.object.position);
-      if (controls.lastQuaternion?.copy)
-        controls.lastQuaternion.copy(controls.object.quaternion);
-    }
-    if (controls.update) controls.update();
-  }, []);
-
   // (Removed camera direction tween to avoid double transitions)
 
   // When changing slides, animate the cube back to its original orientation (like timer flows)
-  const prevSlideRef = useRef<number>(0);
+  const prevSlideRef = useRef<number>(-1); // Initialize to -1 so initial mount is not skipped
+  const isInitialMountRef = useRef(true); // Track if this is the very first mount
   useEffect(() => {
-    if (!cubeViewRef.current) return;
-    // Skip initial mount
-    if (prevSlideRef.current === currentSlide) return;
+    // Skip if slide hasn't actually changed (but allow initial mount when prevSlideRef is -1)
+    if (prevSlideRef.current === currentSlide && prevSlideRef.current !== -1)
+      return;
+    const isInitialMount = isInitialMountRef.current;
+    isInitialMountRef.current = false;
     prevSlideRef.current = currentSlide;
+
+    const slide = slides[currentSlide];
+    const cameraConfig = getSlideCameraConfig(slide?.id, lessonId);
+
+    // Set camera config on orbit controls immediately, even if cube ref isn't ready yet
+    // This ensures the config is available when the cube becomes ready
+    if (orbitControlsRef.current) {
+      const c: any = orbitControlsRef.current;
+      c.__resetOpts = cameraConfig;
+    }
+
+    // If cube ref isn't ready yet, retry using requestAnimationFrame
+    if (!cubeViewRef.current) {
+      let retryCount = 0;
+      const maxRetries = 10; // Try up to 10 times (~160ms at 60fps)
+      const tryReset = () => {
+        if (cubeViewRef.current && orbitControlsRef.current) {
+          const c: any = orbitControlsRef.current;
+          c.__resetOpts = cameraConfig;
+          // Use instant mode for initial mount
+          cubeViewRef.current.resetToInitialPosition(
+            orbitControlsRef,
+            cubeRef,
+            undefined,
+            isInitialMount
+          );
+        } else if (retryCount < maxRetries) {
+          retryCount++;
+          requestAnimationFrame(tryReset);
+        }
+      };
+      requestAnimationFrame(tryReset);
+      return;
+    }
+
+    // For initial mount, set rotation instantly without animation
+    if (isInitialMount) {
+      cubeViewRef.current.resetToInitialPosition(
+        orbitControlsRef,
+        cubeRef,
+        () => {
+          // Re-evaluate input rules for the new slide after reset completes
+          const controls: any = orbitControlsRef.current;
+          setInputDisabled(false);
+          if (controls) {
+            controls.enabled = true;
+            controls.noRotate = false;
+            if (typeof controls.staticMoving === "boolean")
+              controls.staticMoving = false;
+            if (typeof controls.dynamicDampingFactor === "number")
+              controls.dynamicDampingFactor = 0.35;
+            if (typeof controls.rotateSpeed === "number")
+              controls.rotateSpeed = 1.2;
+            setOrbitControlsEnabled(true);
+            if (typeof controls.update === "function") controls.update();
+          }
+          isTransitioningRef.current = false;
+        },
+        true // instant mode
+      );
+      return;
+    }
+
     // Bump transition token so only the latest completion callback applies
     const myTransitionId = ++transitionIdRef.current;
+    // Set transitioning flag to prevent validation during transition
+    isTransitioningRef.current = true;
     // Temporarily disable input during the reset animation
     setInputDisabled(true);
     // Also lock orbit to avoid momentum fighting the transition
@@ -821,26 +813,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       else c.target.set(0, 0, 0);
       if (c.update) c.update();
       clearControlsInternal();
-
-      // Choose a final facing via yaw offset during reset (single transition)
-      const slide = slides[currentSlide];
-      if (
-        slide?.id === "intro" ||
-        slide?.id === "misaligned-green-white" ||
-        slide?.id === "flipped-misoriented-misaligned-green-white"
-      ) {
-        // Explicit -45deg yaw to standardize the facing on the faces slide
-        c.__resetOpts = { extraYawRad: (Math.PI / 180) * -45 };
-      } else if (
-        slide?.id === "find-green-white" ||
-        slide?.id === "flip-green-white" ||
-        slide?.id === "flip-green-white-f2" ||
-        slide?.id === "flipped-misoriented-green-white" ||
-        slide?.id === "notation-faces"
-      ) {
-        // Face more toward green (left along cube Y): stronger negative yaw
-        c.__resetOpts = { extraYawRad: 0 };
-      }
+      // Camera config already set above
     }
     cubeViewRef.current.resetToInitialPosition(
       orbitControlsRef,
@@ -849,34 +822,21 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         // Ignore callbacks from stale transitions
         if (transitionIdRef.current !== myTransitionId) return;
         // Re-evaluate input rules for the new slide after reset completes
-        const slide = slides[currentSlide];
         const controls: any = orbitControlsRef.current;
-        const orbitLockedIds = new Set(["find-green-white", "notation-protip"]);
-        const goingToLocked = slide?.id ? orbitLockedIds.has(slide.id) : false;
-        setInputDisabled(goingToLocked || !!isResetting);
+        // notation-protip no longer locks input - cube should be enabled
+        setInputDisabled(false);
         // Explicitly set final orbit state to avoid races
         if (controls) {
-          if (goingToLocked) {
-            controls.enabled = false;
-            controls.noRotate = true;
-            if (typeof controls.staticMoving === "boolean")
-              controls.staticMoving = true;
-            if (typeof controls.dynamicDampingFactor === "number")
-              controls.dynamicDampingFactor = 0;
-            if (typeof controls.rotateSpeed === "number")
-              controls.rotateSpeed = 0;
-            setOrbitControlsEnabled(false);
-          } else {
-            controls.enabled = true;
-            controls.noRotate = false;
-            if (typeof controls.staticMoving === "boolean")
-              controls.staticMoving = false;
-            if (typeof controls.dynamicDampingFactor === "number")
-              controls.dynamicDampingFactor = 0.35;
-            if (typeof controls.rotateSpeed === "number")
-              controls.rotateSpeed = 1.2;
-            setOrbitControlsEnabled(true);
-          }
+          // Always enable orbit controls (notation-protip no longer locks)
+          controls.enabled = true;
+          controls.noRotate = false;
+          if (typeof controls.staticMoving === "boolean")
+            controls.staticMoving = false;
+          if (typeof controls.dynamicDampingFactor === "number")
+            controls.dynamicDampingFactor = 0.35;
+          if (typeof controls.rotateSpeed === "number")
+            controls.rotateSpeed = 1.2;
+          setOrbitControlsEnabled(true);
           if (typeof controls.update === "function") controls.update();
         }
         // End controlled transition
@@ -890,6 +850,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     slides,
     disableOrbitTemporarily,
     clearControlsInternal,
+    lessonId,
   ]);
 
   // Device/interaction hooks that rely on handleOrbitControlsChange
@@ -908,78 +869,74 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     precisionActive
   );
 
-  // Build tutorial cube view based on lesson/slide filter
-  useEffect(() => {
-    const base = createTutorialCubeState(lessonId, cube3D);
-    if (activeSlide?.filter) {
-      const grey = "#808080";
-      const filtered = base.map((layer) =>
-        layer.map((row) =>
-          row.map((piece) => {
-            const visible = activeSlide.filter!(piece);
-            return {
-              ...piece,
-              colors: visible
-                ? { ...piece.colors }
-                : {
-                    front: grey,
-                    back: grey,
-                    left: grey,
-                    right: grey,
-                    top: grey,
-                    bottom: grey,
-                  },
-            };
-          })
-        )
-      );
-      setTutorialCube3D(filtered);
-    } else {
-      setTutorialCube3D(base);
-    }
-  }, [lessonId, cube3D, activeSlide]);
-
   // Enforce slide interaction rules and lock/allow per slide
   useEffect(() => {
     if (!activeSlide) return;
-    // Slide 2: lock cube completely
+    // Practice slides 10, 11, 12: always enable orbit (for both white cross and white corners)
+    const isPracticeSlide10_11_12 =
+      activeSlide.id === "practice-two-edges" ||
+      activeSlide.id === "practice-three-edges" ||
+      activeSlide.id === "practice-full-cross" ||
+      activeSlide.id === "practice-white-corners" ||
+      activeSlide.id === "practice-white-corners-2" ||
+      activeSlide.id === "practice-white-corners-3" ||
+      activeSlide.id === "practice-second-layer" ||
+      activeSlide.id === "practice-second-layer-2" ||
+      activeSlide.id === "practice-second-layer-3";
+
+    // Slide 2 (find-green-white): disable face moves but allow orbit (use disableSliceDrag, not inputDisabled)
     if (activeSlide.id === "find-green-white") {
-      setInputDisabled(true);
-      setOrbitControlsEnabled(false);
-    } else if (
-      (activeSlide.id === "practice-two-edges" ||
-        activeSlide.id === "practice-three-edges" ||
-        activeSlide.id === "practice-full-cross") &&
-      practiceCompleted
-    ) {
+      setInputDisabled(false); // Don't disable input - disableSliceDrag will handle preventing moves
+      setOrbitControlsEnabled(true);
+      // Explicitly enable orbit by calling the handler
+      handleOrbitControlsChange(true);
+    } else if (isPracticeSlide10_11_12 && practiceCompleted) {
       // Practice slide when completed: disable face moves but allow orbit
+      setInputDisabled(true);
+      setOrbitControlsEnabled(true);
+    } else if (activeSlide.id === "mechanical-approach") {
+      // White corners slide 2: disable face moves but allow orbit (same as intro)
       setInputDisabled(true);
       setOrbitControlsEnabled(true);
     } else {
       // Slide 1 (intro): allow orbit spin but no face moves
       // Slide 3+: fully interactive per allowFaceMoves
       // Practice slide: also disable when completed
-      const isPracticeSlide =
-        activeSlide.id === "practice-two-edges" ||
-        activeSlide.id === "practice-three-edges" ||
-        activeSlide.id === "practice-full-cross";
       const shouldDisableInput =
-        !activeSlide.allowFaceMoves || (isPracticeSlide && practiceCompleted);
+        !activeSlide.allowFaceMoves ||
+        (isPracticeSlide10_11_12 && practiceCompleted);
 
       setInputDisabled(shouldDisableInput);
+      // Always enable orbit for practice slides 10, 11, 12, otherwise enable for all other slides
       setOrbitControlsEnabled(true);
     }
-  }, [activeSlide, isResetting, practiceCompleted]);
+  }, [activeSlide, isResetting, practiceCompleted, handleOrbitControlsChange]);
 
   // Optional per-slide setup (instant)
   useEffect(() => {
     // Reset setup state when slide changes
     setPracticeSetupComplete(false);
+    // Reset yaw change tracking for slide 8 when slide changes
+    slide8YawChangedRef.current = false;
+    // Reset yaw change tracking for slide 6 when slide changes
+    slide6YawChangedRef.current = false;
+    // Reset yaw state for slide 8 of white cross when slide changes
+    slide8WhiteCrossYawStateRef.current = 0;
+    // Reset yaw change tracking for yellow-edges-solution-2
+    yellowEdges2YawChangedRef.current = false;
+    // Reset yaw change tracking for yellow-edges-solution-3
+    yellowEdges3YawChangedRef.current = false;
 
-    if (!activeSlide || !activeSlide.setup) return;
+    if (!activeSlide || !activeSlide.setup) {
+      // No setup needed, allow validation immediately
+      isTransitioningRef.current = false;
+      return;
+    }
+
     activeSlide.setup(cubeRef.current);
     const updated = cubejsTo3D(cubeRef.current.getCube());
     setCube3D(updated);
+
     // Clear history so undo/redo aligns with the new slide's baseline state
     setMoveHistory([]);
     setHistoryIndex(-1);
@@ -990,13 +947,76 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setPracticeShowTick(false);
     setPracticeInitialCrossState(null);
 
-    // Mark setup complete after a short delay to ensure scramble is applied
-    setTimeout(() => {
-      setPracticeSetupComplete(true);
-    }, 100);
+    // Mark setup complete immediately
+    setPracticeSetupComplete(true);
+    // Allow validation after setup completes (use microtask to ensure state is settled)
+    queueMicrotask(() => {
+      isTransitioningRef.current = false;
+    });
     setPracticeTickProgress(false);
     setPracticeTickLine(false);
   }, [activeSlide]);
+
+  // Wrapper for orbit controls change that enables orbit for practice slides 10, 11, 12
+  // when completed, and for find-green-white (allows normal disable during animations/transitions/drags)
+  const handlePracticeOrbitChange = useCallback(
+    (enabled: boolean) => {
+      const isPracticeSlide10_11_12 =
+        activeSlide?.id === "practice-two-edges" ||
+        activeSlide?.id === "practice-three-edges" ||
+        activeSlide?.id === "practice-full-cross" ||
+        activeSlide?.id === "practice-white-corners" ||
+        activeSlide?.id === "practice-white-corners-2" ||
+        activeSlide?.id === "practice-white-corners-3" ||
+        activeSlide?.id === "practice-second-layer" ||
+        activeSlide?.id === "practice-second-layer-2" ||
+        activeSlide?.id === "practice-second-layer-3";
+
+      // For find-green-white: always allow orbit to be enabled
+      if (activeSlide?.id === "find-green-white") {
+        // Always enable orbit for find-green-white (override any disable requests)
+        if (
+          !enabled &&
+          !forceOrbitDisabledRef.current &&
+          !isTransitioningRef.current
+        ) {
+          // RubiksCube3D trying to disable - override to keep enabled
+          handleOrbitControlsChange(true);
+        } else if (enabled) {
+          // Pass through enable requests
+          handleOrbitControlsChange(enabled);
+        } else {
+          // During transitions or when force disabled, still try to enable if not transitioning
+          if (!isTransitioningRef.current && !forceOrbitDisabledRef.current) {
+            handleOrbitControlsChange(true);
+          } else {
+            handleOrbitControlsChange(enabled);
+          }
+        }
+      } else if (isPracticeSlide10_11_12) {
+        // For practice slides 10-12: only override disable requests when:
+        // - Slide is completed (practiceCompleted is true)
+        // - Not animating/transitioning
+        // - Request is to disable (RubiksCube3D trying to disable due to inputDisabled)
+        // Otherwise, pass through all requests to allow normal behavior (disable during drags/animations)
+        if (
+          !enabled &&
+          practiceCompleted &&
+          !forceOrbitDisabledRef.current &&
+          !isTransitioningRef.current
+        ) {
+          // Slide is completed and RubiksCube3D trying to disable due to inputDisabled - override to keep enabled
+          handleOrbitControlsChange(true);
+        } else {
+          // Normal request (during animations, drags, or when not completed) - pass through
+          handleOrbitControlsChange(enabled);
+        }
+      } else {
+        handleOrbitControlsChange(enabled);
+      }
+    },
+    [activeSlide?.id, practiceCompleted, handleOrbitControlsChange]
+  );
 
   // (moved handleOrbitControlsChange above)
   // Trigger a move via buttons/drag
@@ -1007,7 +1027,13 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       const isPracticeSlide =
         activeSlide?.id === "practice-two-edges" ||
         activeSlide?.id === "practice-three-edges" ||
-        activeSlide?.id === "practice-full-cross";
+        activeSlide?.id === "practice-full-cross" ||
+        activeSlide?.id === "practice-white-corners" ||
+        activeSlide?.id === "practice-white-corners-2" ||
+        activeSlide?.id === "practice-white-corners-3" ||
+        activeSlide?.id === "practice-second-layer" ||
+        activeSlide?.id === "practice-second-layer-2" ||
+        activeSlide?.id === "practice-second-layer-3";
       if (isPracticeSlide && practiceCompleted) return;
       const now = Date.now();
       if (
@@ -1029,15 +1055,27 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
 
   // Reset to the current slide's baseline state (instant, no animation)
   const resetToSlideBaseline = useCallback(async () => {
+    console.log("[RESET] Reset called, current fixIndex:", fixIndex);
+    // Prevent validation during reset
+    isTransitioningRef.current = true;
+    // Disable input and orbit during transition
+    setInputDisabled(true);
+    disableOrbitTemporarily();
+    // IMPORTANT: Reset fixIndex FIRST to unlock the cube immediately
+    // This must happen before any other state updates to ensure fixCompleted becomes false
+    setFixIndex(0);
+    setFixDoublePartialDir(0);
+    console.log("[RESET] Set fixIndex to 0");
+
+    // Don't wait - update state immediately
+
     setIsResetting(true);
     isResettingRef.current = true;
     // Cancel any in-flight or queued move to avoid races with baseline reset
     setPendingMove(null);
     setIsAnimating(false);
     isAnimatingRef.current = false;
-    // Clear Fix progress
-    setFixIndex(0);
-    setFixDoublePartialDir(0);
+    // Clear Fix progress (already cleared above, but clear other related state)
     setFixErrorPulse(false);
     setFixShowTick(false);
     setFixTickAnimKey((k) => k + 1);
@@ -1060,9 +1098,35 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setMidStage3Played(false);
     setMidStage3Progress(false);
     setMidStage3Line(false);
+    setMidStage4Played(false);
+    setMidStage4Progress(false);
+    setMidStage4Line(false);
+    setMidStage5Played(false);
+    setMidStage5Progress(false);
+    setMidStage5Line(false);
     setMidStage1Key(0);
     setMidStage2Key(0);
     setMidStage3Key(0);
+    setMidStage4Key(0);
+    setMidStage5Key(0);
+    // Reset sequence visibility for second-layer-setup-solution-4 (instant, no delay)
+    setShowSecondSequence(false);
+    setSecondSequenceLocked(false);
+    // Reset sequence visibility for yellow-cross-dot (instant, no delay)
+    setShowSecondSequenceDot(false);
+    setSecondSequenceDotLocked(false);
+    setShowSecondSequenceYellowEdges2(false);
+    setSecondSequenceYellowEdges2Locked(false);
+    // Reset yaw change tracking for slide 8
+    slide8YawChangedRef.current = false;
+    // Reset yaw change tracking for slide 6
+    slide6YawChangedRef.current = false;
+    // Reset yaw state for slide 8 of white cross
+    slide8WhiteCrossYawStateRef.current = 0;
+    // Reset yaw change tracking for yellow-edges-solution-2
+    yellowEdges2YawChangedRef.current = false;
+    // Reset yaw change tracking for yellow-edges-solution-3
+    yellowEdges3YawChangedRef.current = false;
     // Clear practice slide progress
     setPracticeCompleted(false);
     setPracticeShowTick(false);
@@ -1073,20 +1137,6 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setPracticeSetupComplete(false); // Reset setup state to trigger re-initialization
     await new Promise((r) => requestAnimationFrame(r));
     const slide = slides[currentSlide];
-    // Re-run slide setup to reconstruct baseline
-    slide?.setup?.(cubeRef.current);
-    setCube3D(cubejsTo3D(cubeRef.current.getCube()));
-
-    // For practice slides, mark setup complete after a short delay
-    if (
-      slide?.id === "practice-two-edges" ||
-      slide?.id === "practice-three-edges" ||
-      slide?.id === "practice-full-cross"
-    ) {
-      setTimeout(() => {
-        setPracticeSetupComplete(true);
-      }, 100);
-    }
 
     // Clear history and any pending queues
     setMoveHistory([]);
@@ -1095,8 +1145,32 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     historyIndexRef.current = -1;
     setResetQueue(null);
     resetIndexRef.current = 0;
+
+    // Reset logical cube to solved state first
+    // Note: Some setup functions call reset() internally, but we reset here first
+    // to ensure a clean slate before applying setup
+    cubeRef.current.reset();
+
+    // Apply slide setup moves IMMEDIATELY (don't wait for animation)
+    // The setup function will reset again if needed, then apply setup moves
+    if (slide?.setup) {
+      // Make sure cube is reset before calling setup
+      cubeRef.current.reset();
+      console.log("[RESET] Cube reset, calling setup for slide:", slide.id);
+      slide.setup(cubeRef.current);
+      console.log("[RESET] Setup complete");
+    }
+
+    // Update visual state immediately to show the reset + setup
+    // tutorialCube3D will be automatically updated via useMemo when cube3D changes
+    const updatedCube3D = cubejsTo3D(cubeRef.current.getCube());
+    console.log("[RESET] Updating cube3D state");
+    setCube3D(updatedCube3D);
+
+    // Mark reset as complete immediately since we've updated all state synchronously
     setIsResetting(false);
     isResettingRef.current = false;
+
     // Also navigate the camera/orbit back to the slide's initial spot (same as slide change)
     const myTransitionId = ++transitionIdRef.current;
     // Lock orbit during transition and neutralize controls
@@ -1107,63 +1181,74 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       else c.target.set(0, 0, 0);
       if (c.update) c.update();
       clearControlsInternal();
-      // Match slide-facing rules
-      if (
-        slide?.id === "intro" ||
-        slide?.id === "misaligned-green-white" ||
-        slide?.id === "flipped-misoriented-misaligned-green-white"
-      ) {
-        // Explicit -45deg yaw for faces slide to standardize orientation
-        c.__resetOpts = { extraYawRad: (Math.PI / 180) * -45 };
-      } else if (
-        slide?.id === "find-green-white" ||
-        slide?.id === "flip-green-white" ||
-        slide?.id === "flip-green-white-f2" ||
-        slide?.id === "flipped-misoriented-green-white" ||
-        slide?.id === "notation-faces"
-      ) {
-        c.__resetOpts = { extraYawRad: 0 };
-      }
+      // Match slide-facing rules (same as slide transition)
+      // Get camera configuration for this slide
+      c.__resetOpts = getSlideCameraConfig(slide?.id, lessonId);
     }
     cubeViewRef.current?.resetToInitialPosition(
       orbitControlsRef,
       cubeRef,
       () => {
         if (transitionIdRef.current !== myTransitionId) return;
+        // Animation complete - no need to apply setup again (already done above)
+        // Note: isResetting was already set to false immediately after state updates
+
+        // For practice slides, mark setup complete after a short delay
         const s = slides[currentSlide];
+        if (
+          s?.id === "practice-two-edges" ||
+          s?.id === "practice-three-edges" ||
+          s?.id === "practice-full-cross" ||
+          s?.id === "practice-white-corners" ||
+          s?.id === "practice-white-corners-2" ||
+          s?.id === "practice-white-corners-3" ||
+          s?.id === "practice-second-layer" ||
+          s?.id === "practice-second-layer-2" ||
+          s?.id === "practice-second-layer-3"
+        ) {
+          setTimeout(() => {
+            setPracticeSetupComplete(true);
+          }, 100);
+        }
+
+        // Also mark practice-setup-solution slides as complete
+        if (
+          s?.id === "practice-setup-solution" ||
+          s?.id === "practice-setup-solution-2" ||
+          s?.id === "practice-setup-solution-3" ||
+          s?.id === "practice-setup-solution-4" ||
+          s?.id === "practice-setup-solution-5" ||
+          s?.id === "practice-setup-solution-6" ||
+          s?.id === "second-layer-setup-solution" ||
+          s?.id === "second-layer-setup-solution-2" ||
+          s?.id === "second-layer-setup-solution-3" ||
+          s?.id === "second-layer-setup-solution-4" ||
+          s?.id === "yellow-cross-triangle" ||
+          s?.id === "yellow-cross-dot"
+        ) {
+          setPracticeSetupComplete(true);
+        }
+
         const controls: any = orbitControlsRef.current;
-        const orbitLockedIds = new Set(["find-green-white", "notation-protip"]);
-        const goingToLocked = s?.id ? orbitLockedIds.has(s.id) : false;
-        setInputDisabled(goingToLocked || !!isResettingRef.current);
+        // notation-protip no longer locks input - cube should be enabled
+        setInputDisabled(false);
         if (controls) {
-          if (goingToLocked) {
-            controls.enabled = false;
-            controls.noRotate = true;
-            if (typeof controls.staticMoving === "boolean")
-              controls.staticMoving = true;
-            if (typeof controls.dynamicDampingFactor === "number")
-              controls.dynamicDampingFactor = 0;
-            if (typeof controls.rotateSpeed === "number")
-              controls.rotateSpeed = 0;
-            setOrbitControlsEnabled(false);
-          } else {
-            controls.enabled = true;
-            controls.noRotate = false;
-            if (typeof controls.staticMoving === "boolean")
-              controls.staticMoving = false;
-            if (typeof controls.dynamicDampingFactor === "number")
-              controls.dynamicDampingFactor = 0.35;
-            if (typeof controls.rotateSpeed === "number")
-              controls.rotateSpeed = 1.2;
-            setOrbitControlsEnabled(true);
-          }
+          // Always enable orbit controls (notation-protip no longer locks)
+          controls.enabled = true;
+          controls.noRotate = false;
+          if (typeof controls.staticMoving === "boolean")
+            controls.staticMoving = false;
+          if (typeof controls.dynamicDampingFactor === "number")
+            controls.dynamicDampingFactor = 0.35;
+          if (typeof controls.rotateSpeed === "number")
+            controls.rotateSpeed = 1.2;
+          setOrbitControlsEnabled(true);
           if (typeof controls.update === "function") controls.update();
         }
-        // End transition
+        // End controlled transition
         orbitPrevRef.current = null;
+        // Ensure validation is enabled after reset completes
         isTransitioningRef.current = false;
-        setIsResetting(false);
-        isResettingRef.current = false;
       }
     );
   }, [slides, currentSlide, disableOrbitTemporarily, clearControlsInternal]);
@@ -1186,7 +1271,22 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         setLine: React.Dispatch<React.SetStateAction<boolean>>,
         setPlayed: React.Dispatch<React.SetStateAction<boolean>>
       ) => {
-        if (activeSlide?.id !== "midlayer-green-white-extraction" || played)
+        if (
+          (activeSlide?.id !== "midlayer-green-white-extraction" &&
+            activeSlide?.id !== "practice-setup-solution-3" &&
+            activeSlide?.id !== "practice-setup-solution-4" &&
+            activeSlide?.id !== "practice-setup-solution-5" &&
+            activeSlide?.id !== "practice-setup-solution-6" &&
+            activeSlide?.id !== "second-layer-setup-solution" &&
+            activeSlide?.id !== "second-layer-setup-solution-2" &&
+            activeSlide?.id !== "second-layer-setup-solution-3" &&
+            activeSlide?.id !== "second-layer-setup-solution-4" &&
+            activeSlide?.id !== "yellow-cross-triangle" &&
+            activeSlide?.id !== "yellow-cross-dot" &&
+            activeSlide?.id !== "yellow-edges-solution-2" &&
+            activeSlide?.id !== "yellow-edges-solution-3") ||
+          played
+        )
           return;
         setKey((k) => k + 1);
         setProgress(false);
@@ -1195,7 +1295,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         setTimeout(() => setLine(true), 300); // checkmark draws
         setTimeout(() => setPlayed(true), 700); // mark done
       };
-      const animateMidlayerStage = (stage: 1 | 2 | 3) => {
+      const animateMidlayerStage = (stage: 1 | 2 | 3 | 4 | 5) => {
         if (stage === 1)
           runStageAnimation(
             midStage1Played,
@@ -1212,13 +1312,29 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
             setMidStage2Line,
             setMidStage2Played
           );
-        else
+        else if (stage === 3)
           runStageAnimation(
             midStage3Played,
             setMidStage3Key,
             setMidStage3Progress,
             setMidStage3Line,
             setMidStage3Played
+          );
+        else if (stage === 4)
+          runStageAnimation(
+            midStage4Played,
+            setMidStage4Key,
+            setMidStage4Progress,
+            setMidStage4Line,
+            setMidStage4Played
+          );
+        else
+          runStageAnimation(
+            midStage5Played,
+            setMidStage5Key,
+            setMidStage5Progress,
+            setMidStage5Line,
+            setMidStage5Played
           );
       };
       // If a baseline reset is in progress, ignore stale animation completions
@@ -1239,7 +1355,13 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
 
       if (!isWholeCubeRotation) {
         // Update logical cube
+        // Note: With flipUpsideDown, yellow is visually on top but logically still at bottom
+        // The drag system detects moves based on logical positions
+        // When user drags on yellow (visual top, logical bottom), system detects D moves
+        // This is correct - no remapping needed, just execute the detected move
         cubeRef.current.move(move);
+        // Update cube3D - tutorialCube3D will be automatically updated via useMemo
+        // This ensures they're always in sync and prevents flicker
         setCube3D(cubejsTo3D(cubeRef.current.getCube()));
 
         // Add to history if manual (not undo/redo)
@@ -1295,7 +1417,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       }
 
       // Fix box validation: only when on an active fix slide and move was manual
-      if (fixSequence.length > 0 && wasManual) {
+      // Skip validation if we're still transitioning between slides
+      if (fixSequence.length > 0 && wasManual && !isTransitioningRef.current) {
         // Helper parsers
         const parseMove = (m: string) => {
           const base = m[0];
@@ -1310,6 +1433,101 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
             if (m === "R'") return "B'";
             if (m === "R") return "B";
           }
+          if (activeSlide?.id === "practice-setup-solution") {
+            // Visual R (yellow top/red front) maps to logical F (white top/green front)
+            if (m === "R'") return "F'";
+            if (m === "R") return "F";
+          }
+          if (activeSlide?.id === "practice-setup-solution-2") {
+            // Visual L (yellow top/green front) maps to logical R (white top/green front, when flipped L and R swap)
+            if (m === "L'") return "R'";
+            if (m === "L") return "R";
+          }
+          if (activeSlide?.id === "practice-setup-solution-6") {
+            // Parts 1 and 2 (fixIndex < 5): yellow top/green front
+            // When flipped (yellow top/green front), L and R swap: visual L → logical R
+            // Visual R (green front) → logical L (when flipped, R becomes L)
+            // Part 3 (fixIndex >= 5): yellow top/red front
+            // R (red front) → F (logical, red front to green front)
+            if (fixIndex < 5) {
+              // Parts 1 and 2: green front, when flipped L and R swap
+              // Visual R → Logical L (right becomes left when flipped) - matches fixSequence, pass through
+              // Visual L → Logical R (left becomes right when flipped) - remap to L to match fixSequence
+              // fixSequence expects L, so:
+              // - L (from visual R) → pass through as L ✓
+              // - R (from visual L) → remap to L
+              if (m === "R'") return "L'";
+              if (m === "R") return "L";
+              // L passes through unchanged (visual R detected as logical L matches fixSequence)
+            } else {
+              // Part 3: red front, so R→F
+              if (m === "R'") return "F'";
+              if (m === "R") return "F";
+            }
+          }
+          if (activeSlide?.id === "second-layer-setup-solution") {
+            // Part 1 (fixIndex < 5): yellow top/green front
+            // When flipped (yellow top/green front), L and R swap: visual L → logical R
+            // Part 2 (fixIndex >= 5): yellow top/red front
+            // R (red front) → F (logical, red front to green front)
+            if (fixIndex < 5) {
+              // Part 1: green front, when flipped L and R swap
+              // Visual L → Logical R (left becomes right when flipped)
+              if (m === "L'") return "R'";
+              if (m === "L") return "R";
+            } else {
+              // Part 2: red front, so R→F
+              if (m === "R'") return "F'";
+              if (m === "R") return "F";
+            }
+          }
+          if (activeSlide?.id === "second-layer-setup-solution-2") {
+            // Part 1 (fixIndex < 5): yellow top/red front
+            // R→F, U→D (when yellow top/red front)
+            // Part 2 (fixIndex >= 5): yellow top/green front
+            // L→R (when flipped, L and R swap), U→D
+            if (fixIndex < 5) {
+              // Part 1: red front, R→F
+              if (m === "R'") return "F'";
+              if (m === "R") return "F";
+            } else {
+              // Part 2: green front, when flipped L and R swap
+              if (m === "L'") return "R'";
+              if (m === "L") return "R";
+            }
+          }
+          if (activeSlide?.id === "second-layer-setup-solution-4") {
+            // Parts 1 and 4: yellow top/red front, R→F, U→D
+            // Parts 2 and 5: yellow top/green front, L→R, U→D
+            // Part 3: yellow top/green front, U2→D2
+            if (fixIndex < 5 || (fixIndex >= 9 && fixIndex < 13)) {
+              // Parts 1 and 4: red front, R→F
+              if (m === "R'") return "F'";
+              if (m === "R") return "F";
+            } else if (fixIndex >= 5 && fixIndex < 9) {
+              // Parts 2 and 3: green front, when flipped L and R swap
+              if (m === "L'") return "R'";
+              if (m === "L") return "R";
+            } else if (fixIndex >= 13) {
+              // Part 5: green front, when flipped L and R swap
+              if (m === "L'") return "R'";
+              if (m === "L") return "R";
+            }
+          }
+          // For flipped slides, convert detected U moves (white top) to D moves (yellow top logical bottom)
+          // This handles the case where move detection sees yellow as "top" but logically it's "bottom"
+          if (
+            activeSlide?.id === "practice-setup-solution" ||
+            activeSlide?.id === "practice-setup-solution-2" ||
+            activeSlide?.id === "practice-setup-solution-6" ||
+            activeSlide?.id === "second-layer-setup-solution" ||
+            activeSlide?.id === "second-layer-setup-solution-2" ||
+            activeSlide?.id === "second-layer-setup-solution-4"
+          ) {
+            if (m === "U'") return "D'";
+            if (m === "U") return "D";
+            if (m === "U2") return "D2";
+          }
           return m;
         };
 
@@ -1319,6 +1537,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           return;
         }
         const exp = parseMove(expected);
+        // For practice-setup-solution, moves are already in logical form (D' R' D R)
+        // The move detected is already logical (D' when dragging on yellow), so no remapping needed
         const got = parseMove(mapMidlayerConceptual(move as string));
 
         const resetWithError = async () => {
@@ -1327,6 +1547,27 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           setFixIndex(0);
           setFixDoublePartialDir(0);
           setFixShowTick(false);
+          // Go back to first sequence on error for second-layer-setup-solution-4 (instant, no delay)
+          if (activeSlide?.id === "second-layer-setup-solution-4") {
+            setShowSecondSequence(false);
+            setSecondSequenceLocked(false);
+          }
+          // Go back to first sequence on error for yellow-cross-dot (instant, no delay)
+          if (activeSlide?.id === "yellow-cross-dot") {
+            setShowSecondSequenceDot(false);
+            setSecondSequenceDotLocked(false);
+          }
+          // Go back to first sequence on error for yellow-edges-solution-2 (instant, no delay)
+          if (activeSlide?.id === "yellow-edges-solution-2") {
+            setShowSecondSequenceYellowEdges2(false);
+            setSecondSequenceYellowEdges2Locked(false);
+            // Reset yaw change tracking so yaw can change again after reset
+            yellowEdges2YawChangedRef.current = false;
+          }
+          // Reset yaw change tracking for yellow-edges-solution-3 on error
+          if (activeSlide?.id === "yellow-edges-solution-3") {
+            yellowEdges3YawChangedRef.current = false;
+          }
           await resetToSlideBaseline();
         };
 
@@ -1351,6 +1592,221 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                 animateMidlayerStage(
                   nextIndex === 3 ? 1 : nextIndex === 4 ? 2 : 3
                 );
+              }
+              // Change yaw for slide 8 of white cross (midlayer-green-white-extraction)
+              if (
+                activeSlide?.id === "midlayer-green-white-extraction" &&
+                lessonId === "white-cross"
+              ) {
+                // After first sequence (R' D' R) completes, reach index 3: change to -45 degrees (45 degrees to the right)
+                if (
+                  nextIndex === 3 &&
+                  slide8WhiteCrossYawStateRef.current === 0
+                ) {
+                  slide8WhiteCrossYawStateRef.current = 1;
+                  if (orbitControlsRef.current && cubeViewRef.current) {
+                    const c: any = orbitControlsRef.current;
+                    c.__resetOpts = {
+                      extraYawRad: (Math.PI / 180) * -45,
+                      slideId: activeSlide.id,
+                    };
+                    cubeViewRef.current.resetToInitialPosition(
+                      orbitControlsRef,
+                      cubeRef,
+                      () => {
+                        // Yaw change complete
+                      }
+                    );
+                  }
+                }
+                // After second sequence (D') completes, reach index 4: change to 0 degrees (same as slides 6 & 7)
+                if (
+                  nextIndex === 4 &&
+                  slide8WhiteCrossYawStateRef.current === 1
+                ) {
+                  slide8WhiteCrossYawStateRef.current = 2;
+                  if (orbitControlsRef.current && cubeViewRef.current) {
+                    const c: any = orbitControlsRef.current;
+                    c.__resetOpts = {
+                      extraYawRad: 0,
+                      slideId: activeSlide.id,
+                    };
+                    cubeViewRef.current.resetToInitialPosition(
+                      orbitControlsRef,
+                      cubeRef,
+                      () => {
+                        // Yaw change complete
+                      }
+                    );
+                  }
+                }
+              }
+              // Change yaw for slide 6 (misaligned-green-white) when reaching index 1 (after first D' move at index 0)
+              if (
+                activeSlide?.id === "misaligned-green-white" &&
+                nextIndex === 1 &&
+                !slide6YawChangedRef.current
+              ) {
+                slide6YawChangedRef.current = true;
+                // Change to 0 degrees (no yaw change)
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: 0,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+              // Change yaw for slide 7 (flipped-misoriented-misaligned-green-white) when reaching index 1 (after first D' move at index 0)
+              if (
+                activeSlide?.id ===
+                  "flipped-misoriented-misaligned-green-white" &&
+                nextIndex === 1 &&
+                !slide6YawChangedRef.current
+              ) {
+                slide6YawChangedRef.current = true;
+                // Change to 0 degrees (no yaw change)
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: 0,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-3" &&
+                (nextIndex === 4 || nextIndex === 7)
+              ) {
+                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-4" &&
+                (nextIndex === 4 || nextIndex === 7)
+              ) {
+                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-5" &&
+                (nextIndex === 4 || nextIndex === 8 || nextIndex === 11)
+              ) {
+                animateMidlayerStage(
+                  nextIndex === 4 ? 1 : nextIndex === 8 ? 2 : 3
+                );
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-6" &&
+                (nextIndex === 4 || nextIndex === 5 || nextIndex === 8)
+              ) {
+                animateMidlayerStage(
+                  nextIndex === 4 ? 1 : nextIndex === 5 ? 2 : 3
+                );
+                // Change yaw when reaching index 5 (after U move)
+                if (nextIndex === 5 && !slide8YawChangedRef.current) {
+                  slide8YawChangedRef.current = true;
+                  // Change to match slides 3-7: extraYawRad: 0, extraERotationDeg: -45
+                  if (orbitControlsRef.current && cubeViewRef.current) {
+                    const c: any = orbitControlsRef.current;
+                    c.__resetOpts = {
+                      extraYawRad: 0,
+                      flipUpsideDown: true,
+                      extraERotationDeg: -45,
+                      slideId: activeSlide.id,
+                    };
+                    cubeViewRef.current.resetToInitialPosition(
+                      orbitControlsRef,
+                      cubeRef,
+                      () => {
+                        // Yaw change complete
+                      }
+                    );
+                  }
+                }
+              }
+              if (
+                activeSlide?.id === "second-layer-setup-solution" &&
+                (nextIndex === 5 || nextIndex === 8)
+              ) {
+                animateMidlayerStage(nextIndex === 5 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "second-layer-setup-solution-2" &&
+                (nextIndex === 5 || nextIndex === 8)
+              ) {
+                animateMidlayerStage(nextIndex === 5 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "second-layer-setup-solution-4" &&
+                (nextIndex === 5 || nextIndex === 8 || nextIndex === 9)
+              ) {
+                if (nextIndex === 9) {
+                  animateMidlayerStage(3);
+                  // Show second sequence after parts 1-3 complete (delay handled in useEffect)
+                  // Don't set it here - let the useEffect handle it with delay
+                } else {
+                  animateMidlayerStage(nextIndex === 5 ? 1 : 2);
+                }
+              }
+              if (
+                activeSlide?.id === "yellow-cross-dot" &&
+                (nextIndex === 6 ||
+                  nextIndex === 7 ||
+                  nextIndex === 13 ||
+                  nextIndex === 19)
+              ) {
+                animateMidlayerStage(
+                  nextIndex === 6
+                    ? 1
+                    : nextIndex === 7
+                    ? 2
+                    : nextIndex === 13
+                    ? 3
+                    : 4
+                );
+                if (nextIndex === 7) {
+                  // Show second sequence after parts 1-2 complete (delay handled in useEffect)
+                  // Don't set it here - let the useEffect handle it with delay
+                }
+              }
+              if (
+                activeSlide?.id === "yellow-edges-solution-3" &&
+                nextIndex === 1
+              ) {
+                animateMidlayerStage(1);
+                // Change yaw from +45 to +135 after first U2 move completes (90 degrees in opposite direction from slide 3)
+                if (!yellowEdges3YawChangedRef.current) {
+                  yellowEdges3YawChangedRef.current = true;
+                  if (orbitControlsRef.current && cubeViewRef.current) {
+                    const c: any = orbitControlsRef.current;
+                    c.__resetOpts = {
+                      extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
+                      flipUpsideDown: true,
+                      extraERotationDeg: -45,
+                      slideId: activeSlide.id,
+                    };
+                    cubeViewRef.current.resetToInitialPosition(
+                      orbitControlsRef,
+                      cubeRef,
+                      () => {
+                        // Yaw change complete
+                      }
+                    );
+                  }
+                }
               }
               setFixDoublePartialDir(0);
               if (
@@ -1381,7 +1837,9 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                 setTimeout(() => setFixSecondTickLine(true), 300);
                 setTimeout(() => setFixSecondTickPlayed(true), 700);
               }
-              if (fixIndex + 1 >= fixSequence.length) triggerFixTick();
+              if (fixIndex + 1 >= fixSequence.length) {
+                triggerFixTick();
+              }
             } else {
               resetWithError();
             }
@@ -1397,6 +1855,111 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                 animateMidlayerStage(
                   nextIndex === 3 ? 1 : nextIndex === 4 ? 2 : 3
                 );
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-3" &&
+                (nextIndex === 4 || nextIndex === 7)
+              ) {
+                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-4" &&
+                (nextIndex === 4 || nextIndex === 7)
+              ) {
+                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "yellow-cross-triangle" &&
+                (nextIndex === 6 || nextIndex === 12)
+              ) {
+                animateMidlayerStage(nextIndex === 6 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "yellow-cross-dot" &&
+                (nextIndex === 6 ||
+                  nextIndex === 7 ||
+                  nextIndex === 13 ||
+                  nextIndex === 19)
+              ) {
+                if (nextIndex === 7) {
+                  animateMidlayerStage(2);
+                  // Show second sequence after parts 1-2 complete (delay handled in useEffect)
+                  // Don't set it here - let the useEffect handle it with delay
+                } else {
+                  animateMidlayerStage(
+                    nextIndex === 6 ? 1 : nextIndex === 13 ? 3 : 4
+                  );
+                }
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-5" &&
+                (nextIndex === 4 || nextIndex === 8 || nextIndex === 11)
+              ) {
+                animateMidlayerStage(
+                  nextIndex === 4 ? 1 : nextIndex === 8 ? 2 : 3
+                );
+              }
+              if (
+                activeSlide?.id === "practice-setup-solution-6" &&
+                (nextIndex === 4 || nextIndex === 5 || nextIndex === 8)
+              ) {
+                animateMidlayerStage(
+                  nextIndex === 4 ? 1 : nextIndex === 5 ? 2 : 3
+                );
+              }
+              if (
+                activeSlide?.id === "second-layer-setup-solution-3" &&
+                (nextIndex === 5 || nextIndex === 8)
+              ) {
+                animateMidlayerStage(nextIndex === 5 ? 1 : 2);
+              }
+              if (
+                activeSlide?.id === "second-layer-setup-solution-4" &&
+                (nextIndex === 5 || nextIndex === 8 || nextIndex === 9)
+              ) {
+                if (nextIndex === 9) {
+                  animateMidlayerStage(3);
+                  // Show second sequence after parts 1-3 complete (delay handled in useEffect)
+                  // Don't set it here - let the useEffect handle it with delay
+                } else {
+                  animateMidlayerStage(nextIndex === 5 ? 1 : 2);
+                }
+              }
+              if (
+                activeSlide?.id === "second-layer-setup-solution-4" &&
+                (nextIndex === 14 || nextIndex === 17)
+              ) {
+                animateMidlayerStage(nextIndex === 14 ? 4 : 5);
+                if (nextIndex === 17) {
+                  // Lock second sequence when complete
+                  setSecondSequenceLocked(true);
+                }
+              }
+              if (
+                activeSlide?.id === "yellow-edges-solution-3" &&
+                nextIndex === 1
+              ) {
+                animateMidlayerStage(1);
+                // Change yaw from +45 to +135 after first U2 move completes (90 degrees in opposite direction from slide 3)
+                if (!yellowEdges3YawChangedRef.current) {
+                  yellowEdges3YawChangedRef.current = true;
+                  if (orbitControlsRef.current && cubeViewRef.current) {
+                    const c: any = orbitControlsRef.current;
+                    c.__resetOpts = {
+                      extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
+                      flipUpsideDown: true,
+                      extraERotationDeg: -45,
+                      slideId: activeSlide.id,
+                    };
+                    cubeViewRef.current.resetToInitialPosition(
+                      orbitControlsRef,
+                      cubeRef,
+                      () => {
+                        // Yaw change complete
+                      }
+                    );
+                  }
+                }
               }
               setFixDoublePartialDir(0);
               // For steps with two-stage UI (5 and 6), animate the small inline first tick once when the first stage completes via full double
@@ -1445,6 +2008,250 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
             ) {
               animateMidlayerStage(next === 3 ? 1 : next === 4 ? 2 : 3);
             }
+            // Change yaw for slide 8 of white cross (midlayer-green-white-extraction)
+            if (
+              activeSlide?.id === "midlayer-green-white-extraction" &&
+              lessonId === "white-cross"
+            ) {
+              // After first sequence (R' D' R) completes, reach index 3: change to -45 degrees (45 degrees to the right)
+              if (next === 3 && slide8WhiteCrossYawStateRef.current === 0) {
+                slide8WhiteCrossYawStateRef.current = 1;
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: (Math.PI / 180) * -45,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+              // After second sequence (D') completes, reach index 4: change to 0 degrees (same as slides 6 & 7)
+              if (next === 4 && slide8WhiteCrossYawStateRef.current === 1) {
+                slide8WhiteCrossYawStateRef.current = 2;
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: 0,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+            }
+            // Change yaw for slide 6 (misaligned-green-white) when reaching index 1 (after first D' move at index 0)
+            if (
+              activeSlide?.id === "misaligned-green-white" &&
+              next === 1 &&
+              !slide6YawChangedRef.current
+            ) {
+              slide6YawChangedRef.current = true;
+              // Change to 0 degrees (no yaw change)
+              if (orbitControlsRef.current && cubeViewRef.current) {
+                const c: any = orbitControlsRef.current;
+                c.__resetOpts = {
+                  extraYawRad: 0,
+                  slideId: activeSlide.id,
+                };
+                cubeViewRef.current.resetToInitialPosition(
+                  orbitControlsRef,
+                  cubeRef,
+                  () => {
+                    // Yaw change complete
+                  }
+                );
+              }
+            }
+            // Change yaw for slide 7 (flipped-misoriented-misaligned-green-white) when reaching index 1 (after first D' move at index 0)
+            if (
+              activeSlide?.id ===
+                "flipped-misoriented-misaligned-green-white" &&
+              next === 1 &&
+              !slide6YawChangedRef.current
+            ) {
+              slide6YawChangedRef.current = true;
+              // Change to 0 degrees (no yaw change)
+              if (orbitControlsRef.current && cubeViewRef.current) {
+                const c: any = orbitControlsRef.current;
+                c.__resetOpts = {
+                  extraYawRad: 0,
+                  slideId: activeSlide.id,
+                };
+                cubeViewRef.current.resetToInitialPosition(
+                  orbitControlsRef,
+                  cubeRef,
+                  () => {
+                    // Yaw change complete
+                  }
+                );
+              }
+            }
+            if (
+              activeSlide?.id === "practice-setup-solution-3" &&
+              (next === 4 || next === 7)
+            ) {
+              animateMidlayerStage(next === 4 ? 1 : 2);
+            }
+            if (
+              activeSlide?.id === "practice-setup-solution-4" &&
+              (next === 4 || next === 7)
+            ) {
+              animateMidlayerStage(next === 4 ? 1 : 2);
+            }
+            if (
+              activeSlide?.id === "yellow-cross-triangle" &&
+              (next === 6 || next === 12)
+            ) {
+              animateMidlayerStage(next === 6 ? 1 : 2);
+            }
+            if (activeSlide?.id === "yellow-edges-solution-3" && next === 1) {
+              animateMidlayerStage(1);
+              // Change yaw from +45 to +135 after first U2 move completes (90 degrees in opposite direction from slide 3)
+              if (!yellowEdges3YawChangedRef.current) {
+                yellowEdges3YawChangedRef.current = true;
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
+                    flipUpsideDown: true,
+                    extraERotationDeg: -45,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+            }
+            if (
+              activeSlide?.id === "practice-setup-solution-5" &&
+              (next === 4 || next === 8 || next === 11)
+            ) {
+              animateMidlayerStage(next === 4 ? 1 : next === 8 ? 2 : 3);
+            }
+            if (
+              activeSlide?.id === "second-layer-setup-solution-3" &&
+              (next === 5 || next === 8)
+            ) {
+              animateMidlayerStage(next === 5 ? 1 : 2);
+            }
+            if (
+              activeSlide?.id === "second-layer-setup-solution-4" &&
+              (next === 5 || next === 8 || next === 9)
+            ) {
+              animateMidlayerStage(next === 5 ? 1 : next === 8 ? 2 : 3);
+            }
+            if (
+              activeSlide?.id === "yellow-edges-solution-2" &&
+              (next === 1 || next === 9)
+            ) {
+              animateMidlayerStage(next === 1 ? 1 : 2);
+              // Change yaw from +45 to -45 after first U move completes
+              if (next === 1 && !yellowEdges2YawChangedRef.current) {
+                yellowEdges2YawChangedRef.current = true;
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: (Math.PI / 180) * -45, // 45 degrees to the left (negative)
+                    flipUpsideDown: true,
+                    extraERotationDeg: -45,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+              if (next === 9) {
+                // Lock second sequence when complete (but we don't use progressive reveal anymore)
+                // This is kept for consistency but not actually used
+                setSecondSequenceYellowEdges2Locked(true);
+              }
+            }
+            if (activeSlide?.id === "yellow-edges-solution-3" && next === 9) {
+              // Second part completes (single moves), animate second tick
+              animateMidlayerStage(2);
+            }
+            if (
+              activeSlide?.id === "second-layer-setup-solution-4" &&
+              (next === 14 || next === 17)
+            ) {
+              animateMidlayerStage(next === 14 ? 4 : 5);
+              if (next === 17) {
+                // Lock second sequence when complete
+                setSecondSequenceLocked(true);
+              }
+            }
+            if (
+              activeSlide?.id === "yellow-cross-dot" &&
+              (next === 6 || next === 7 || next === 13 || next === 19)
+            ) {
+              animateMidlayerStage(
+                next === 6 ? 1 : next === 7 ? 2 : next === 13 ? 3 : 4
+              );
+              if (next === 19) {
+                // Lock second sequence when complete
+                setSecondSequenceDotLocked(true);
+              }
+            }
+            if (
+              activeSlide?.id === "practice-setup-solution-6" &&
+              (next === 4 || next === 5 || next === 8)
+            ) {
+              animateMidlayerStage(next === 4 ? 1 : next === 5 ? 2 : 3);
+              // Change yaw when reaching index 5 (after U move)
+              if (next === 5 && !slide8YawChangedRef.current) {
+                slide8YawChangedRef.current = true;
+                // Change to match slides 3-7: extraYawRad: 0, extraERotationDeg: -45
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: 0,
+                    flipUpsideDown: true,
+                    extraERotationDeg: -45,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+            }
+            if (
+              activeSlide?.id === "second-layer-setup-solution" &&
+              (next === 5 || next === 8)
+            ) {
+              animateMidlayerStage(next === 5 ? 1 : 2);
+            }
+            if (
+              activeSlide?.id === "second-layer-setup-solution-2" &&
+              (next === 5 || next === 8)
+            ) {
+              animateMidlayerStage(next === 5 ? 1 : 2);
+            }
             setFixDoublePartialDir(0);
             if (
               (activeSlide?.id === "flipped-misoriented-green-white" ||
@@ -1474,6 +2281,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       fixDoublePartialDir,
       resetToSlideBaseline,
       activeSlide?.id,
+      activeSlide,
+      lessonId,
       triggerFixTick,
       midStage1Played,
       midStage2Played,
@@ -1489,221 +2298,17 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
 
   // Helper: check if white cross is solved (proper detection)
   const isWhiteCrossSolved = useCallback(() => {
-    if (!cube3D) return false;
+    return checkWhiteCrossSolved(cube3D);
+  }, [cube3D]);
 
-    // First, find which face has the white center
-    const centerPositions = [
-      { pos: [2, 1, 1], face: "right" as const },
-      { pos: [0, 1, 1], face: "left" as const },
-      { pos: [1, 2, 1], face: "top" as const },
-      { pos: [1, 0, 1], face: "bottom" as const },
-      { pos: [1, 1, 2], face: "front" as const },
-      { pos: [1, 1, 0], face: "back" as const },
-    ];
+  // Helper: check if white corners are solved (proper detection)
+  const isWhiteCornersSolved = useCallback(() => {
+    return checkWhiteCornersSolved(cube3D);
+  }, [cube3D]);
 
-    let whiteFace: string | null = null;
-    let whiteCenterPos: [number, number, number] | null = null;
-
-    for (const { pos, face } of centerPositions) {
-      const [x, y, z] = pos;
-      const centerPiece = cube3D[x][y][z];
-      if (centerPiece.colors[face] === CUBE_COLORS.WHITE) {
-        whiteFace = face;
-        whiteCenterPos = pos as [number, number, number];
-        break;
-      }
-    }
-
-    if (!whiteFace || !whiteCenterPos) return false;
-
-    // Define the edge positions and their expected colors for each face
-    const edgeConfig: Record<
-      string,
-      Array<{
-        pos: [number, number, number];
-        whiteFaceKey: keyof CubeState["colors"];
-        colorFaceKey: keyof CubeState["colors"];
-        expectedColor: string;
-      }>
-    > = {
-      bottom: [
-        {
-          pos: [1, 0, 0],
-          whiteFaceKey: "bottom",
-          colorFaceKey: "back",
-          expectedColor: CUBE_COLORS.BLUE,
-        },
-        {
-          pos: [0, 1, 0],
-          whiteFaceKey: "bottom",
-          colorFaceKey: "left",
-          expectedColor: CUBE_COLORS.ORANGE,
-        },
-        {
-          pos: [2, 1, 0],
-          whiteFaceKey: "bottom",
-          colorFaceKey: "right",
-          expectedColor: CUBE_COLORS.RED,
-        },
-        {
-          pos: [1, 2, 0],
-          whiteFaceKey: "bottom",
-          colorFaceKey: "front",
-          expectedColor: CUBE_COLORS.GREEN,
-        },
-      ],
-      top: [
-        {
-          pos: [1, 2, 2],
-          whiteFaceKey: "top",
-          colorFaceKey: "front",
-          expectedColor: CUBE_COLORS.GREEN,
-        },
-        {
-          pos: [0, 2, 1],
-          whiteFaceKey: "top",
-          colorFaceKey: "left",
-          expectedColor: CUBE_COLORS.ORANGE,
-        },
-        {
-          pos: [2, 2, 1],
-          whiteFaceKey: "top",
-          colorFaceKey: "right",
-          expectedColor: CUBE_COLORS.RED,
-        },
-        {
-          pos: [1, 2, 0],
-          whiteFaceKey: "top",
-          colorFaceKey: "back",
-          expectedColor: CUBE_COLORS.BLUE,
-        },
-      ],
-      front: [
-        {
-          pos: [1, 0, 2],
-          whiteFaceKey: "front",
-          colorFaceKey: "bottom",
-          expectedColor: CUBE_COLORS.YELLOW,
-        },
-        {
-          pos: [0, 1, 2],
-          whiteFaceKey: "front",
-          colorFaceKey: "left",
-          expectedColor: CUBE_COLORS.ORANGE,
-        },
-        {
-          pos: [2, 1, 2],
-          whiteFaceKey: "front",
-          colorFaceKey: "right",
-          expectedColor: CUBE_COLORS.RED,
-        },
-        {
-          pos: [1, 2, 2],
-          whiteFaceKey: "front",
-          colorFaceKey: "top",
-          expectedColor: CUBE_COLORS.WHITE,
-        },
-      ],
-      back: [
-        {
-          pos: [1, 2, 0],
-          whiteFaceKey: "back",
-          colorFaceKey: "top",
-          expectedColor: CUBE_COLORS.WHITE,
-        },
-        {
-          pos: [0, 1, 0],
-          whiteFaceKey: "back",
-          colorFaceKey: "left",
-          expectedColor: CUBE_COLORS.ORANGE,
-        },
-        {
-          pos: [2, 1, 0],
-          whiteFaceKey: "back",
-          colorFaceKey: "right",
-          expectedColor: CUBE_COLORS.RED,
-        },
-        {
-          pos: [1, 0, 0],
-          whiteFaceKey: "back",
-          colorFaceKey: "bottom",
-          expectedColor: CUBE_COLORS.YELLOW,
-        },
-      ],
-      left: [
-        {
-          pos: [0, 0, 1],
-          whiteFaceKey: "left",
-          colorFaceKey: "bottom",
-          expectedColor: CUBE_COLORS.YELLOW,
-        },
-        {
-          pos: [0, 1, 0],
-          whiteFaceKey: "left",
-          colorFaceKey: "back",
-          expectedColor: CUBE_COLORS.BLUE,
-        },
-        {
-          pos: [0, 1, 2],
-          whiteFaceKey: "left",
-          colorFaceKey: "front",
-          expectedColor: CUBE_COLORS.GREEN,
-        },
-        {
-          pos: [0, 2, 1],
-          whiteFaceKey: "left",
-          colorFaceKey: "top",
-          expectedColor: CUBE_COLORS.WHITE,
-        },
-      ],
-      right: [
-        {
-          pos: [2, 2, 1],
-          whiteFaceKey: "right",
-          colorFaceKey: "top",
-          expectedColor: CUBE_COLORS.WHITE,
-        },
-        {
-          pos: [2, 1, 2],
-          whiteFaceKey: "right",
-          colorFaceKey: "front",
-          expectedColor: CUBE_COLORS.GREEN,
-        },
-        {
-          pos: [2, 1, 0],
-          whiteFaceKey: "right",
-          colorFaceKey: "back",
-          expectedColor: CUBE_COLORS.BLUE,
-        },
-        {
-          pos: [2, 0, 1],
-          whiteFaceKey: "right",
-          colorFaceKey: "bottom",
-          expectedColor: CUBE_COLORS.YELLOW,
-        },
-      ],
-    };
-
-    const edges = edgeConfig[whiteFace];
-    if (!edges) return false;
-
-    // Check all four edges around the white center
-    for (const { pos, whiteFaceKey, colorFaceKey, expectedColor } of edges) {
-      const [x, y, z] = pos;
-      const edgePiece = cube3D[x][y][z];
-
-      // Check that the white face sticker is actually white
-      if (edgePiece.colors[whiteFaceKey] !== CUBE_COLORS.WHITE) {
-        return false;
-      }
-
-      // Check that the colored sticker matches the expected center color
-      if (edgePiece.colors[colorFaceKey] !== expectedColor) {
-        return false;
-      }
-    }
-
-    return true;
+  // Helper: check if second layer is solved (proper detection)
+  const isSecondLayerSolved = useCallback(() => {
+    return checkSecondLayerSolved(cube3D);
   }, [cube3D]);
 
   // Monitor practice slide completion
@@ -1711,22 +2316,45 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     const isPracticeSlide =
       activeSlide?.id === "practice-two-edges" ||
       activeSlide?.id === "practice-three-edges" ||
-      activeSlide?.id === "practice-full-cross";
+      activeSlide?.id === "practice-full-cross" ||
+      activeSlide?.id === "practice-white-corners" ||
+      activeSlide?.id === "practice-white-corners-2" ||
+      activeSlide?.id === "practice-white-corners-3" ||
+      activeSlide?.id === "practice-second-layer" ||
+      activeSlide?.id === "practice-second-layer-2" ||
+      activeSlide?.id === "practice-second-layer-3";
     if (!isPracticeSlide) return;
     if (!practiceSetupComplete) return; // Wait for setup to complete
 
+    const isWhiteCornersPractice =
+      activeSlide?.id === "practice-white-corners" ||
+      activeSlide?.id === "practice-white-corners-2" ||
+      activeSlide?.id === "practice-white-corners-3";
+    const isSecondLayerPractice =
+      activeSlide?.id === "practice-second-layer" ||
+      activeSlide?.id === "practice-second-layer-2" ||
+      activeSlide?.id === "practice-second-layer-3";
+
     const crossSolved = isWhiteCrossSolved();
+    const cornersSolved = isWhiteCornersSolved();
+    const secondLayerSolved = isSecondLayerSolved();
+
+    const isSolved = isWhiteCornersPractice
+      ? crossSolved && cornersSolved
+      : isSecondLayerPractice
+      ? secondLayerSolved
+      : crossSolved;
 
     // Record the initial state after setup
     if (practiceInitialCrossState === null) {
-      setPracticeInitialCrossState(crossSolved);
+      setPracticeInitialCrossState(isSolved);
       return; // Don't process completion on initial state
     }
 
     // Only mark as completed if:
-    // 1. Cross is now solved AND
+    // 1. Both cross and corners are solved (for practice-white-corners) or just cross (for others) AND
     // 2. Either it wasn't initially solved, OR the user has made moves (indicating active solving)
-    if (crossSolved && !practiceCompleted) {
+    if (isSolved && !practiceCompleted) {
       if (!practiceInitialCrossState || moveHistory.length > 0) {
         setPracticeCompleted(true);
         setPracticeShowTick(true);
@@ -1743,6 +2371,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     activeSlide?.id,
     cube3D,
     isWhiteCrossSolved,
+    isWhiteCornersSolved,
+    isSecondLayerSolved,
     practiceCompleted,
     practiceSetupComplete,
     practiceInitialCrossState,
@@ -1750,64 +2380,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   ]);
 
   // Removed old findGreenWhiteEdgeIndex; now we highlight all four white edges instead
-
-  // Find all WHITE + (GREEN|RED|BLUE|ORANGE) edge cubie indices
-  const findWhiteEdgeIndices = useCallback((): Array<
-    [number, number, number]
-  > => {
-    const allowed = new Set([
-      CUBE_COLORS.GREEN,
-      CUBE_COLORS.RED,
-      CUBE_COLORS.BLUE,
-      CUBE_COLORS.ORANGE,
-    ]);
-    const out: Array<[number, number, number]> = [];
-    for (let x = 0; x < 3; x++) {
-      for (let y = 0; y < 3; y++) {
-        for (let z = 0; z < 3; z++) {
-          const piece = cube3D[x][y][z];
-          const colors = getCubieColorSet(piece);
-          if (
-            colors.size === 2 &&
-            colors.has(CUBE_COLORS.WHITE) &&
-            [...colors].some((c) => allowed.has(c) && c !== CUBE_COLORS.WHITE)
-          ) {
-            out.push([x, y, z]);
-          }
-        }
-      }
-    }
-    return out;
-  }, [cube3D]);
-
-  const findWhiteCornerIndices = useCallback((): Array<
-    [number, number, number]
-  > => {
-    const allowed = new Set([
-      CUBE_COLORS.GREEN,
-      CUBE_COLORS.RED,
-      CUBE_COLORS.BLUE,
-      CUBE_COLORS.ORANGE,
-    ]);
-    const out: Array<[number, number, number]> = [];
-    for (let x = 0; x < 3; x++) {
-      for (let y = 0; y < 3; y++) {
-        for (let z = 0; z < 3; z++) {
-          const piece = cube3D[x][y][z];
-          const colors = getCubieColorSet(piece);
-          if (
-            colors.size === 3 &&
-            colors.has(CUBE_COLORS.WHITE) &&
-            [...colors].filter((c) => allowed.has(c) && c !== CUBE_COLORS.WHITE)
-              .length === 2
-          ) {
-            out.push([x, y, z]);
-          }
-        }
-      }
-    }
-    return out;
-  }, [cube3D]);
+  // Helper functions moved to utils/tutorialHelpers.ts
 
   return (
     <div
@@ -1848,277 +2421,816 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       {/* Main content */}
       <div
         className={`flex flex-1 min-h-0 ${
-          activeSlide?.id === "recap-mental-model"
+          activeSlide?.id === "recap-mental-model" ||
+          activeSlide?.id === "recap-white-corners" ||
+          activeSlide?.id === "second-layer-recap" ||
+          activeSlide?.id === "yellow-cross-states"
             ? "h-[100dvh] overflow-hidden"
             : "overflow-hidden"
         }`}
       >
         {/* Lesson content sidebar - responsive (hidden on recap slide) */}
-        {activeSlide?.id !== "recap-mental-model" && (
-          <div
-            className={`${
-              showLessonContent ? "block" : "hidden"
-            } md:block w-full md:w-80 bg-gray-50 border-r overflow-y-auto ${
-              showLessonContent ? "absolute md:relative z-10 h-full" : ""
-            }`}
-          >
-            <LessonContent lessonId={lessonId} />
-          </div>
-        )}
+        {activeSlide?.id !== "recap-mental-model" &&
+          activeSlide?.id !== "recap-white-corners" &&
+          activeSlide?.id !== "second-layer-recap" && (
+            <div
+              className={`${
+                showLessonContent ? "block" : "hidden"
+              } md:block w-full md:w-80 bg-gray-50 border-r overflow-y-auto ${
+                showLessonContent ? "absolute md:relative z-10 h-full" : ""
+              }`}
+            >
+              <LessonContent lessonId={lessonId} />
+            </div>
+          )}
 
-        {/* Viewer area: either the 3D canvas or the recap content */}
+        {/* Viewer area: always render the cube, recap overlay on top when needed */}
         <div className="flex-1 relative min-h-0">
-          {activeSlide?.id === "recap-mental-model" ? (
-            <div className="relative w-full h-full">
-              {/* Background cube */}
+          <div className="relative w-full h-full">
+            {/* Background cube - always rendered */}
+            <div
+              ref={cubeContainerRef}
+              className="relative w-full h-full bg-black/20 backdrop-blur-sm border border-white/20"
+            >
               <div
-                ref={cubeContainerRef}
-                className="relative w-full h-full bg-black/20 backdrop-blur-sm border border-white/20"
+                className="absolute -top-1 w-full h-full"
+                ref={overlayContainerRef}
               >
-                <div
-                  className="absolute -top-1 w-full h-full"
-                  ref={overlayContainerRef}
+                <Canvas
+                  ref={canvasRef}
+                  camera={{
+                    position: [4, 4, 4],
+                    fov: 60,
+                  }}
+                  className="w-full h-full"
+                  style={{ background: "transparent", touchAction: "none" }}
+                  dpr={canvasDpr}
+                  gl={{
+                    antialias: true,
+                    powerPreference: "high-performance",
+                    alpha: true,
+                    stencil: false,
+                    depth: true,
+                    preserveDrawingBuffer: false,
+                  }}
+                  onCreated={(state) => {
+                    attachSetDpr(state.setDpr);
+                    state.gl.localClippingEnabled = true;
+                    const canvas = state.gl.domElement as HTMLCanvasElement;
+                    const onLost = (ev: Event) => ev.preventDefault();
+                    const onRestored = () => {
+                      try {
+                        state.gl.resetState();
+                      } catch {}
+                    };
+                    canvas.addEventListener(
+                      "webglcontextlost",
+                      onLost as any,
+                      false
+                    );
+                    canvas.addEventListener(
+                      "webglcontextrestored",
+                      onRestored as any,
+                      false
+                    );
+                  }}
+                  onPointerDownCapture={(e) => {
+                    if (isTouchDevice) setInteractiveDpr();
+                    const isPracticeSlide =
+                      activeSlide?.id === "practice-two-edges" ||
+                      activeSlide?.id === "practice-three-edges" ||
+                      activeSlide?.id === "practice-full-cross" ||
+                      activeSlide?.id === "practice-white-corners" ||
+                      activeSlide?.id === "practice-white-corners-2" ||
+                      activeSlide?.id === "practice-white-corners-3" ||
+                      activeSlide?.id === "practice-second-layer" ||
+                      activeSlide?.id === "practice-second-layer-2" ||
+                      activeSlide?.id === "practice-second-layer-3";
+                    const isRecapSlide =
+                      activeSlide?.id === "recap-mental-model" ||
+                      activeSlide?.id === "recap-white-corners" ||
+                      activeSlide?.id === "second-layer-recap" ||
+                      activeSlide?.id === "yellow-cross-states";
+                    const dragAllowed =
+                      !!activeSlide?.allowFaceMoves &&
+                      !(isPracticeSlide && practiceCompleted) &&
+                      !fixCompleted &&
+                      !isRecapSlide;
+                    if (dragAllowed) {
+                      cubeViewRef.current?.handlePointerDown(e);
+                    }
+                  }}
+                  onPointerMoveCapture={() => {
+                    if (isTouchDevice) setInteractiveDpr();
+                  }}
+                  onPointerUpCapture={() => {
+                    if (isTouchDevice) setInteractiveDpr();
+                    cubeViewRef.current?.handlePointerUp?.();
+                  }}
                 >
-                  <Canvas
-                    ref={canvasRef}
-                    camera={{ position: [4, 4, 4], fov: 60 }}
-                    className="w-full h-full"
-                    style={{ background: "transparent", touchAction: "none" }}
-                    dpr={canvasDpr}
-                    gl={{
-                      antialias: true,
-                      powerPreference: "high-performance",
-                      alpha: true,
-                      stencil: false,
-                      depth: true,
-                      preserveDrawingBuffer: false,
-                    }}
-                    onCreated={(state) => {
-                      attachSetDpr(state.setDpr);
-                      state.gl.localClippingEnabled = true;
-                      const canvas = state.gl.domElement as HTMLCanvasElement;
-                      const onLost = (ev: Event) => ev.preventDefault();
-                      const onRestored = () => {
-                        try {
-                          state.gl.resetState();
-                        } catch {}
-                      };
-                      canvas.addEventListener(
-                        "webglcontextlost",
-                        onLost as any,
-                        false
-                      );
-                      canvas.addEventListener(
-                        "webglcontextrestored",
-                        onRestored as any,
-                        false
-                      );
-                    }}
-                    onPointerDownCapture={(e) => {
-                      if (isTouchDevice) setInteractiveDpr();
+                  <PerformanceMonitor
+                    onDecline={onDecline}
+                    onIncline={onIncline}
+                  />
+                  <spotLight
+                    position={[-30, 20, 60]}
+                    intensity={0.3}
+                    castShadow
+                  />
+                  <ambientLight
+                    intensity={
+                      activeSlide?.id === "recap-mental-model" ||
+                      activeSlide?.id === "recap-white-corners" ||
+                      activeSlide?.id === "second-layer-recap" ||
+                      activeSlide?.id === "yellow-cross-states"
+                        ? 0.95
+                        : 1.1
+                    }
+                    color={CUBE_COLORS.WHITE}
+                  />
+                  <TrackballControls
+                    ref={orbitControlsRef}
+                    enabled={orbitControlsEnabled}
+                    noRotate={(() => {
+                      const isRecapSlide =
+                        activeSlide?.id === "recap-mental-model" ||
+                        activeSlide?.id === "recap-white-corners" ||
+                        activeSlide?.id === "second-layer-recap" ||
+                        activeSlide?.id === "yellow-cross-states";
+                      return isRecapSlide ? true : !orbitControlsEnabled;
+                    })()}
+                    noZoom={true}
+                    noPan={true}
+                    staticMoving={false}
+                    dynamicDampingFactor={0.35}
+                    rotateSpeed={1.2}
+                    zoomSpeed={1.2}
+                    panSpeed={4.0}
+                    minDistance={3}
+                    maxDistance={15}
+                  />
+                  <RubiksCube3D
+                    ref={cubeViewRef}
+                    cubeState={tutorialCube3D}
+                    touchCount={touchCount}
+                    pendingMove={pendingMove}
+                    onMoveAnimationDone={handleMoveAnimationDone}
+                    onStartAnimation={handleStartAnimation}
+                    isAnimating={isAnimating}
+                    onOrbitControlsChange={handlePracticeOrbitChange}
+                    onDragMove={handleButtonMove}
+                    isTimerMode={false}
+                    moveSource={lastMoveSourceRef.current}
+                    queueFast={queueFast}
+                    queueFastMs={queueFastMs}
+                    inputDisabled={(() => {
+                      // Recap slides: always disabled
+                      if (
+                        activeSlide?.id === "recap-mental-model" ||
+                        activeSlide?.id === "recap-white-corners" ||
+                        activeSlide?.id === "second-layer-recap" ||
+                        activeSlide?.id === "yellow-cross-states"
+                      ) {
+                        return true;
+                      }
+                      // Practice slides when completed: disable moves
                       const isPracticeSlide =
                         activeSlide?.id === "practice-two-edges" ||
                         activeSlide?.id === "practice-three-edges" ||
-                        activeSlide?.id === "practice-full-cross";
-                      const dragAllowed =
-                        !!activeSlide?.allowFaceMoves &&
-                        !(isPracticeSlide && practiceCompleted) &&
-                        !fixCompleted;
-                      if (dragAllowed) {
-                        cubeViewRef.current?.handlePointerDown(e);
+                        activeSlide?.id === "practice-full-cross" ||
+                        activeSlide?.id === "practice-white-corners" ||
+                        activeSlide?.id === "practice-white-corners-2" ||
+                        activeSlide?.id === "practice-white-corners-3" ||
+                        activeSlide?.id === "practice-second-layer" ||
+                        activeSlide?.id === "practice-second-layer-2" ||
+                        activeSlide?.id === "practice-second-layer-3";
+                      if (isPracticeSlide && practiceCompleted) {
+                        return true;
                       }
-                    }}
-                    onPointerMoveCapture={() => {
-                      if (isTouchDevice) setInteractiveDpr();
-                    }}
-                    onPointerUpCapture={() => {
-                      if (isTouchDevice) setInteractiveDpr();
-                      cubeViewRef.current?.handlePointerUp?.();
-                    }}
-                  >
-                    <PerformanceMonitor
-                      onDecline={onDecline}
-                      onIncline={onIncline}
-                    />
-                    <spotLight
-                      position={[-30, 20, 60]}
-                      intensity={0.3}
-                      castShadow
-                    />
-                    <ambientLight intensity={0.95} color={CUBE_COLORS.WHITE} />
-                    <TrackballControls
-                      ref={orbitControlsRef}
-                      enabled={orbitControlsEnabled}
-                      noRotate={!orbitControlsEnabled}
-                      noZoom={true}
-                      noPan={true}
-                      staticMoving={false}
-                      dynamicDampingFactor={0.35}
-                      rotateSpeed={1.2}
-                      zoomSpeed={1.2}
-                      panSpeed={4.0}
-                      minDistance={3}
-                      maxDistance={15}
-                    />
-                    <RubiksCube3D
-                      ref={cubeViewRef}
-                      cubeState={tutorialCube3D}
-                      touchCount={touchCount}
-                      pendingMove={pendingMove}
-                      onMoveAnimationDone={handleMoveAnimationDone}
-                      onStartAnimation={handleStartAnimation}
-                      isAnimating={isAnimating}
-                      onOrbitControlsChange={handleOrbitControlsChange}
-                      onDragMove={handleButtonMove}
-                      isTimerMode={false}
-                      moveSource={lastMoveSourceRef.current}
-                      queueFast={queueFast}
-                      queueFastMs={queueFastMs}
-                      inputDisabled={true}
-                      disableSliceDrag={true}
-                      preventSliceMoves={true}
-                      highlightIntensity={(() => {
-                        const ids = new Set([
-                          "find-green-white",
-                          "flip-green-white",
-                          "flip-green-white-f2",
-                          "misaligned-green-white",
-                          "flipped-misoriented-green-white",
-                          "flipped-misoriented-misaligned-green-white",
-                          "midlayer-green-white-extraction",
-                          "practice-two-edges",
-                        ]);
-                        return activeSlide?.id && ids.has(activeSlide.id)
-                          ? 1
-                          : 0;
-                      })()}
-                      dullOthersIntensity={0}
-                    />
-                  </Canvas>
-                </div>
+                      // Otherwise use the state value
+                      return inputDisabled || isTransitioningRef.current;
+                    })()}
+                    disableSliceDrag={
+                      activeSlide?.id === "recap-mental-model" ||
+                      activeSlide?.id === "recap-white-corners" ||
+                      activeSlide?.id === "second-layer-recap" ||
+                      activeSlide?.id === "yellow-cross-states"
+                        ? true
+                        : activeSlide?.id === "intro" ||
+                          activeSlide?.id === "mechanical-approach" ||
+                          activeSlide?.id === "find-green-white" ||
+                          fixCompleted ||
+                          ((activeSlide?.id === "practice-two-edges" ||
+                            activeSlide?.id === "practice-three-edges" ||
+                            activeSlide?.id === "practice-full-cross" ||
+                            activeSlide?.id === "practice-white-corners" ||
+                            activeSlide?.id === "practice-white-corners-2" ||
+                            activeSlide?.id === "practice-white-corners-3" ||
+                            activeSlide?.id === "practice-second-layer" ||
+                            activeSlide?.id === "practice-second-layer-2" ||
+                            activeSlide?.id === "practice-second-layer-3") &&
+                            practiceCompleted)
+                    }
+                    preventSliceMoves={
+                      activeSlide?.id === "recap-mental-model" ||
+                      activeSlide?.id === "recap-white-corners" ||
+                      activeSlide?.id === "second-layer-recap" ||
+                      activeSlide?.id === "yellow-cross-states"
+                        ? true
+                        : !activeSlide?.allowFaceMoves ||
+                          activeSlide?.id === "mechanical-approach" ||
+                          ((activeSlide?.id === "practice-two-edges" ||
+                            activeSlide?.id === "practice-three-edges" ||
+                            activeSlide?.id === "practice-full-cross" ||
+                            activeSlide?.id === "practice-white-corners" ||
+                            activeSlide?.id === "practice-white-corners-2" ||
+                            activeSlide?.id === "practice-white-corners-3" ||
+                            activeSlide?.id === "practice-second-layer" ||
+                            activeSlide?.id === "practice-second-layer-2" ||
+                            activeSlide?.id === "practice-second-layer-3") &&
+                            practiceCompleted)
+                    }
+                    highlightIntensity={(() => {
+                      const ids = new Set([
+                        "flip-green-white",
+                        "flip-green-white-f2",
+                        "misaligned-green-white",
+                        "flipped-misoriented-green-white",
+                        "flipped-misoriented-misaligned-green-white",
+                        "midlayer-green-white-extraction",
+                        "practice-two-edges",
+                      ]);
+                      return activeSlide?.id && ids.has(activeSlide.id) ? 1 : 0;
+                    })()}
+                    highlightPositions={(() => {
+                      // For white corners mechanical-approach: mark white/green/red corner (to keep it undimmed)
+                      if (
+                        activeSlide?.id === "mechanical-approach" &&
+                        lessonId === "white-corners"
+                      ) {
+                        const pos = findWhiteGreenRedCorner(tutorialCube3D);
+                        return pos ? [pos] : [];
+                      }
+                      // For second layer mechanical-approach: mark red/green edge (to keep it undimmed)
+                      if (
+                        activeSlide?.id === "mechanical-approach" &&
+                        lessonId === "second-layer"
+                      ) {
+                        const pos = findRedGreenSecondLayerEdge(tutorialCube3D);
+                        return pos ? [pos] : [];
+                      }
+                      // For white cross find-green-white: mark green/white edge (to keep it undimmed)
+                      if (
+                        activeSlide?.id === "find-green-white" &&
+                        lessonId === "white-cross"
+                      ) {
+                        const pos = findGreenWhiteEdge(tutorialCube3D);
+                        return pos ? [pos] : [];
+                      }
+                      return undefined;
+                    })()}
+                    dullOthersIntensity={(() => {
+                      // Dim visible (non-highlighted) pieces for mechanical-approach slides
+                      // The target piece will remain undimmed because it's in highlightPositions
+                      if (
+                        activeSlide?.id === "mechanical-approach" &&
+                        (lessonId === "white-corners" ||
+                          lessonId === "second-layer")
+                      ) {
+                        return 0.75; // Increased from 0.5 to 0.75 for darker dimming
+                      }
+                      // Dim visible (non-highlighted) pieces for find-green-white slide in white cross
+                      // The target piece will remain undimmed because it's in highlightPositions
+                      if (
+                        activeSlide?.id === "find-green-white" &&
+                        lessonId === "white-cross"
+                      ) {
+                        return 0.75; // Same dimming intensity as mechanical-approach slides
+                      }
+                      return 0;
+                    })()}
+                    pieceChildren={yellowEdgePieceChildren}
+                  />
+                </Canvas>
               </div>
+            </div>
 
-              {/* Scrollable recap overlay */}
+            {/* Status indicator for practice slides */}
+            {(activeSlide?.id === "practice-two-edges" ||
+              activeSlide?.id === "practice-three-edges" ||
+              activeSlide?.id === "practice-full-cross" ||
+              activeSlide?.id === "practice-white-corners" ||
+              activeSlide?.id === "practice-white-corners-2" ||
+              activeSlide?.id === "practice-white-corners-3" ||
+              activeSlide?.id === "practice-second-layer" ||
+              activeSlide?.id === "practice-second-layer-2" ||
+              activeSlide?.id === "practice-second-layer-3") && (
+              <PracticeStatusIndicator
+                isSolved={practiceCompleted}
+                showTick={practiceShowTick}
+                tickAnimKey={practiceTickAnimKey}
+                tickProgress={practiceTickProgress}
+                tickLine={practiceTickLine}
+              />
+            )}
+
+            {/* Scrollable recap overlay - positioned absolutely on top when needed */}
+            {(activeSlide?.id === "recap-mental-model" ||
+              activeSlide?.id === "recap-white-corners" ||
+              activeSlide?.id === "second-layer-recap") && (
               <div className="absolute inset-0 z-30 overflow-y-auto">
                 <div className="max-w-3xl mx-auto p-5 md:p-8 pb-[calc(env(safe-area-inset-bottom,0px)+96px)] md:pb-[calc(env(safe-area-inset-bottom,0px)+112px)] text-gray-800 bg-white/95 backdrop-blur">
-                  <div className="mb-2">
-                    <span className="block text-lg md:text-xl font-bold uppercase tracking-wide text-blue-600 mb-2">
-                      QUICK RECAP – Green/White Edge
-                    </span>
-                    <p className="text-sm md:text-base text-gray-700 mb-4">
-                      You may have already noticed that some cases in previous
-                      slides can be solved in fewer moves, but shortcuts aren’t
-                      the focus here. The key idea is simple: remove from
-                      incorrect middle/top layer (if necessary), align the edge
-                      with green, place it between the green and white center
-                      pieces, and then fix its orientation if needed. We use
-                      this method because it’s easier to remember and helps keep
-                      the other correctly placed white edge pieces in position.
-                    </p>
+                  {activeSlide?.id === "recap-mental-model" ? (
+                    <>
+                      <div className="mb-2">
+                        <span className="block text-lg md:text-xl font-bold uppercase tracking-wide text-blue-600 mb-2">
+                          QUICK RECAP – Green/White Edge
+                        </span>
+                        <p className="text-sm md:text-base text-gray-700 mb-4">
+                          You may have already noticed that some cases in
+                          previous slides can be solved in fewer moves, but
+                          shortcuts aren’t the focus here. The key idea is
+                          simple: remove from incorrect middle/top layer (if
+                          necessary), align the edge with green, place it
+                          between the green and white center pieces, and then
+                          fix its orientation if needed. We use this method
+                          because it’s easier to remember and helps keep the
+                          other correctly placed white edge pieces in position.
+                        </p>
+                      </div>
+
+                      <p className="text-sm md:text-base font-semibold mb-2">
+                        Steps:
+                      </p>
+                      <ul className="list-decimal pl-6 space-y-2 text-sm md:text-base leading-relaxed">
+                        <li>
+                          <strong>Extract (if stuck):</strong> If the
+                          green/white edge is trapped in the middle layer or
+                          sitting in the top layer but not above the green
+                          center, first free it. Use <code>R' D' R</code> to
+                          pull it out of the middle layer into the top layer. If
+                          it’s already on the right face of the top layer but
+                          over the wrong center, do
+                          <code> R2</code> (optionally followed by a{" "}
+                          <code>U</code>/<code>U'</code> turn) so you can
+                          realign it in front.
+                        </li>
+                        <li>
+                          <strong>Align:</strong> Rotate <code>D</code> until
+                          the green/white edge is under the green center.
+                        </li>
+                        <li>
+                          <strong>Place:</strong> Do <code>F2</code> to move it
+                          between the green and white centers.
+                        </li>
+                        <li>
+                          <strong>Flip (if needed):</strong> If white isn’t
+                          facing the white center, repeat <code>F U’ R U</code>{" "}
+                          until it is.
+                        </li>
+                      </ul>
+
+                      <p className="mt-4 text-sm md:text-base text-gray-700">
+                        <strong>Why it works:</strong> The quick extraction puts
+                        the edge into a predictable top-layer position so every
+                        case funnels into the same simple flow. Aligning under
+                        green standardizes setup. <code>F2</code> solves upside-
+                        down edges immediately. <code>F U' R U</code> then flips
+                        any sideways edge without disturbing solved white pieces
+                        because the working slot is reused and restored each
+                        time.
+                      </p>
+                    </>
+                  ) : activeSlide?.id === "recap-white-corners" ? (
+                    <>
+                      <div className="mb-2">
+                        <span className="block text-lg md:text-xl font-bold uppercase tracking-wide text-blue-600 mb-2">
+                          QUICK RECAP – White Corners
+                        </span>
+                        <p className="text-sm md:text-base text-gray-700 mb-4">
+                          Now that you've learned the algorithms for solving
+                          white corners, let's summarize what we've covered.
+                          Working from white on the bottom, we use the yellow
+                          layer to find corner pieces and insert them correctly.
+                          The key is recognizing different scenarios and
+                          applying the right algorithm for each case.
+                        </p>
+                      </div>
+
+                      <p className="text-sm md:text-base font-semibold mb-2">
+                        Algorithms and their purposes:
+                      </p>
+                      <ul className="list-disc pl-6 space-y-3 text-sm md:text-base leading-relaxed mb-4">
+                        <li>
+                          <strong>
+                            <code>R U R'</code> (Slide 3):
+                          </strong>{" "}
+                          Inserts a corner piece that's in the top layer with
+                          the white sticker facing right. Used when the corner
+                          is matched with the red and green centers, with red
+                          facing front.
+                        </li>
+                        <li>
+                          <strong>
+                            <code>L' U' L</code> (Slide 4):
+                          </strong>{" "}
+                          Inserts a corner piece that's in the top layer with
+                          the white sticker facing up. Used when the corner is
+                          matched with the green and red centers, with green
+                          facing front.
+                        </li>
+                        <li>
+                          <strong>
+                            <code>R U2 R' U'</code> (Slide 5, Part 1):
+                          </strong>{" "}
+                          Flips a corner piece when the white sticker is facing
+                          up. This brings it into a position where it can be
+                          inserted using the basic insertion algorithm.
+                        </li>
+                        <li>
+                          <strong>
+                            <code>R U R' U'</code> (Slide 4, Slide 6, Slide 7):
+                          </strong>{" "}
+                          Removes a corner piece from the bottom layer and
+                          brings it to the top layer. When repeated twice, it
+                          solves a corner that's in the correct position but
+                          incorrectly oriented.
+                        </li>
+                        <li>
+                          <strong>
+                            <code>R U R'</code> (Slide 5, Part 2; Slide 6, Part
+                            2; Slide 7, Part 3):
+                          </strong>{" "}
+                          Inserts the corner piece after it's been brought to
+                          the correct position. This is the basic insertion
+                          algorithm used after positioning.
+                        </li>
+                      </ul>
+
+                      <p className="mt-4 text-sm md:text-base text-gray-700 mb-4">
+                        <strong>Summary:</strong> The approach is systematic:
+                        find a white corner in the yellow layer, position it
+                        above its target corner using U moves, then insert it
+                        using either <code>R U R'</code> or <code>L' U' L</code>{" "}
+                        depending on the orientation. If a corner is already in
+                        place but wrong orientation, use <code>R U R' U'</code>{" "}
+                        twice to remove and reinsert it correctly. For corners
+                        with white facing up, first flip them with{" "}
+                        <code>R U2 R' U'</code>, then insert. The pattern is
+                        consistent: bring the corner to the top layer, align it,
+                        then insert it into its correct position.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-2">
+                        <span className="block text-lg md:text-xl font-bold uppercase tracking-wide text-blue-600 mb-2">
+                          QUICK RECAP – Second Layer
+                        </span>
+                        <p className="text-sm md:text-base text-gray-700 mb-4">
+                          Now that you've learned the algorithms for solving the
+                          second layer, let's summarize what we've covered. The
+                          second layer involves inserting edge pieces that don't
+                          have yellow stickers into their correct positions
+                          between the white face and the yellow layer. You have
+                          two key algorithms at your disposal, each with two
+                          parts depending on which side of the target slot
+                          you're working from.
+                        </p>
+                      </div>
+
+                      <p className="text-sm md:text-base font-semibold mb-2">
+                        Algorithms and their purposes:
+                      </p>
+                      <ul className="list-disc pl-6 space-y-3 text-sm md:text-base leading-relaxed mb-4">
+                        <li>
+                          <strong>Left Insertion Algorithm:</strong>{" "}
+                          <code>U' L' U' L U</code> (on the right hand of the
+                          target corner) / <code>R U R'</code> (on the left hand
+                          of the target corner). This algorithm inserts an edge
+                          piece that needs to go into the left side of its slot.
+                          Use this when the edge piece's top color aligns with
+                          the left-hand center color of the target slot.
+                        </li>
+                        <li>
+                          <strong>Right Insertion Algorithm:</strong>{" "}
+                          <code>U R U R' U'</code> (on the left hand of the
+                          target corner) / <code>L' U' L</code> (on the right
+                          hand of the target corner). This algorithm inserts an
+                          edge piece that needs to go into the right side of its
+                          slot. Use this when the edge piece's top color aligns
+                          with the right-hand center color of the target slot.
+                        </li>
+                      </ul>
+
+                      <p className="mt-4 text-sm md:text-base text-gray-700 mb-4">
+                        <strong>Summary:</strong> The approach is systematic:
+                        find a second layer edge piece (one without yellow) in
+                        the yellow layer, align its top color with the matching
+                        center color, determine whether it needs to go into the
+                        left or right side of its slot, then use the appropriate
+                        insertion algorithm. These algorithms are versatile -
+                        you can use them to both remove misplaced edge pieces
+                        from the second layer and insert new pieces into their
+                        correct positions. If a piece is already in the correct
+                        position but incorrectly oriented, use the right
+                        insertion algorithm to swap it with a yellow-faced edge,
+                        then reinsert it correctly.
+                      </p>
+                    </>
+                  )}
+                </div>
+                {/* Recap slide fixed footer via portal for robust mobile behavior */}
+                {typeof document !== "undefined"
+                  ? createPortal(
+                      <div
+                        className="fixed inset-x-0 bottom-0 w-full bg-white/95 backdrop-blur border-t shadow-inner z-[999] pointer-events-auto"
+                        style={{
+                          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                        }}
+                      >
+                        <div className="max-w-screen-2xl mx-auto px-3 md:px-6 py-3 md:py-4">
+                          <div className="flex items-center gap-2 justify-end">
+                            <Button
+                              onClick={() =>
+                                setCurrentSlide(Math.max(0, currentSlide - 1))
+                              }
+                              disabled={currentSlide === 0}
+                              className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
+                            >
+                              Prev
+                            </Button>
+                            <Button
+                              onClick={() =>
+                                setCurrentSlide(
+                                  Math.min(slides.length - 1, currentSlide + 1)
+                                )
+                              }
+                              disabled={currentSlide >= slides.length - 1}
+                              className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      </div>,
+                      document.body
+                    )
+                  : null}
+              </div>
+            )}
+
+            {/* Yellow Cross states grid overlay - 2x2 grid of cubes */}
+            {activeSlide?.id === "yellow-cross-states" && (
+              <div className="absolute inset-0 z-30 flex items-stretch justify-center p-8">
+                <div className="w-full max-w-4xl bg-white/95 backdrop-blur rounded-lg shadow-xl p-6 md:p-8 flex flex-col">
+                  <div className="grid grid-cols-2 grid-rows-2 gap-6 flex-1">
+                    {/* Top row */}
+                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
+                      <div className="text-lg font-semibold text-gray-700 mb-2">
+                        Cross
+                      </div>
+                      <div className="text-sm text-gray-500">Placeholder</div>
+                    </div>
+                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
+                      <div className="text-lg font-semibold text-gray-700 mb-2">
+                        Line
+                      </div>
+                      <div className="text-sm text-gray-500">Placeholder</div>
+                    </div>
+                    {/* Bottom row */}
+                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
+                      <div className="text-lg font-semibold text-gray-700 mb-2">
+                        Triangle
+                      </div>
+                      <div className="text-sm text-gray-500">Placeholder</div>
+                    </div>
+                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
+                      <div className="text-lg font-semibold text-gray-700 mb-2">
+                        Dot
+                      </div>
+                      <div className="text-sm text-gray-500">Placeholder</div>
+                    </div>
                   </div>
-
-                  <p className="text-sm md:text-base font-semibold mb-2">
-                    Steps:
-                  </p>
-                  <ul className="list-decimal pl-6 space-y-2 text-sm md:text-base leading-relaxed">
-                    <li>
-                      <strong>Extract (if stuck):</strong> If the green/white
-                      edge is trapped in the middle layer or sitting in the top
-                      layer but not above the green center, first free it. Use{" "}
-                      <code>R' D' R</code> to pull it out of the middle layer
-                      into the top layer. If it’s already on the right face of
-                      the top layer but over the wrong center, do
-                      <code> R2</code> (optionally followed by a <code>U</code>/
-                      <code>U'</code> turn) so you can realign it in front.
-                    </li>
-                    <li>
-                      <strong>Align:</strong> Rotate <code>D</code> until the
-                      green/white edge is under the green center.
-                    </li>
-                    <li>
-                      <strong>Place:</strong> Do <code>F2</code> to move it
-                      between the green and white centers.
-                    </li>
-                    <li>
-                      <strong>Flip (if needed):</strong> If white isn’t facing
-                      the white center, repeat <code>F U’ R U</code> until it
-                      is.
-                    </li>
-                  </ul>
-
-                  <p className="mt-4 text-sm md:text-base text-gray-700">
-                    <strong>Why it works:</strong> The quick extraction puts the
-                    edge into a predictable top-layer position so every case
-                    funnels into the same simple flow. Aligning under green
-                    standardizes setup. <code>F2</code> solves upside- down
-                    edges immediately. <code>F U’ R U</code> then flips any
-                    sideways edge without disturbing solved white pieces because
-                    the working slot is reused and restored each time.
-                  </p>
                 </div>
               </div>
-              {/* Slide 8 fixed footer via portal for robust mobile behavior */}
-              {typeof document !== "undefined"
-                ? createPortal(
-                    <div
-                      className="fixed inset-x-0 bottom-0 w-full bg-white/95 backdrop-blur border-t shadow-inner z-[999] pointer-events-auto"
-                      style={{
-                        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-                      }}
-                    >
-                      <div className="max-w-screen-2xl mx-auto px-3 md:px-6 py-3 md:py-4">
-                        <div className="flex items-center gap-2 justify-end">
-                          <Button
-                            onClick={() =>
-                              setCurrentSlide(Math.max(0, currentSlide - 1))
-                            }
-                            disabled={currentSlide === 0}
-                            className="px-3 py-1 text-sm"
-                          >
-                            Prev
-                          </Button>
-                          <Button
-                            onClick={() =>
-                              setCurrentSlide(
-                                Math.min(slides.length - 1, currentSlide + 1)
-                              )
-                            }
-                            disabled={currentSlide >= slides.length - 1}
-                            className="px-3 py-1 text-sm"
-                          >
-                            Next
-                          </Button>
-                        </div>
+            )}
+
+            {/* Overlay controls anchored to cube view corners - only for non-recap slides */}
+            {activeSlide?.id !== "recap-mental-model" &&
+              activeSlide?.id !== "recap-white-corners" &&
+              activeSlide?.id !== "second-layer-recap" &&
+              activeSlide?.id !== "yellow-cross-states" && (
+                <div className="pointer-events-none absolute inset-0">
+                  {/* Hard lock overlay removed for find-green-white to allow orbit */}
+                  {/* Undo/Redo removed for tutorial */}
+                  {/* Reset or Re-position button - Logic: Notation=all Reset, Other lessons=slides 1&2 Re-position, rest Reset */}
+                  {(() => {
+                    // All notation slides get Reset
+                    // For other lessons: slides 1 & 2 (index 0 & 1) get Re-position, rest get Reset
+                    // Exception: yellow-edges slide 2 (yellow-edges-solution) gets Reset
+                    const shouldShowReset =
+                      lessonId === "notation" ||
+                      activeSlide?.id === "yellow-edges-solution" ||
+                      currentSlide >= 2;
+                    const shouldShowReposition = !shouldShowReset;
+
+                    return shouldShowReset ? (
+                      <div className="absolute bottom-4 left-2 md:left-4 z-30 pointer-events-auto">
+                        <button
+                          onClick={async () => {
+                            await resetToSlideBaseline();
+                          }}
+                          className="px-3 md:px-4 py-2 bg-orange-500 text-white rounded shadow hover:bg-orange-600 transition-all text-xs md:text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Reset cube to solved state"
+                          disabled={isAnimating || isResetting}
+                        >
+                          {isResetting ? (
+                            <span className="w-4 h-4 mr-2 border-2 border-gray-200 border-t-2 border-t-white rounded-full animate-spin"></span>
+                          ) : null}
+                          Reset
+                        </button>
                       </div>
-                    </div>,
-                    document.body
-                  )
-                : null}
-            </div>
-          ) : (
-            <>
-              <div
-                ref={cubeContainerRef}
-                className="relative w-full h-full bg-black/20 backdrop-blur-sm border border-white/20"
-              >
-                {/* Status indicator for practice slides */}
-                {(activeSlide?.id === "practice-two-edges" ||
-                  activeSlide?.id === "practice-three-edges" ||
-                  activeSlide?.id === "practice-full-cross") && (
-                  <div className="absolute top-4 left-4 z-50">
-                    <div
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border backdrop-blur-sm ${
-                        isWhiteCrossSolved()
-                          ? "bg-green-100/90 border-green-300 text-green-800"
-                          : "bg-red-100/90 border-red-300 text-red-800"
-                      }`}
-                    >
-                      {isWhiteCrossSolved() ? (
-                        practiceShowTick ? (
-                          <div className="relative w-4 h-4">
+                    ) : shouldShowReposition ? (
+                      <div className="absolute bottom-4 left-2 md:left-4 z-30 pointer-events-auto">
+                        <button
+                          onClick={() => {
+                            const c: any = orbitControlsRef.current;
+                            if (!c) return;
+                            c.__resetOpts = getSlideCameraConfig(
+                              activeSlide?.id,
+                              lessonId
+                            );
+                            cubeViewRef.current?.resetToInitialPosition(
+                              orbitControlsRef,
+                              cubeRef,
+                              undefined,
+                              false
+                            );
+                          }}
+                          className="px-3 md:px-4 py-2 bg-gray-500 text-white rounded shadow hover:bg-gray-600 transition-all text-xs md:text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Re-position cube"
+                          disabled={isAnimating}
+                        >
+                          Re-position
+                        </button>
+                      </div>
+                    ) : null;
+                  })()}
+                  {/* Spin trackpad bottom-left, above slide text bar (always visible on non-touch devices) */}
+                  {!isTouchDevice && activeSlide?.id !== "find-green-white" && (
+                    <div className="absolute left-2 md:right-3 bottom-28 md:bottom-3 z-20 pointer-events-auto">
+                      <SpinTrackpad
+                        onPointerDown={handleTrackpadPointerDown}
+                        onPointerMove={handleTrackpadPointerMove}
+                        onPointerUp={handleTrackpadPointerUp}
+                        onPointerCancel={handleTrackpadPointerUp}
+                        isTouchDevice={isTouchDevice}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+            {/* Fix box for steps 3-8 with step-by-step validation; add active highlight border like slide 8 */}
+            {fixSequence.length > 0 && (
+              <div className="absolute top-2 left-2 md:top-3 md:left-3 z-30 pointer-events-auto">
+                <div
+                  className={(() => {
+                    const activeHighlightSlides = new Set([
+                      "flip-green-white-f2",
+                      "flip-green-white",
+                      "flipped-misoriented-green-white",
+                      "misaligned-green-white",
+                      "flipped-misoriented-misaligned-green-white",
+                      "midlayer-green-white-extraction",
+                    ]);
+                    const inProgress =
+                      activeSlide &&
+                      activeHighlightSlides.has(activeSlide.id) &&
+                      fixIndex < fixSequence.length;
+                    const base =
+                      " rounded-lg h-10 px-3 py-2 text-xs md:text-sm font-semibold flex items-center gap-2 transition-colors ";
+                    if (fixErrorPulse) {
+                      return (
+                        base + "border border-red-400 bg-red-50 text-red-700"
+                      );
+                    }
+                    if (inProgress) {
+                      return base + " border-blue-500 text-blue-200"; // darker border while active
+                    }
+                    return base + " border-blue-300 text-blue-200";
+                  })()}
+                  style={{ minWidth: "140px" }}
+                >
+                  {(() => {
+                    const shouldHideFrontFace =
+                      lessonId === "white-cross" &&
+                      (activeSlide?.id === "flip-green-white-f2" ||
+                        activeSlide?.id === "flip-green-white" ||
+                        activeSlide?.id === "flipped-misoriented-green-white" ||
+                        activeSlide?.id === "misaligned-green-white" ||
+                        activeSlide?.id ===
+                          "flipped-misoriented-misaligned-green-white");
+
+                    if (
+                      activeSlide?.id === "practice-setup-solution" ||
+                      activeSlide?.id === "practice-setup-solution-2" ||
+                      activeSlide?.id === "yellow-cross-line" ||
+                      activeSlide?.id === "yellow-edges-solution"
+                    ) {
+                      return (
+                        <div className="flex flex-col text-left gap-1">
+                          <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
+                            {!shouldHideFrontFace && <>Front Face: </>}
+                            <span
+                              className="font-bold normal-case"
+                              style={{
+                                color:
+                                  activeSlide?.id ===
+                                  "practice-setup-solution-2"
+                                    ? CUBE_COLORS.GREEN
+                                    : CUBE_COLORS.RED,
+                              }}
+                            >
+                              {activeSlide?.id === "practice-setup-solution-2"
+                                ? "Green"
+                                : "Red"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
+                              {lessonId === "notation" ? "Try:" : "Fix:"}
+                            </span>
+                            <AlgorithmSequence
+                              moves={fixSequenceDisplay}
+                              currentIndex={fixIndex}
+                              partialDirection={fixDoublePartialDir}
+                            />
+                            {/* Animated completion tick */}
+                            {fixShowTick && (
+                              <CompletionTick
+                                animKey={fixTickAnimKey}
+                                progress={fixTickProgress}
+                                line={fixTickLine}
+                                color="green"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    } else if (
+                      activeSlide?.id === "midlayer-green-white-extraction"
+                    ) {
+                      return (
+                        <span className="text-blue-200">
+                          <div
+                            className={`flex flex-col text-left gap-2 ${
+                              activeSlide?.id ===
+                              "midlayer-green-white-extraction"
+                                ? "mb-1"
+                                : ""
+                            }`}
+                          >
+                            {!shouldHideFrontFace && (
+                              <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
+                                Front Face:
+                              </div>
+                            )}
+                            <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200 ml-0">
+                              {lessonId === "notation" ? "Try:" : "Fix:"}
+                            </div>
+                          </div>
+                        </span>
+                      );
+                    } else {
+                      return (
+                        <div className="mb-1">
+                          {!shouldHideFrontFace && (
+                            <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200 mb-2">
+                              Front Face:
+                            </div>
+                          )}
+                          <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
+                            {lessonId === "notation" ? "Try:" : "Fix:"}
+                          </span>
+                        </div>
+                      );
+                    }
+                  })()}
+                  {activeSlide?.id !== "practice-setup-solution" &&
+                  activeSlide?.id !== "practice-setup-solution-2" &&
+                  activeSlide?.id !== "yellow-cross-line" &&
+                  activeSlide?.id !== "yellow-edges-solution" ? (
+                    <div className="flex items-center gap-0">
+                      {/* Animated completion tick (not shown for step 5) */}
+                      {false &&
+                        activeSlide?.id !== "flipped-misoriented-green-white" &&
+                        activeSlide?.id !== "misaligned-green-white" && (
+                          <div className="relative w-6 h-6 ml-1">
                             <svg
-                              key={practiceTickAnimKey}
-                              className="w-4 h-4 transform -rotate-90"
+                              key={fixTickAnimKey}
+                              className="w-6 h-6 transform -rotate-90"
                               viewBox="0 0 24 24"
                             >
                               <circle
@@ -2136,12 +3248,10 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                 stroke="currentColor"
                                 strokeWidth="2"
                                 fill="none"
-                                className="text-green-600"
+                                className="text-green-500"
                                 style={{
                                   strokeDasharray: "63",
-                                  strokeDashoffset: practiceTickProgress
-                                    ? 0
-                                    : 63,
+                                  strokeDashoffset: fixTickProgress ? 0 : 63,
                                   transition:
                                     "stroke-dashoffset 0.4s ease-in-out",
                                 }}
@@ -2149,7 +3259,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                             </svg>
                             <div className="absolute inset-0 flex items-center justify-center">
                               <svg
-                                className="w-3 h-3 text-green-600"
+                                className="w-4 h-4 text-green-500"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -2161,7 +3271,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                   d="M5 13l4 4L19 7"
                                   style={{
                                     strokeDasharray: "20",
-                                    strokeDashoffset: practiceTickLine ? 0 : 20,
+                                    strokeDashoffset: fixTickLine ? 0 : 20,
                                     transition:
                                       "stroke-dashoffset 0.5s ease-out",
                                   }}
@@ -2169,449 +3279,51 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                               </svg>
                             </div>
                           </div>
-                        ) : (
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        )
-                      ) : (
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      )}
-                      <span className="font-medium text-sm">
-                        {isWhiteCrossSolved() ? "Solved" : "Not solved"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div
-                  className="absolute -top-1 w-full h-full"
-                  ref={overlayContainerRef}
-                >
-                  <Canvas
-                    ref={canvasRef}
-                    camera={{
-                      position: [4, 4, 4],
-                      fov: 60,
-                    }}
-                    className="w-full h-full"
-                    style={{ background: "transparent", touchAction: "none" }}
-                    dpr={canvasDpr}
-                    gl={{
-                      antialias: true,
-                      powerPreference: "high-performance",
-                      alpha: true,
-                      stencil: false,
-                      depth: true,
-                      preserveDrawingBuffer: false,
-                    }}
-                    onCreated={(state) => {
-                      attachSetDpr(state.setDpr);
-                      state.gl.localClippingEnabled = true;
-                      const canvas = state.gl.domElement as HTMLCanvasElement;
-                      const onLost = (ev: Event) => ev.preventDefault();
-                      const onRestored = () => {
-                        try {
-                          state.gl.resetState();
-                        } catch {}
-                      };
-                      canvas.addEventListener(
-                        "webglcontextlost",
-                        onLost as any,
-                        false
-                      );
-                      canvas.addEventListener(
-                        "webglcontextrestored",
-                        onRestored as any,
-                        false
-                      );
-                    }}
-                    onPointerDownCapture={(e) => {
-                      if (isTouchDevice) setInteractiveDpr();
-                      const isPracticeSlide =
-                        activeSlide?.id === "practice-two-edges" ||
-                        activeSlide?.id === "practice-three-edges" ||
-                        activeSlide?.id === "practice-full-cross";
-                      const dragAllowed =
-                        !!activeSlide?.allowFaceMoves &&
-                        !(isPracticeSlide && practiceCompleted) &&
-                        !fixCompleted;
-                      if (dragAllowed) {
-                        cubeViewRef.current?.handlePointerDown(e);
-                      }
-                    }}
-                    onPointerMoveCapture={() => {
-                      if (isTouchDevice) setInteractiveDpr();
-                    }}
-                    onPointerUpCapture={() => {
-                      if (isTouchDevice) setInteractiveDpr();
-                      cubeViewRef.current?.handlePointerUp?.();
-                    }}
-                  >
-                    <PerformanceMonitor
-                      onDecline={onDecline}
-                      onIncline={onIncline}
-                    />
-                    <spotLight
-                      position={[-30, 20, 60]}
-                      intensity={0.3}
-                      castShadow
-                    />
-                    <ambientLight intensity={1.1} color={CUBE_COLORS.WHITE} />
-                    <TrackballControls
-                      ref={orbitControlsRef}
-                      enabled={(() => {
-                        const lock = new Set([
-                          "find-green-white",
-                          "notation-protip",
-                        ]);
-                        const isLocked = activeSlide?.id
-                          ? lock.has(activeSlide.id)
-                          : false;
-                        return isLocked ? false : orbitControlsEnabled;
-                      })()}
-                      noRotate={(() => {
-                        const lock = new Set([
-                          "find-green-white",
-                          "notation-protip",
-                        ]);
-                        const isLocked = activeSlide?.id
-                          ? lock.has(activeSlide.id)
-                          : false;
-                        return isLocked ? true : !orbitControlsEnabled;
-                      })()}
-                      noZoom={true}
-                      noPan={true}
-                      staticMoving={false}
-                      dynamicDampingFactor={0.35}
-                      rotateSpeed={1.2}
-                      zoomSpeed={1.2}
-                      panSpeed={4.0}
-                      minDistance={3}
-                      maxDistance={15}
-                    />
-                    <RubiksCube3D
-                      ref={cubeViewRef}
-                      cubeState={tutorialCube3D}
-                      touchCount={touchCount}
-                      pendingMove={pendingMove}
-                      onMoveAnimationDone={handleMoveAnimationDone}
-                      onStartAnimation={handleStartAnimation}
-                      isAnimating={isAnimating}
-                      onOrbitControlsChange={handleOrbitControlsChange}
-                      onDragMove={handleButtonMove}
-                      isTimerMode={false}
-                      moveSource={lastMoveSourceRef.current}
-                      queueFast={queueFast}
-                      queueFastMs={queueFastMs}
-                      inputDisabled={activeSlide?.id === "find-green-white"}
-                      disableSliceDrag={
-                        activeSlide?.id === "intro" ||
-                        fixCompleted ||
-                        ((activeSlide?.id === "practice-two-edges" ||
-                          activeSlide?.id === "practice-three-edges" ||
-                          activeSlide?.id === "practice-full-cross") &&
-                          practiceCompleted)
-                      }
-                      preventSliceMoves={
-                        !activeSlide?.allowFaceMoves ||
-                        ((activeSlide?.id === "practice-two-edges" ||
-                          activeSlide?.id === "practice-three-edges" ||
-                          activeSlide?.id === "practice-full-cross") &&
-                          practiceCompleted)
-                      }
-                      highlightPositions={(() => {
-                        const highlightIds = new Set([
-                          "find-green-white",
-                          "flip-green-white",
-                          "flip-green-white-f2",
-                          "misaligned-green-white",
-                          "flipped-misoriented-green-white",
-                          "flipped-misoriented-misaligned-green-white",
-                          "midlayer-green-white-extraction",
-                          "practice-two-edges",
-                          "practice-three-edges",
-                          "practice-full-cross",
-                        ]);
-
-                        // White corners lesson highlighting
-                        const whiteCornersIds = new Set([
-                          "intro", // for white-corners lesson
-                          "mechanical-approach", // for white-corners lesson
-                        ]);
-
-                        if (
-                          lessonId === "white-cross" &&
-                          activeSlide?.id &&
-                          highlightIds.has(activeSlide.id)
-                        ) {
-                          // Always include centers to avoid dulling them; add all four white edges
-                          const centers: Array<[number, number, number]> = [
-                            [0, 1, 1],
-                            [2, 1, 1],
-                            [1, 0, 1],
-                            [1, 2, 1],
-                            [1, 1, 0],
-                            [1, 1, 2],
-                          ];
-                          const edges = findWhiteEdgeIndices();
-                          return [...edges, ...centers];
-                        } else if (
-                          lessonId === "white-corners" &&
-                          activeSlide?.id &&
-                          whiteCornersIds.has(activeSlide.id)
-                        ) {
-                          // Include centers and white edges for both slides
-                          const centers: Array<[number, number, number]> = [
-                            [0, 1, 1],
-                            [2, 1, 1],
-                            [1, 0, 1],
-                            [1, 2, 1],
-                            [1, 1, 0],
-                            [1, 1, 2],
-                          ];
-                          const edges = findWhiteEdgeIndices();
-
-                          if (activeSlide.id === "intro") {
-                            // Show all white corners on intro slide
-                            const corners = findWhiteCornerIndices();
-                            return [...edges, ...corners, ...centers];
-                          } else if (activeSlide.id === "mechanical-approach") {
-                            // Show only green/white/red corner on mechanical approach slide
-                            const corners = findWhiteCornerIndices();
-                            const greenWhiteRedCorner = corners.find(
-                              ([x, y, z]) => {
-                                const piece = cube3D[x][y][z];
-                                const set = getCubieColorSet(piece);
-                                return (
-                                  set.has(CUBE_COLORS.WHITE) &&
-                                  set.has(CUBE_COLORS.GREEN) &&
-                                  set.has(CUBE_COLORS.RED)
-                                );
-                              }
-                            );
-                            return greenWhiteRedCorner
-                              ? [...edges, ...centers, greenWhiteRedCorner]
-                              : [...edges, ...centers];
-                          }
-
-                          return [...edges, ...centers];
-                        }
-
-                        return undefined;
-                      })()}
-                      highlightIntensity={0}
-                      dullOthersIntensity={(() => {
-                        const dullIds = new Set([
-                          "find-green-white",
-                          "flip-green-white",
-                          "flip-green-white-f2",
-                          "misaligned-green-white",
-                          "flipped-misoriented-green-white",
-                          "flipped-misoriented-misaligned-green-white",
-                          "midlayer-green-white-extraction",
-                          "practice-two-edges",
-                          "practice-three-edges",
-                          "practice-full-cross",
-                        ]);
-
-                        // White corners lesson dulling
-                        const whiteCornersIds = new Set([
-                          "intro", // for white-corners lesson
-                          "mechanical-approach", // for white-corners lesson
-                        ]);
-
-                        if (
-                          lessonId === "white-cross" &&
-                          activeSlide?.id &&
-                          dullIds.has(activeSlide.id)
-                        ) {
-                          return 0.45;
-                        } else if (
-                          lessonId === "white-corners" &&
-                          activeSlide?.id &&
-                          whiteCornersIds.has(activeSlide.id)
-                        ) {
-                          return 0.45;
-                        }
-
-                        return 0;
-                      })()}
-                      // dulledPositions prop removed; rely on filter logic for dulling
-                    />
-                  </Canvas>
-                </div>
-                {/* Overlay controls anchored to cube view corners */}
-                <div className="pointer-events-none absolute inset-0">
-                  {/* Hard lock overlay to swallow all pointer events on locked slide */}
-                  {activeSlide?.id === "find-green-white" && (
-                    <div
-                      className="absolute inset-0 z-40 pointer-events-auto"
-                      data-locked-overlay="true"
-                      data-locked-overlay-type="slide"
-                      data-locked-overlay-visible="true"
-                      data-locked-overlay-id="find-green-white"
-                      data-locked-overlay-position="full"
-                      onPointerDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                      }}
-                      onPointerMove={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                      }}
-                      onPointerUp={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                      }}
-                      onWheel={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                      }}
-                      // Transparent overlay; cursor indicates locked state
-                      style={{
-                        cursor: "not-allowed",
-                        background: "transparent",
-                      }}
-                      aria-hidden
-                    />
-                  )}
-                  {/* Undo/Redo removed for tutorial */}
-                  {/* Reset Cube top-right (strictly hidden on slides 1 & 2) */}
-                  {currentSlide >= 2 && (
-                    <div className="absolute bottom-4 left-2 md:left-4 z-30 pointer-events-auto">
-                      <button
-                        onClick={async () => {
-                          await resetToSlideBaseline();
-                        }}
-                        className="px-3 md:px-4 py-2 bg-red-600 text-white rounded shadow hover:bg-red-700 transition-all text-xs md:text-sm flex items-center justify-center"
-                        title="Reset cube to solved state"
-                        disabled={
-                          isAnimating ||
-                          isResetting ||
-                          (![
-                            "flip-green-white-f2",
-                            "misaligned-green-white",
-                            "flip-green-white",
-                            "flipped-misoriented-green-white",
-                            "flipped-misoriented-misaligned-green-white",
-                            "midlayer-green-white-extraction",
-                            "practice-two-edges",
-                            "practice-three-edges",
-                            "practice-full-cross",
-                          ].includes(activeSlide?.id) &&
-                            isSolved())
-                        }
-                      >
-                        {isResetting ? (
-                          <span className="w-4 h-4 mr-2 border-2 border-gray-200 border-t-2 border-t-white rounded-full animate-spin"></span>
-                        ) : null}
-                        Reset Cube
-                      </button>
-                    </div>
-                  )}
-                  {/* Spin trackpad bottom-left, above slide text bar (always visible on non-touch devices) */}
-                  {!isTouchDevice && activeSlide?.id !== "find-green-white" && (
-                    <div className="absolute left-2 md:right-3 bottom-28 md:bottom-3 z-20 pointer-events-auto">
-                      <SpinTrackpad
-                        onPointerDown={handleTrackpadPointerDown}
-                        onPointerMove={handleTrackpadPointerMove}
-                        onPointerUp={handleTrackpadPointerUp}
-                        onPointerCancel={handleTrackpadPointerUp}
-                        isTouchDevice={isTouchDevice}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Fix box for steps 3-8 with step-by-step validation; add active highlight border like slide 8 */}
-                {fixSequence.length > 0 && (
-                  <div className="absolute top-2 left-2 md:top-3 md:left-3 z-30 pointer-events-auto">
-                    <div
-                      className={(() => {
-                        const activeHighlightSlides = new Set([
-                          "flip-green-white-f2",
-                          "flip-green-white",
-                          "flipped-misoriented-green-white",
-                          "misaligned-green-white",
-                          "flipped-misoriented-misaligned-green-white",
-                          "midlayer-green-white-extraction",
-                        ]);
-                        const inProgress =
-                          activeSlide &&
-                          activeHighlightSlides.has(activeSlide.id) &&
-                          fixIndex < fixSequence.length;
-                        const base =
-                          " rounded-lg h-10 px-3 py-2 text-xs md:text-sm font-semibold flex items-center gap-2 transition-colors ";
-                        if (fixErrorPulse) {
-                          return (
-                            base +
-                            "border border-red-400 bg-red-50 text-red-700"
-                          );
-                        }
-                        if (inProgress) {
-                          return base + " border-blue-500 text-blue-200"; // darker border while active
-                        }
-                        return base + " border-blue-300 text-blue-200";
-                      })()}
-                      style={{ minWidth: "140px" }}
-                    >
-                      <span className="text-blue-200">
-                        <div
-                          className={`flex flex-col text-left gap-2 ${
-                            activeSlide?.id ===
-                            "midlayer-green-white-extraction"
-                              ? "mb-1"
-                              : ""
-                          }`}
-                        >
-                          {activeSlide?.id ===
-                          "midlayer-green-white-extraction" ? (
-                            <>
-                              <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                                Colour Front:
-                              </div>
-                              <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200 ml-0">
-                                {lessonId === "notation" ? "Try:" : "Fix:"}
-                              </div>
-                            </>
-                          ) : lessonId === "notation" ? (
-                            "Try:"
-                          ) : (
-                            "Fix:"
-                          )}
-                        </div>
-                      </span>
-                      <div className="flex items-center gap-0">
-                        {/* Animated completion tick (not shown for step 5) */}
-                        {false &&
-                          activeSlide?.id !==
-                            "flipped-misoriented-green-white" &&
-                          activeSlide?.id !== "misaligned-green-white" && (
+                        )}
+                      {activeSlide?.id === "flipped-misoriented-green-white" ? (
+                        <>
+                          <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
+                            {/* Group 1: F2 (first tick) */}
+                            {(() => {
+                              const idx = 0;
+                              const step = fixSequence[idx];
+                              const isDone = idx < fixIndex;
+                              const isCurrent = idx === fixIndex;
+                              const isDouble = step?.endsWith("2");
+                              const partial =
+                                isCurrent &&
+                                isDouble &&
+                                fixDoublePartialDir !== 0;
+                              return (
+                                <div className="flex items-center gap-1 rounded-[7px]">
+                                  <div
+                                    className={
+                                      "relative px-2 py-1 text-[14px] rounded-md md:text-xs leading-none select-none " +
+                                      (isDone
+                                        ? " bg-green-500 text-white"
+                                        : partial
+                                        ? " text-white border-blue-600"
+                                        : isCurrent
+                                        ? " bg-white text-blue-700 border-blue-500"
+                                        : " text-gray-600 bg-gray-300 border-gray-300")
+                                    }
+                                    style={
+                                      partial
+                                        ? {
+                                            background:
+                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
+                                          }
+                                        : undefined
+                                    }
+                                    title={step}
+                                  >
+                                    {step}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          {fixIndex >= 1 && (
                             <div className="relative w-6 h-6 ml-1">
                               <svg
                                 key={fixTickAnimKey}
@@ -2636,7 +3348,9 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                   className="text-green-500"
                                   style={{
                                     strokeDasharray: "63",
-                                    strokeDashoffset: fixTickProgress ? 0 : 63,
+                                    strokeDashoffset: fixFirstTickProgress
+                                      ? 0
+                                      : 63,
                                     transition:
                                       "stroke-dashoffset 0.4s ease-in-out",
                                   }}
@@ -2656,7 +3370,9 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                     d="M5 13l4 4L19 7"
                                     style={{
                                       strokeDasharray: "20",
-                                      strokeDashoffset: fixTickLine ? 0 : 20,
+                                      strokeDashoffset: fixFirstTickLine
+                                        ? 0
+                                        : 20,
                                       transition:
                                         "stroke-dashoffset 0.5s ease-out",
                                     }}
@@ -2665,1002 +3381,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                               </div>
                             </div>
                           )}
-                        {activeSlide?.id ===
-                        "flipped-misoriented-green-white" ? (
-                          <>
-                            <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
-                              {/* Group 1: F2 (first tick) */}
-                              {(() => {
-                                const idx = 0;
-                                const step = fixSequence[idx];
-                                const isDone = idx < fixIndex;
-                                const isCurrent = idx === fixIndex;
-                                const isDouble = step?.endsWith("2");
-                                const partial =
-                                  isCurrent &&
-                                  isDouble &&
-                                  fixDoublePartialDir !== 0;
-                                return (
-                                  <div className="flex items-center gap-1 rounded-[7px]">
-                                    <div
-                                      className={
-                                        "relative px-2 py-1 text-[14px] rounded-md md:text-xs leading-none select-none " +
-                                        (isDone
-                                          ? " bg-green-500 text-white"
-                                          : partial
-                                          ? " text-white border-blue-600"
-                                          : isCurrent
-                                          ? " bg-white text-blue-700 border-blue-500"
-                                          : " text-gray-600 bg-gray-300 border-gray-300")
-                                      }
-                                      style={
-                                        partial
-                                          ? {
-                                              background:
-                                                "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                            }
-                                          : undefined
-                                      }
-                                      title={step}
-                                    >
-                                      {step}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                            {fixIndex >= 1 && (
-                              <div className="relative w-6 h-6 ml-1">
-                                <svg
-                                  key={fixTickAnimKey}
-                                  className="w-6 h-6 transform -rotate-90"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="#e5e7eb"
-                                    strokeWidth="2"
-                                    fill="none"
-                                  />
-                                  <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    fill="none"
-                                    className="text-green-500"
-                                    style={{
-                                      strokeDasharray: "63",
-                                      strokeDashoffset: fixFirstTickProgress
-                                        ? 0
-                                        : 63,
-                                      transition:
-                                        "stroke-dashoffset 0.4s ease-in-out",
-                                    }}
-                                  />
-                                </svg>
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <svg
-                                    className="w-4 h-4 text-green-500"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={3}
-                                      d="M5 13l4 4L19 7"
-                                      style={{
-                                        strokeDasharray: "20",
-                                        strokeDashoffset: fixFirstTickLine
-                                          ? 0
-                                          : 20,
-                                        transition:
-                                          "stroke-dashoffset 0.5s ease-out",
-                                      }}
-                                    />
-                                  </svg>
-                                </div>
-                              </div>
-                            )}
 
-                            <span className="mx-1 text-gray-400">/</span>
-                            {/* Group 2: F U' R U (second tick) */}
-                            <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
-                              {fixSequence.slice(1).map((step, i, arr) => {
-                                const idx = i + 1;
-                                const isDone = idx < fixIndex;
-                                const isCurrent = idx === fixIndex;
-                                const isDouble = step.endsWith("2");
-                                const partial =
-                                  isCurrent &&
-                                  isDouble &&
-                                  fixDoublePartialDir !== 0;
-                                const isFirst = i === 0;
-                                const isLast = i === arr.length - 1;
-                                let pillClass =
-                                  "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none ";
-                                if (isFirst)
-                                  pillClass +=
-                                    " rounded-tl-md rounded-bl-md pl-2 ";
-                                if (isLast)
-                                  pillClass +=
-                                    " rounded-tr-md rounded-br-md pr-2 ";
-                                pillClass += isDone
-                                  ? " bg-green-500 text-white border-green-600"
-                                  : partial
-                                  ? " text-white border-blue-600"
-                                  : isCurrent
-                                  ? " bg-white text-blue-700 border-blue-500"
-                                  : " text-gray-600 bg-gray-300 border-gray-300";
-                                return (
-                                  <div
-                                    key={idx + step}
-                                    className={pillClass}
-                                    style={
-                                      partial
-                                        ? {
-                                            background:
-                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                          }
-                                        : undefined
-                                    }
-                                    title={step}
-                                  >
-                                    {step}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {fixCompleted && (
-                              <div className="relative w-6 h-6 ml-1">
-                                <svg
-                                  key={fixTickAnimKey}
-                                  className="w-6 h-6 transform -rotate-90"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="#e5e7eb"
-                                    strokeWidth="2"
-                                    fill="none"
-                                  />
-                                  <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    fill="none"
-                                    className="text-green-500"
-                                    style={{
-                                      strokeDasharray: "63",
-                                      strokeDashoffset: fixTickProgress
-                                        ? 0
-                                        : 63,
-                                      transition:
-                                        "stroke-dashoffset 0.4s ease-in-out",
-                                    }}
-                                  />
-                                </svg>
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <svg
-                                    className="w-4 h-4 text-green-500"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={3}
-                                      d="M5 13l4 4L19 7"
-                                      style={{
-                                        strokeDasharray: "20",
-                                        strokeDashoffset: fixTickLine ? 0 : 20,
-                                        transition:
-                                          "stroke-dashoffset 0.5s ease-out",
-                                      }}
-                                    />
-                                  </svg>
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        ) : activeSlide?.id === "misaligned-green-white" ? (
-                          <>
-                            {/* Group 1: D' (first tick) */}
-                            {(() => {
-                              const idx = 0;
-                              const step = fixSequence[idx];
-                              const isDone = idx < fixIndex;
-                              const isCurrent = idx === fixIndex;
-                              const isDouble = step?.endsWith("2");
-                              const partial =
-                                isCurrent &&
-                                isDouble &&
-                                fixDoublePartialDir !== 0;
-                              return (
-                                <>
-                                  <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                    <div
-                                      className={
-                                        "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
-                                        (isDone
-                                          ? " bg-green-500 text-white border-green-600"
-                                          : partial
-                                          ? " text-white border-blue-600"
-                                          : isCurrent
-                                          ? " bg-white text-blue-700 border-blue-500"
-                                          : " text-gray-600 bg-gray-300 border-gray-300")
-                                      }
-                                      style={
-                                        partial
-                                          ? {
-                                              background:
-                                                "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                            }
-                                          : undefined
-                                      }
-                                      title={step}
-                                    >
-                                      {step}
-                                    </div>
-                                  </div>
-                                  {fixIndex >= 1 && (
-                                    <div className="relative w-6 h-6 ml-1">
-                                      <svg
-                                        key={fixTickAnimKey}
-                                        className="w-6 h-6 transform -rotate-90"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="#e5e7eb"
-                                          strokeWidth="2"
-                                          fill="none"
-                                        />
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          fill="none"
-                                          className="text-green-500"
-                                          style={{
-                                            strokeDasharray: "63",
-                                            strokeDashoffset:
-                                              fixFirstTickProgress ? 0 : 63,
-                                            transition:
-                                              "stroke-dashoffset 0.4s ease-in-out",
-                                          }}
-                                        />
-                                      </svg>
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <svg
-                                          className="w-4 h-4 text-green-500"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                            style={{
-                                              strokeDasharray: "20",
-                                              strokeDashoffset: fixFirstTickLine
-                                                ? 0
-                                                : 20,
-                                              transition:
-                                                "stroke-dashoffset 0.5s ease-out",
-                                            }}
-                                          />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                            <span className="mx-1 text-gray-400">/</span>
-                            {/* Group 2: F2 (second tick) */}
-
-                            {(() => {
-                              const idx = 1;
-                              const step = fixSequence[idx];
-                              const isDone = idx < fixIndex;
-                              const isCurrent = idx === fixIndex;
-                              const isDouble = step?.endsWith("2");
-                              const partial =
-                                isCurrent &&
-                                isDouble &&
-                                fixDoublePartialDir !== 0;
-                              return (
-                                <>
-                                  <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                    <div
-                                      className={
-                                        "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
-                                        (isDone
-                                          ? " bg-green-500 text-white border-green-600"
-                                          : partial
-                                          ? " text-white border-blue-600"
-                                          : isCurrent
-                                          ? " bg-white text-blue-700 border-blue-500"
-                                          : " text-gray-600 bg-gray-300 border-gray-300")
-                                      }
-                                      style={
-                                        partial
-                                          ? {
-                                              background:
-                                                "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                            }
-                                          : undefined
-                                      }
-                                      title={step}
-                                    >
-                                      {step}
-                                    </div>
-                                  </div>
-                                  {fixCompleted && (
-                                    <div className="relative w-6 h-6 ml-1">
-                                      <svg
-                                        key={fixTickAnimKey}
-                                        className="w-6 h-6 transform -rotate-90"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="#e5e7eb"
-                                          strokeWidth="2"
-                                          fill="none"
-                                        />
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          fill="none"
-                                          className="text-green-500"
-                                          style={{
-                                            strokeDasharray: "63",
-                                            strokeDashoffset: fixTickProgress
-                                              ? 0
-                                              : 63,
-                                            transition:
-                                              "stroke-dashoffset 0.4s ease-in-out",
-                                          }}
-                                        />
-                                      </svg>
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <svg
-                                          className="w-4 h-4 text-green-500"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                            style={{
-                                              strokeDasharray: "20",
-                                              strokeDashoffset: fixTickLine
-                                                ? 0
-                                                : 20,
-                                              transition:
-                                                "stroke-dashoffset 0.5s ease-out",
-                                            }}
-                                          />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </>
-                        ) : activeSlide?.id ===
-                          "flipped-misoriented-misaligned-green-white" ? (
-                          <>
-                            {/* Group 1: D' (first tick) */}
-                            {(() => {
-                              const idx = 0;
-                              const step = fixSequence[idx];
-                              const isDone = idx < fixIndex;
-                              const isCurrent = idx === fixIndex;
-                              const isDouble = step?.endsWith("2");
-                              const partial =
-                                isCurrent &&
-                                isDouble &&
-                                fixDoublePartialDir !== 0;
-                              return (
-                                <>
-                                  <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                    <div
-                                      className={
-                                        "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
-                                        (isDone
-                                          ? " bg-green-500 text-white border-green-600"
-                                          : partial
-                                          ? " text-white border-blue-600"
-                                          : isCurrent
-                                          ? " bg-white text-blue-700 border-blue-500"
-                                          : " text-gray-600 bg-gray-300 border-gray-300")
-                                      }
-                                      style={
-                                        partial
-                                          ? {
-                                              background:
-                                                "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                            }
-                                          : undefined
-                                      }
-                                      title={step}
-                                    >
-                                      {step}
-                                    </div>
-                                  </div>
-                                  {fixIndex >= 1 && (
-                                    <div className="relative w-6 h-6 ml-1">
-                                      <svg
-                                        key={fixTickAnimKey}
-                                        className="w-6 h-6 transform -rotate-90"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="#e5e7eb"
-                                          strokeWidth="2"
-                                          fill="none"
-                                        />
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          fill="none"
-                                          className="text-green-500"
-                                          style={{
-                                            strokeDasharray: "63",
-                                            strokeDashoffset:
-                                              fixFirstTickProgress ? 0 : 63,
-                                            transition:
-                                              "stroke-dashoffset 0.4s ease-in-out",
-                                          }}
-                                        />
-                                      </svg>
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <svg
-                                          className="w-4 h-4 text-green-500"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                            style={{
-                                              strokeDasharray: "20",
-                                              strokeDashoffset: fixFirstTickLine
-                                                ? 0
-                                                : 20,
-                                              transition:
-                                                "stroke-dashoffset 0.5s ease-out",
-                                            }}
-                                          />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                            <span className="mx-1 text-gray-400">/</span>
-                            {/* Group 2: F2 (second mid-stage tick) */}
-                            {(() => {
-                              const idx = 1;
-                              const step = fixSequence[idx];
-                              const isDone = idx < fixIndex;
-                              const isCurrent = idx === fixIndex;
-                              const isDouble = step?.endsWith("2");
-                              const partial =
-                                isCurrent &&
-                                isDouble &&
-                                fixDoublePartialDir !== 0;
-                              return (
-                                <>
-                                  <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                    <div
-                                      className={
-                                        "relative px-2 py-1 rounded-md text-[14px] md:text-xs leading-none select-none " +
-                                        (isDone
-                                          ? " bg-green-500 text-white"
-                                          : partial
-                                          ? " text-white border-blue-600"
-                                          : isCurrent
-                                          ? " bg-white text-blue-700 border-blue-500"
-                                          : " text-gray-600 bg-gray-300 border-gray-300")
-                                      }
-                                      style={
-                                        partial
-                                          ? {
-                                              background:
-                                                "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                            }
-                                          : undefined
-                                      }
-                                      title={step}
-                                    >
-                                      {step}
-                                    </div>
-                                  </div>
-                                  {fixIndex >= 2 && (
-                                    <div className="relative w-6 h-6 ml-1">
-                                      <svg
-                                        key={fixTickAnimKey}
-                                        className="w-6 h-6 transform -rotate-90"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="#e5e7eb"
-                                          strokeWidth="2"
-                                          fill="none"
-                                        />
-                                        <circle
-                                          cx="12"
-                                          cy="12"
-                                          r="10"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          fill="none"
-                                          className="text-green-500"
-                                          style={{
-                                            strokeDasharray: "63",
-                                            strokeDashoffset:
-                                              fixSecondTickProgress ? 0 : 63,
-                                            transition:
-                                              "stroke-dashoffset 0.4s ease-in-out",
-                                          }}
-                                        />
-                                      </svg>
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <svg
-                                          className="w-4 h-4 text-green-500"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                            style={{
-                                              strokeDasharray: "20",
-                                              strokeDashoffset:
-                                                fixSecondTickLine ? 0 : 20,
-                                              transition:
-                                                "stroke-dashoffset 0.5s ease-out",
-                                            }}
-                                          />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                            <span className="mx-1 text-gray-400">/</span>
-                            {/* Group 3: F' U' R U (final inline completion tick placeholder) */}
-                            <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
-                              {fixSequence.slice(2).map((step, i, arr) => {
-                                const idx = i + 2;
-                                const isDone = idx < fixIndex;
-                                const isCurrent = idx === fixIndex;
-                                const isDouble = step.endsWith("2");
-                                const partial =
-                                  isCurrent &&
-                                  isDouble &&
-                                  fixDoublePartialDir !== 0;
-                                const isFirst = i === 0;
-                                const isLast = i === arr.length - 1;
-                                let pillClass =
-                                  "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none ";
-                                if (isFirst)
-                                  pillClass +=
-                                    " rounded-tl-md rounded-bl-md pl-2 ";
-                                if (isLast)
-                                  pillClass +=
-                                    " rounded-tr-md rounded-br-md pr-2 ";
-                                pillClass += isDone
-                                  ? " bg-green-500 text-white border-green-600"
-                                  : partial
-                                  ? " text-white border-blue-600"
-                                  : isCurrent
-                                  ? " bg-white text-blue-700 border-blue-500"
-                                  : " text-gray-600 bg-gray-300 border-gray-300";
-                                return (
-                                  <div
-                                    key={idx + step}
-                                    className={pillClass}
-                                    style={
-                                      partial
-                                        ? {
-                                            background:
-                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                          }
-                                        : undefined
-                                    }
-                                    title={step}
-                                  >
-                                    {step}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {fixCompleted && (
-                              <div className="relative w-6 h-6 ml-1">
-                                <svg
-                                  key={fixTickAnimKey}
-                                  className="w-6 h-6 transform -rotate-90"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="#e5e7eb"
-                                    strokeWidth="2"
-                                    fill="none"
-                                  />
-                                  <circle
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    fill="none"
-                                    className="text-green-500"
-                                    style={{
-                                      strokeDasharray: "63",
-                                      strokeDashoffset: fixTickProgress
-                                        ? 0
-                                        : 63,
-                                      transition:
-                                        "stroke-dashoffset 0.4s ease-in-out",
-                                    }}
-                                  />
-                                </svg>
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <svg
-                                    className="w-4 h-4 text-green-500"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={3}
-                                      d="M5 13l4 4L19 7"
-                                      style={{
-                                        strokeDasharray: "20",
-                                        strokeDashoffset: fixTickLine ? 0 : 20,
-                                        transition:
-                                          "stroke-dashoffset 0.5s ease-out",
-                                      }}
-                                    />
-                                  </svg>
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        ) : activeSlide?.id ===
-                          "midlayer-green-white-extraction" ? (
-                          (() => {
-                            const stage1Boundary = 3; // after indices 0..2
-                            const stage2Boundary = 4; // after index 3
-                            const stage3Boundary = 5; // after index 4
-                            const tokenCls = (
-                              done: boolean,
-                              current: boolean,
-                              partial: boolean,
-                              idx: number,
-                              groupLength: number
-                            ) => {
-                              const isFirst = idx === 0;
-                              const isLast = idx === groupLength - 1;
-                              const firstPad = isFirst
-                                ? "pl-2 rounded-tl-md rounded-bl-md"
-                                : "";
-                              const lastPad = isLast
-                                ? "pr-2 rounded-tr-md rounded-br-md"
-                                : "";
-                              if (done)
-                                return `px-1 ${firstPad} ${lastPad} py-1 bg-green-500 text-white border-green-600 text-[14px] md:text-xs leading-none`;
-                              if (partial)
-                                return `px-1 ${firstPad} ${lastPad} py-1 text-white border-blue-600 text-[14px] md:text-xs leading-none`;
-                              if (current)
-                                return `px-1 ${firstPad} ${lastPad} py-1 bg-white text-blue-700 border-blue-500 text-[14px] md:text-xs leading-none`;
-                              return `px-1 ${firstPad} ${lastPad} py-1 bg-gray-300 text-gray-600 border-blue-300 text-[14px] md:text-xs leading-none`;
-                            };
-                            const renderGroup = (
-                              moves: string[],
-                              startIdx: number
-                            ) => (
-                              <div className="flex items-center border border-green-600 rounded-[7px] gap-0">
-                                {" "}
-                                {moves.map((mv, i) => {
-                                  const idx = startIdx + i;
-                                  const done = fixIndex > idx;
-                                  const current = fixIndex === idx;
-                                  const partial =
-                                    mv === "F2" &&
-                                    fixIndex === 4 &&
-                                    fixDoublePartialDir !== 0;
-                                  const style: any = {};
-                                  if (partial) {
-                                    style.background =
-                                      "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)";
-                                  }
-                                  return (
-                                    <span
-                                      key={mv + idx}
-                                      className={tokenCls(
-                                        done,
-                                        current,
-                                        partial,
-                                        i,
-                                        moves.length
-                                      )}
-                                      style={style}
-                                    >
-                                      {mv}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            );
-
-                            return (
-                              <div className="flex flex-col py-1">
-                                <div className="flex gap-0">
-                                  {/* Sequence 1 */}
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[9px] font-semibold text-red-600">
-                                      Red
-                                    </span>
-                                    <>
-                                      <div className="flex items-center gap-0">
-                                        {renderGroup(["R'", "D'", "R"], 0)}
-
-                                        {fixIndex >= stage1Boundary && (
-                                          <div className="relative w-6 h-6 ml-1">
-                                            <svg
-                                              key={midStage1Key}
-                                              className="w-6 h-6 transform -rotate-90"
-                                              viewBox="0 0 24 24"
-                                            >
-                                              <circle
-                                                cx="12"
-                                                cy="12"
-                                                r="10"
-                                                stroke="#e5e7eb"
-                                                strokeWidth="2"
-                                                fill="none"
-                                              />
-                                              <circle
-                                                cx="12"
-                                                cy="12"
-                                                r="10"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                fill="none"
-                                                className="text-green-500"
-                                                style={{
-                                                  strokeDasharray: "63",
-                                                  strokeDashoffset:
-                                                    midStage1Progress ? 0 : 63,
-                                                  transition:
-                                                    "stroke-dashoffset 0.4s ease-in-out",
-                                                }}
-                                              />
-                                            </svg>
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                              <svg
-                                                className="w-4 h-4 text-green-500"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                              >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  strokeWidth={3}
-                                                  d="M5 13l4 4L19 7"
-                                                  style={{
-                                                    strokeDasharray: "20",
-                                                    strokeDashoffset:
-                                                      midStage1Line ? 0 : 20,
-                                                    transition:
-                                                      "stroke-dashoffset 0.5s ease-out",
-                                                  }}
-                                                />
-                                              </svg>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </>
-                                  </div>
-                                  <span className="mx-1 text-gray-400 mt-5">
-                                    /
-                                  </span>
-                                  {/* Sequence 2 */}
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[9px] font-semibold text-green-600">
-                                      Green
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      {renderGroup(["D'"], 3)}
-                                      {fixIndex >= stage2Boundary && (
-                                        <div className="relative w-6 h-6 ml-1">
-                                          <svg
-                                            key={midStage2Key}
-                                            className="w-6 h-6 transform -rotate-90"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <circle
-                                              cx="12"
-                                              cy="12"
-                                              r="10"
-                                              stroke="#e5e7eb"
-                                              strokeWidth="2"
-                                              fill="none"
-                                            />
-                                            <circle
-                                              cx="12"
-                                              cy="12"
-                                              r="10"
-                                              stroke="currentColor"
-                                              strokeWidth="2"
-                                              fill="none"
-                                              className="text-green-500"
-                                              style={{
-                                                strokeDasharray: "63",
-                                                strokeDashoffset:
-                                                  midStage2Progress ? 0 : 63,
-                                                transition:
-                                                  "stroke-dashoffset 0.4s ease-in-out",
-                                              }}
-                                            />
-                                          </svg>
-                                          <div className="absolute inset-0 flex items-center justify-center">
-                                            <svg
-                                              className="w-4 h-4 text-green-500"
-                                              fill="none"
-                                              stroke="currentColor"
-                                              viewBox="0 0 24 24"
-                                            >
-                                              <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={3}
-                                                d="M5 13l4 4L19 7"
-                                                style={{
-                                                  strokeDasharray: "20",
-                                                  strokeDashoffset:
-                                                    midStage2Line ? 0 : 20,
-                                                  transition:
-                                                    "stroke-dashoffset 0.5s ease-out",
-                                                }}
-                                              />
-                                            </svg>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <span className="mx-1 text-gray-400 mt-5">
-                                    /
-                                  </span>
-                                  {/* Sequence 3 */}
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[9px] font-semibold text-green-600">
-                                      Green
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      {renderGroup(["F2"], 4)}
-                                      {fixIndex >= stage3Boundary && (
-                                        <div className="relative w-6 h-6 ml-1">
-                                          <svg
-                                            key={midStage3Key}
-                                            className="w-6 h-6 transform -rotate-90"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <circle
-                                              cx="12"
-                                              cy="12"
-                                              r="10"
-                                              stroke="#e5e7eb"
-                                              strokeWidth="2"
-                                              fill="none"
-                                            />
-                                            <circle
-                                              cx="12"
-                                              cy="12"
-                                              r="10"
-                                              stroke="currentColor"
-                                              strokeWidth="2"
-                                              fill="none"
-                                              className="text-green-500"
-                                              style={{
-                                                strokeDasharray: "63",
-                                                strokeDashoffset:
-                                                  midStage3Progress ? 0 : 63,
-                                                transition:
-                                                  "stroke-dashoffset 0.4s ease-in-out",
-                                              }}
-                                            />
-                                          </svg>
-                                          <div className="absolute inset-0 flex items-center justify-center">
-                                            <svg
-                                              className="w-4 h-4 text-green-500"
-                                              fill="none"
-                                              stroke="currentColor"
-                                              viewBox="0 0 24 24"
-                                            >
-                                              <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={3}
-                                                d="M5 13l4 4L19 7"
-                                                style={{
-                                                  strokeDasharray: "20",
-                                                  strokeDashoffset:
-                                                    midStage3Line ? 0 : 20,
-                                                  transition:
-                                                    "stroke-dashoffset 0.5s ease-out",
-                                                }}
-                                              />
-                                            </svg>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })()
-                        ) : (
-                          // Default rendering for other slides
+                          <span className="mx-1 text-gray-400">/</span>
+                          {/* Group 2: F U' R U (second tick) */}
                           <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
-                            {fixSequence.map((step, idx) => {
+                            {fixSequence.slice(1).map((step, i, arr) => {
+                              const idx = i + 1;
                               const isDone = idx < fixIndex;
                               const isCurrent = idx === fixIndex;
                               const isDouble = step.endsWith("2");
@@ -3668,9 +3394,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                 isCurrent &&
                                 isDouble &&
                                 fixDoublePartialDir !== 0;
-                              const baseMove = step;
-                              const isFirst = idx === 0;
-                              const isLast = idx === fixSequence.length - 1;
+                              const isFirst = i === 0;
+                              const isLast = i === arr.length - 1;
                               let pillClass =
                                 "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none ";
                               if (isFirst)
@@ -3688,7 +3413,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                 : " text-gray-600 bg-gray-300 border-gray-300";
                               return (
                                 <div
-                                  key={idx + baseMove}
+                                  key={idx + step}
                                   className={pillClass}
                                   style={
                                     partial
@@ -3705,15 +3430,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                               );
                             })}
                           </div>
-                        )}
-                        {/* Animated completion tick */}
-                        {fixShowTick &&
-                          ![
-                            "flipped-misoriented-green-white",
-                            "misaligned-green-white",
-                            "flipped-misoriented-misaligned-green-white",
-                            "midlayer-green-white-extraction",
-                          ].includes(activeSlide?.id || "") && (
+                          {fixCompleted && (
                             <div className="relative w-6 h-6 ml-1">
                               <svg
                                 key={fixTickAnimKey}
@@ -3767,99 +3484,1178 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                               </div>
                             </div>
                           )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                        </>
+                      ) : activeSlide?.id === "misaligned-green-white" ? (
+                        <>
+                          {/* Group 1: D' (first tick) */}
+                          {(() => {
+                            const idx = 0;
+                            const step = fixSequence[idx];
+                            const isDone = idx < fixIndex;
+                            const isCurrent = idx === fixIndex;
+                            const isDouble = step?.endsWith("2");
+                            const partial =
+                              isCurrent &&
+                              isDouble &&
+                              fixDoublePartialDir !== 0;
+                            return (
+                              <>
+                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
+                                  <div
+                                    className={
+                                      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
+                                      (isDone
+                                        ? " bg-green-500 text-white border-green-600"
+                                        : partial
+                                        ? " text-white border-blue-600"
+                                        : isCurrent
+                                        ? " bg-white text-blue-700 border-blue-500"
+                                        : " text-gray-600 bg-gray-300 border-gray-300")
+                                    }
+                                    style={
+                                      partial
+                                        ? {
+                                            background:
+                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
+                                          }
+                                        : undefined
+                                    }
+                                    title={step}
+                                  >
+                                    {step}
+                                  </div>
+                                </div>
+                                {fixIndex >= 1 && (
+                                  <div className="relative w-6 h-6 ml-1">
+                                    <svg
+                                      key={fixTickAnimKey}
+                                      className="w-6 h-6 transform -rotate-90"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="#e5e7eb"
+                                        strokeWidth="2"
+                                        fill="none"
+                                      />
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        fill="none"
+                                        className="text-green-500"
+                                        style={{
+                                          strokeDasharray: "63",
+                                          strokeDashoffset: fixFirstTickProgress
+                                            ? 0
+                                            : 63,
+                                          transition:
+                                            "stroke-dashoffset 0.4s ease-in-out",
+                                        }}
+                                      />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <svg
+                                        className="w-4 h-4 text-green-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={3}
+                                          d="M5 13l4 4L19 7"
+                                          style={{
+                                            strokeDasharray: "20",
+                                            strokeDashoffset: fixFirstTickLine
+                                              ? 0
+                                              : 20,
+                                            transition:
+                                              "stroke-dashoffset 0.5s ease-out",
+                                          }}
+                                        />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                          <span className="mx-1 text-gray-400">/</span>
+                          {/* Group 2: F2 (second tick) */}
 
-                {/* Notation uses the same Fix UI; label changes to Try when lessonId==='notation' */}
-
-                {/* Recap overlay removed in favor of full-page recap panel */}
-                {/* Practice Moves panel (hidden on slides 1 & 2) */}
-                {(!activeSlide ||
-                  (activeSlide.allowFaceMoves && currentSlide >= 100)) && (
-                  <div className="absolute bottom-4 left-2 right-2 md:left-4 md:right-4">
-                    <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 md:p-4 shadow-lg">
-                      <div className="text-sm text-gray-600 mb-2">
-                        Practice Moves:
-                      </div>
-                      <div className="grid grid-cols-4 md:grid-cols-6 gap-1 md:gap-2">
-                        {[
-                          "F",
-                          "F'",
-                          "R",
-                          "R'",
-                          "U",
-                          "U'",
-                          "L",
-                          "L'",
-                          "B",
-                          "B'",
-                          "D",
-                          "D'",
-                        ].map((move) => (
-                          <button
-                            key={move}
-                            onClick={() => handleButtonMove(move)}
-                            disabled={isAnimating || inputDisabled}
-                            className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm"
+                          {(() => {
+                            const idx = 1;
+                            const step = fixSequence[idx];
+                            const isDone = idx < fixIndex;
+                            const isCurrent = idx === fixIndex;
+                            const isDouble = step?.endsWith("2");
+                            const partial =
+                              isCurrent &&
+                              isDouble &&
+                              fixDoublePartialDir !== 0;
+                            return (
+                              <>
+                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
+                                  <div
+                                    className={
+                                      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
+                                      (isDone
+                                        ? " bg-green-500 text-white border-green-600"
+                                        : partial
+                                        ? " text-white border-blue-600"
+                                        : isCurrent
+                                        ? " bg-white text-blue-700 border-blue-500"
+                                        : " text-gray-600 bg-gray-300 border-gray-300")
+                                    }
+                                    style={
+                                      partial
+                                        ? {
+                                            background:
+                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
+                                          }
+                                        : undefined
+                                    }
+                                    title={step}
+                                  >
+                                    {step}
+                                  </div>
+                                </div>
+                                {fixCompleted && (
+                                  <div className="relative w-6 h-6 ml-1">
+                                    <svg
+                                      key={fixTickAnimKey}
+                                      className="w-6 h-6 transform -rotate-90"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="#e5e7eb"
+                                        strokeWidth="2"
+                                        fill="none"
+                                      />
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        fill="none"
+                                        className="text-green-500"
+                                        style={{
+                                          strokeDasharray: "63",
+                                          strokeDashoffset: fixTickProgress
+                                            ? 0
+                                            : 63,
+                                          transition:
+                                            "stroke-dashoffset 0.4s ease-in-out",
+                                        }}
+                                      />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <svg
+                                        className="w-4 h-4 text-green-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={3}
+                                          d="M5 13l4 4L19 7"
+                                          style={{
+                                            strokeDasharray: "20",
+                                            strokeDashoffset: fixTickLine
+                                              ? 0
+                                              : 20,
+                                            transition:
+                                              "stroke-dashoffset 0.5s ease-out",
+                                          }}
+                                        />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </>
+                      ) : activeSlide?.id ===
+                        "flipped-misoriented-misaligned-green-white" ? (
+                        <>
+                          {/* Group 1: D' (first tick) */}
+                          {(() => {
+                            const idx = 0;
+                            const step = fixSequence[idx];
+                            const isDone = idx < fixIndex;
+                            const isCurrent = idx === fixIndex;
+                            const isDouble = step?.endsWith("2");
+                            const partial =
+                              isCurrent &&
+                              isDouble &&
+                              fixDoublePartialDir !== 0;
+                            return (
+                              <>
+                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
+                                  <div
+                                    className={
+                                      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
+                                      (isDone
+                                        ? " bg-green-500 text-white border-green-600"
+                                        : partial
+                                        ? " text-white border-blue-600"
+                                        : isCurrent
+                                        ? " bg-white text-blue-700 border-blue-500"
+                                        : " text-gray-600 bg-gray-300 border-gray-300")
+                                    }
+                                    style={
+                                      partial
+                                        ? {
+                                            background:
+                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
+                                          }
+                                        : undefined
+                                    }
+                                    title={step}
+                                  >
+                                    {step}
+                                  </div>
+                                </div>
+                                {fixIndex >= 1 && (
+                                  <div className="relative w-6 h-6 ml-1">
+                                    <svg
+                                      key={fixTickAnimKey}
+                                      className="w-6 h-6 transform -rotate-90"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="#e5e7eb"
+                                        strokeWidth="2"
+                                        fill="none"
+                                      />
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        fill="none"
+                                        className="text-green-500"
+                                        style={{
+                                          strokeDasharray: "63",
+                                          strokeDashoffset: fixFirstTickProgress
+                                            ? 0
+                                            : 63,
+                                          transition:
+                                            "stroke-dashoffset 0.4s ease-in-out",
+                                        }}
+                                      />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <svg
+                                        className="w-4 h-4 text-green-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={3}
+                                          d="M5 13l4 4L19 7"
+                                          style={{
+                                            strokeDasharray: "20",
+                                            strokeDashoffset: fixFirstTickLine
+                                              ? 0
+                                              : 20,
+                                            transition:
+                                              "stroke-dashoffset 0.5s ease-out",
+                                          }}
+                                        />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                          <span className="mx-1 text-gray-400">/</span>
+                          {/* Group 2: F2 (second mid-stage tick) */}
+                          {(() => {
+                            const idx = 1;
+                            const step = fixSequence[idx];
+                            const isDone = idx < fixIndex;
+                            const isCurrent = idx === fixIndex;
+                            const isDouble = step?.endsWith("2");
+                            const partial =
+                              isCurrent &&
+                              isDouble &&
+                              fixDoublePartialDir !== 0;
+                            return (
+                              <>
+                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
+                                  <div
+                                    className={
+                                      "relative px-2 py-1 rounded-md text-[14px] md:text-xs leading-none select-none " +
+                                      (isDone
+                                        ? " bg-green-500 text-white"
+                                        : partial
+                                        ? " text-white border-blue-600"
+                                        : isCurrent
+                                        ? " bg-white text-blue-700 border-blue-500"
+                                        : " text-gray-600 bg-gray-300 border-gray-300")
+                                    }
+                                    style={
+                                      partial
+                                        ? {
+                                            background:
+                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
+                                          }
+                                        : undefined
+                                    }
+                                    title={step}
+                                  >
+                                    {step}
+                                  </div>
+                                </div>
+                                {fixIndex >= 2 && (
+                                  <div className="relative w-6 h-6 ml-1">
+                                    <svg
+                                      key={fixTickAnimKey}
+                                      className="w-6 h-6 transform -rotate-90"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="#e5e7eb"
+                                        strokeWidth="2"
+                                        fill="none"
+                                      />
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        fill="none"
+                                        className="text-green-500"
+                                        style={{
+                                          strokeDasharray: "63",
+                                          strokeDashoffset:
+                                            fixSecondTickProgress ? 0 : 63,
+                                          transition:
+                                            "stroke-dashoffset 0.4s ease-in-out",
+                                        }}
+                                      />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <svg
+                                        className="w-4 h-4 text-green-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={3}
+                                          d="M5 13l4 4L19 7"
+                                          style={{
+                                            strokeDasharray: "20",
+                                            strokeDashoffset: fixSecondTickLine
+                                              ? 0
+                                              : 20,
+                                            transition:
+                                              "stroke-dashoffset 0.5s ease-out",
+                                          }}
+                                        />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                          <span className="mx-1 text-gray-400">/</span>
+                          {/* Group 3: F' U' R U (final inline completion tick placeholder) */}
+                          <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
+                            {fixSequence.slice(2).map((step, i, arr) => {
+                              const idx = i + 2;
+                              const isDone = idx < fixIndex;
+                              const isCurrent = idx === fixIndex;
+                              const isDouble = step.endsWith("2");
+                              const partial =
+                                isCurrent &&
+                                isDouble &&
+                                fixDoublePartialDir !== 0;
+                              const isFirst = i === 0;
+                              const isLast = i === arr.length - 1;
+                              let pillClass =
+                                "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none ";
+                              if (isFirst)
+                                pillClass +=
+                                  " rounded-tl-md rounded-bl-md pl-2 ";
+                              if (isLast)
+                                pillClass +=
+                                  " rounded-tr-md rounded-br-md pr-2 ";
+                              pillClass += isDone
+                                ? " bg-green-500 text-white border-green-600"
+                                : partial
+                                ? " text-white border-blue-600"
+                                : isCurrent
+                                ? " bg-white text-blue-700 border-blue-500"
+                                : " text-gray-600 bg-gray-300 border-gray-300";
+                              return (
+                                <div
+                                  key={idx + step}
+                                  className={pillClass}
+                                  style={
+                                    partial
+                                      ? {
+                                          background:
+                                            "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
+                                        }
+                                      : undefined
+                                  }
+                                  title={step}
+                                >
+                                  {step}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {fixCompleted && (
+                            <div className="relative w-6 h-6 ml-1">
+                              <svg
+                                key={fixTickAnimKey}
+                                className="w-6 h-6 transform -rotate-90"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="#e5e7eb"
+                                  strokeWidth="2"
+                                  fill="none"
+                                />
+                                <circle
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  fill="none"
+                                  className="text-green-500"
+                                  style={{
+                                    strokeDasharray: "63",
+                                    strokeDashoffset: fixTickProgress ? 0 : 63,
+                                    transition:
+                                      "stroke-dashoffset 0.4s ease-in-out",
+                                  }}
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <svg
+                                  className="w-4 h-4 text-green-500"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={3}
+                                    d="M5 13l4 4L19 7"
+                                    style={{
+                                      strokeDasharray: "20",
+                                      strokeDashoffset: fixTickLine ? 0 : 20,
+                                      transition:
+                                        "stroke-dashoffset 0.5s ease-out",
+                                    }}
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : activeSlide?.id === "practice-setup-solution-3" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["R", "U2", "R'", "U'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 4,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["R", "U", "R'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 4,
+                              boundaryIndex: 7,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id === "practice-setup-solution-4" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["R", "U", "R'", "U'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 4,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["R", "U", "R'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 4,
+                              boundaryIndex: 7,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id === "yellow-cross-dot" ? (
+                        <div
+                          className="relative overflow-hidden"
+                          style={{ height: "80px" }}
+                        >
+                          <div
+                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
+                              showSecondSequenceDot || secondSequenceDotLocked
+                                ? "-translate-y-[80px]"
+                                : "translate-y-0"
+                            }`}
                           >
-                            {move}
-                          </button>
-                        ))}
-                      </div>
+                            {/* First sequence (parts 1-2) */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: ["F", "R", "U", "R'", "U'", "F'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 0,
+                                    boundaryIndex: 6,
+                                    tickAnimKey: midStage1Key,
+                                    tickProgress: midStage1Progress,
+                                    tickLine: midStage1Line,
+                                  },
+                                  {
+                                    moves: ["U2"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 6,
+                                    boundaryIndex: 7,
+                                    tickAnimKey: midStage2Key,
+                                    tickProgress: midStage2Progress,
+                                    tickLine: midStage2Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                            {/* Second sequence (parts 3-4) */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: ["F", "R", "U", "R'", "U'", "F'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 7,
+                                    boundaryIndex: 13,
+                                    tickAnimKey: midStage3Key,
+                                    tickProgress: midStage3Progress,
+                                    tickLine: midStage3Line,
+                                  },
+                                  {
+                                    moves: ["F", "R", "U", "R'", "U'", "F'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 13,
+                                    boundaryIndex: 19,
+                                    tickAnimKey: midStage4Key,
+                                    tickProgress: midStage4Progress,
+                                    tickLine: midStage4Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : activeSlide?.id === "yellow-cross-triangle" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["F", "R", "U", "R'", "U'", "F'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 6,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["F", "R", "U", "R'", "U'", "F'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 6,
+                              boundaryIndex: 12,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id === "yellow-edges-solution-2" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["U"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 1,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: [
+                                "R",
+                                "U",
+                                "R'",
+                                "U",
+                                "R",
+                                "U2",
+                                "R'",
+                                "U",
+                              ],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 1,
+                              boundaryIndex: 9,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id === "yellow-edges-solution-3" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["U2"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 1,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: [
+                                "R",
+                                "U",
+                                "R'",
+                                "U",
+                                "R",
+                                "U2",
+                                "R'",
+                                "U",
+                              ],
+                              colorName: "Blue",
+                              colorValue: CUBE_COLORS.BLUE,
+                              startIndex: 1,
+                              boundaryIndex: 9,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id === "practice-setup-solution-5" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["R", "U", "R'", "U'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 4,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["R", "U2", "R'", "U'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 4,
+                              boundaryIndex: 8,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                            {
+                              moves: ["R", "U", "R'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 8,
+                              boundaryIndex: 11,
+                              tickAnimKey: midStage3Key,
+                              tickProgress: midStage3Progress,
+                              tickLine: midStage3Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id ===
+                        "midlayer-green-white-extraction" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["R'", "D'", "R"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 3,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                              borderColor: CUBE_COLORS.GREEN,
+                            },
+                            {
+                              moves: ["D'"],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 3,
+                              boundaryIndex: 4,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                              borderColor: CUBE_COLORS.GREEN,
+                            },
+                            {
+                              moves: ["F2"],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 4,
+                              boundaryIndex: 5,
+                              tickAnimKey: midStage3Key,
+                              tickProgress: midStage3Progress,
+                              tickLine: midStage3Line,
+                              borderColor: CUBE_COLORS.GREEN,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id === "practice-setup-solution-6" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["R", "U", "R'", "U'"],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 0,
+                              boundaryIndex: 4,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["U"],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 4,
+                              boundaryIndex: 5,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                            {
+                              moves: ["R", "U", "R'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 5,
+                              boundaryIndex: 8,
+                              tickAnimKey: midStage3Key,
+                              tickProgress: midStage3Progress,
+                              tickLine: midStage3Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id === "second-layer-setup-solution" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["U'", "L'", "U'", "L", "U"],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 0,
+                              boundaryIndex: 5,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["R", "U", "R'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 5,
+                              boundaryIndex: 8,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id ===
+                        "second-layer-setup-solution-2" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["U", "R", "U", "R'", "U'"],
+                              colorName: "Red",
+                              colorValue: CUBE_COLORS.RED,
+                              startIndex: 0,
+                              boundaryIndex: 5,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["L'", "U'", "L"],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 5,
+                              boundaryIndex: 8,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id ===
+                        "second-layer-setup-solution-3" ? (
+                        <MultiPartSequence
+                          parts={[
+                            {
+                              moves: ["U", "R", "U", "R'", "U'"],
+                              colorName: "Green",
+                              colorValue: CUBE_COLORS.GREEN,
+                              startIndex: 0,
+                              boundaryIndex: 5,
+                              tickAnimKey: midStage1Key,
+                              tickProgress: midStage1Progress,
+                              tickLine: midStage1Line,
+                            },
+                            {
+                              moves: ["L'", "U'", "L"],
+                              colorName: "Orange",
+                              colorValue: CUBE_COLORS.ORANGE,
+                              startIndex: 5,
+                              boundaryIndex: 8,
+                              tickAnimKey: midStage2Key,
+                              tickProgress: midStage2Progress,
+                              tickLine: midStage2Line,
+                            },
+                          ]}
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                        />
+                      ) : activeSlide?.id ===
+                        "second-layer-setup-solution-4" ? (
+                        <div
+                          className="relative overflow-hidden"
+                          style={{ height: "80px" }}
+                        >
+                          <div
+                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
+                              showSecondSequence || secondSequenceLocked
+                                ? "-translate-y-[80px]"
+                                : "translate-y-0"
+                            }`}
+                          >
+                            {/* First sequence (parts 1-3) */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: ["U", "R", "U", "R'", "U'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 0,
+                                    boundaryIndex: 5,
+                                    tickAnimKey: midStage1Key,
+                                    tickProgress: midStage1Progress,
+                                    tickLine: midStage1Line,
+                                  },
+                                  {
+                                    moves: ["L'", "U'", "L"],
+                                    colorName: "Green",
+                                    colorValue: CUBE_COLORS.GREEN,
+                                    startIndex: 5,
+                                    boundaryIndex: 8,
+                                    tickAnimKey: midStage2Key,
+                                    tickProgress: midStage2Progress,
+                                    tickLine: midStage2Line,
+                                  },
+                                  {
+                                    moves: ["U2"],
+                                    colorName: "Green",
+                                    colorValue: CUBE_COLORS.GREEN,
+                                    startIndex: 8,
+                                    boundaryIndex: 9,
+                                    tickAnimKey: midStage3Key,
+                                    tickProgress: midStage3Progress,
+                                    tickLine: midStage3Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                            {/* Second sequence (parts 4-5) */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: ["U", "R", "U", "R'", "U'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 9,
+                                    boundaryIndex: 14,
+                                    tickAnimKey: midStage4Key,
+                                    tickProgress: midStage4Progress,
+                                    tickLine: midStage4Line,
+                                  },
+                                  {
+                                    moves: ["L'", "U'", "L"],
+                                    colorName: "Green",
+                                    colorValue: CUBE_COLORS.GREEN,
+                                    startIndex: 14,
+                                    boundaryIndex: 17,
+                                    tickAnimKey: midStage5Key,
+                                    tickProgress: midStage5Progress,
+                                    tickLine: midStage5Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // Default rendering for other slides
+                        <AlgorithmSequence
+                          moves={
+                            activeSlide?.id === "practice-setup-solution" ||
+                            activeSlide?.id === "practice-setup-solution-2" ||
+                            activeSlide?.id === "practice-setup-solution-3" ||
+                            activeSlide?.id === "yellow-cross-line" ||
+                            activeSlide?.id === "yellow-edges-solution"
+                              ? fixSequenceDisplay
+                              : fixSequence
+                          }
+                          currentIndex={fixIndex}
+                          partialDirection={fixDoublePartialDir}
+                          borderColor={
+                            activeSlide?.id ===
+                            "midlayer-green-white-extraction"
+                              ? CUBE_COLORS.GREEN
+                              : "border-green-600"
+                          }
+                        />
+                      )}
+                      {/* Animated completion tick */}
+                      {fixShowTick &&
+                        ![
+                          "flipped-misoriented-green-white",
+                          "misaligned-green-white",
+                          "flipped-misoriented-misaligned-green-white",
+                          "midlayer-green-white-extraction",
+                          "practice-setup-solution-3",
+                          "practice-setup-solution-4",
+                          "practice-setup-solution-5",
+                          "practice-setup-solution-6",
+                          "second-layer-setup-solution",
+                          "second-layer-setup-solution-2",
+                          "second-layer-setup-solution-3",
+                          "second-layer-setup-solution-4",
+                          "yellow-cross-triangle",
+                          "yellow-cross-dot",
+                          "yellow-edges-solution-2",
+                          "yellow-edges-solution-3",
+                        ].includes(activeSlide?.id || "") && (
+                          <CompletionTick
+                            animKey={fixTickAnimKey}
+                            progress={fixTickProgress}
+                            line={fixTickLine}
+                            color="green"
+                          />
+                        )}
                     </div>
-                  </div>
-                )}
-                {/* Reset modal removed; instant reset is used */}
+                  ) : null}
+                </div>
               </div>
-            </>
-          )}
+            )}
+
+            {/* Notation uses the same Fix UI; label changes to Try when lessonId==='notation' */}
+
+            {/* Recap overlay removed in favor of full-page recap panel */}
+            {/* Practice Moves panel (hidden on slides 1 & 2) */}
+            {(!activeSlide ||
+              (activeSlide.allowFaceMoves && currentSlide >= 100)) && (
+              <div className="absolute bottom-4 left-2 right-2 md:left-4 md:right-4">
+                <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 md:p-4 shadow-lg">
+                  <div className="text-sm text-gray-600 mb-2">
+                    Practice Moves:
+                  </div>
+                  <div className="grid grid-cols-4 md:grid-cols-6 gap-1 md:gap-2">
+                    {[
+                      "F",
+                      "F'",
+                      "R",
+                      "R'",
+                      "U",
+                      "U'",
+                      "L",
+                      "L'",
+                      "B",
+                      "B'",
+                      "D",
+                      "D'",
+                    ].map((move) => (
+                      <button
+                        key={move}
+                        onClick={() => handleButtonMove(move)}
+                        disabled={isAnimating || inputDisabled}
+                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm"
+                      >
+                        {move}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Reset modal removed; instant reset is used */}
+          </div>
         </div>
       </div>
-      {/* Full-width slide text bar at the very bottom (hidden on slide 8) */}
-      {activeSlide && activeSlide.id !== "recap-mental-model" && (
-        <div className="sticky bottom-0 w-full bg-white/95 backdrop-blur border-t shadow-inner z-40">
-          <div
-            className="max-w-screen-2xl mx-auto px-3 md:px-6 py-3 md:py-4"
-            style={{ minHeight: "8em" }}
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-              <div className="text-gray-800">
-                <div className="font-semibold mb-1">
-                  {currentSlide + 1} / {slides.length}: {activeSlide.title}
+      {/* Full-width slide text bar at the very bottom (hidden on recap slides) */}
+      {activeSlide &&
+        activeSlide.id !== "recap-mental-model" &&
+        activeSlide.id !== "recap-white-corners" && (
+          <div className="sticky bottom-0 w-full bg-white/95 backdrop-blur border-t shadow-inner z-40">
+            <div
+              className="max-w-screen-2xl mx-auto px-3 md:px-6 py-3 md:py-4"
+              style={{ minHeight: "8em" }}
+            >
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div className="text-gray-800">
+                  <div className="font-semibold mb-1">
+                    {currentSlide + 1} / {slides.length}: {activeSlide.title}
+                  </div>
+                  {activeSlide.id !== "recap-mental-model" &&
+                    activeSlide.id !== "recap-white-corners" && (
+                      <TypewriterText
+                        text={activeSlide.description}
+                        keyProp={currentSlide}
+                      />
+                    )}
                 </div>
-                {activeSlide.id !== "recap-mental-model" && (
-                  <TypewriterText
-                    text={activeSlide.description}
-                    keyProp={currentSlide}
-                  />
-                )}
-              </div>
-              <div className="flex items-center gap-2 justify-end">
-                <Button
-                  onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-                  disabled={currentSlide === 0}
-                  className="px-3 py-1 text-sm"
-                >
-                  Prev
-                </Button>
-                <Button
-                  onClick={() =>
-                    setCurrentSlide(
-                      Math.min(slides.length - 1, currentSlide + 1)
-                    )
-                  }
-                  disabled={currentSlide >= slides.length - 1}
-                  className="px-3 py-1 text-sm"
-                >
-                  Next
-                </Button>
+                <div className="flex items-center gap-2 justify-end">
+                  <Button
+                    onClick={() =>
+                      setCurrentSlide(Math.max(0, currentSlide - 1))
+                    }
+                    disabled={currentSlide === 0}
+                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      setCurrentSlide(
+                        Math.min(slides.length - 1, currentSlide + 1)
+                      )
+                    }
+                    disabled={currentSlide >= slides.length - 1}
+                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };

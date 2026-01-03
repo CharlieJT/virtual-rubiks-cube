@@ -117,6 +117,8 @@ export interface RubiksCube3DProps {
   highlightIntensity?: number;
   // Intensity to dull non-highlighted cubies (0 = off). When > 0, all non-targets lerp toward grey.
   dullOthersIntensity?: number;
+  // Optional function to render children for each piece (x, y, z, piece) => ReactNode
+  pieceChildren?: (x: number, y: number, z: number, piece: CubeState) => React.ReactNode;
 }
 
 export type RubiksCube3DHandle = {
@@ -138,7 +140,8 @@ export type RubiksCube3DHandle = {
   resetToInitialPosition: (
     orbitControlsRef?: React.RefObject<any>,
     cubeRef?: React.RefObject<any>,
-    onComplete?: () => void
+    onComplete?: () => void,
+    instant?: boolean
   ) => void;
   handlePointerDown: (e: React.PointerEvent) => void;
   handlePointerUp: () => void;

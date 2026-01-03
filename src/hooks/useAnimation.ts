@@ -311,7 +311,8 @@ export const useImperativeHandle3D = (
       resetToInitialPosition: (
         orbitControlsRef?: React.RefObject<any>,
         _cubeRef?: React.RefObject<any>,
-        onComplete?: () => void
+        onComplete?: () => void,
+        instant?: boolean
       ) => {
         if (!orbitControlsRef?.current || !groupRef.current) {
           onComplete?.();
@@ -338,6 +339,7 @@ export const useImperativeHandle3D = (
 
         // Calculate the target cube orientation based on current camera position
         // Goal: white on top AND side faces aligned (fix yaw around Y after orbiting)
+        // OR yellow on top if flipUpsideDown is requested
         let targetCubeQuaternion: THREE.Quaternion;
 
         // Camera vectors
@@ -346,55 +348,119 @@ export const useImperativeHandle3D = (
         const camForward = camTarget.clone().sub(camPos).normalize(); // direction from camera to cube
         const camUp = camera.up.clone().normalize();
 
-        // Step 1: align cube's +Y (white) to camera up
-        const cubeUp = new THREE.Vector3(0, 1, 0);
+        // Get options first to check if we need to flip
+        const extraOpts = (controls as any).__resetOpts || {};
+
+        // Step 1: align cube's +Y (white) to camera up, OR -Y (yellow) if flipping
+        // Use EXACTLY the same computation for both cases - just use different local vector
+        // This ensures orbit is handled identically for normal and flipped slides
+        const cubeUpLocal = extraOpts.flipUpsideDown
+          ? new THREE.Vector3(0, -1, 0) // Align yellow (bottom) to camera up when flipping
+          : new THREE.Vector3(0, 1, 0); // Align white (top) to camera up normally
+
+        // Apply extraPitchDeg if requested (vertical pitch - rotation around horizontal axis)
+        // This rotates around the camera's right vector (horizontal axis perpendicular to forward and up)
+        // to tilt the view up/down. Positive values tilt up (look more from above), negative values tilt down
+        // We need to apply this to the target camera up vector BEFORE computing the alignment
+        let targetCamUp = camUp.clone();
+        if (typeof extraOpts.extraPitchDeg === "number") {
+          const pitchRad = THREE.MathUtils.degToRad(extraOpts.extraPitchDeg);
+          // Calculate right vector (horizontal axis perpendicular to camera forward and up)
+          // This is the axis we rotate around to tilt the view vertically
+          const camRight = new THREE.Vector3()
+            .crossVectors(camForward, camUp)
+            .normalize();
+          // If camRight is zero (forward and up are parallel), use a default right vector
+          if (camRight.lengthSq() < 1e-6) {
+            camRight.set(1, 0, 0).normalize();
+          }
+          // Rotate the target camera up vector around the right axis to tilt the view
+          const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
+            camRight,
+            pitchRad
+          );
+          targetCamUp.applyQuaternion(pitchQuat).normalize();
+        }
+
+        // Compute target orientation relative to camera (identical method for both cases)
         const alignUpQuat = new THREE.Quaternion().setFromUnitVectors(
-          cubeUp,
-          camUp
+          cubeUpLocal,
+          targetCamUp
         );
 
         // Step 2: compute yaw so cube's +Z (green/front) aligns to camera forward projected in the up plane
         const cubeFront = new THREE.Vector3(0, 0, 1).applyQuaternion(
           alignUpQuat
         );
-        const frontProj = cubeFront.clone().projectOnPlane(camUp).normalize();
-        // We want the cube front to face the camera, i.e., toward -camForward
+        const frontProj = cubeFront
+          .clone()
+          .projectOnPlane(targetCamUp)
+          .normalize();
         const viewProj = camForward
           .clone()
           .negate()
-          .projectOnPlane(camUp)
+          .projectOnPlane(targetCamUp)
           .normalize();
 
         let yawQuat = new THREE.Quaternion();
-        // Handle degenerate case: if viewProj is near zero (camera looking straight up/down), skip yaw
         if (viewProj.lengthSq() > 1e-6 && frontProj.lengthSq() > 1e-6) {
-          // Signed angle from frontProj to viewProj around camUp
           const cross = new THREE.Vector3().copy(frontProj).cross(viewProj);
-          const sin = THREE.MathUtils.clamp(cross.dot(camUp), -1, 1);
+          const sin = THREE.MathUtils.clamp(cross.dot(targetCamUp), -1, 1);
           const cos = THREE.MathUtils.clamp(frontProj.dot(viewProj), -1, 1);
           const angle = Math.atan2(sin, cos);
-          yawQuat.setFromAxisAngle(camUp, angle);
-        } else {
-          yawQuat.identity();
+          yawQuat.setFromAxisAngle(targetCamUp, angle);
         }
 
         // Final target quaternion: first align up, then yaw around that up
         targetCubeQuaternion = yawQuat.clone().multiply(alignUpQuat);
 
-        // Apply an additional yaw offset if requested by caller; default to -45deg
-        // Callers can set controls.__resetOpts = { extraYawRad: number } prior to invoking.
-        const extraOpts = (controls as any).__resetOpts || {};
+        // Apply additional yaw offset if requested (same for both cases)
         const yOffsetRad =
           typeof extraOpts.extraYawRad === "number"
             ? extraOpts.extraYawRad
             : THREE.MathUtils.degToRad(-45);
         const extraYaw = new THREE.Quaternion().setFromAxisAngle(
-          camUp,
+          targetCamUp,
           yOffsetRad
         );
         targetCubeQuaternion.premultiply(extraYaw);
+
+        // Apply extraERotationDeg if requested (rotation around cube's Y axis / E direction)
+        // We want to rotate around the cube's Y-axis AFTER all previous rotations
+        // Since the cube's Y-axis (for normal) or -Y axis (for flipped) is aligned with targetCamUp after previous rotations,
+        // we can rotate around targetCamUp (or -targetCamUp for flipped) to rotate around the cube's Y-axis
+        if (typeof extraOpts.extraERotationDeg === "number") {
+          const eRotationRad = THREE.MathUtils.degToRad(
+            extraOpts.extraERotationDeg
+          );
+          // For flipped slides: cube's -Y aligns with targetCamUp, so cube's +Y is -targetCamUp
+          // We want to rotate around cube's +Y, so use -targetCamUp
+          // For normal slides: cube's +Y aligns with targetCamUp
+          const rotationAxis = extraOpts.flipUpsideDown
+            ? targetCamUp.clone().negate()
+            : targetCamUp.clone();
+          const eRotationQuat = new THREE.Quaternion().setFromAxisAngle(
+            rotationAxis,
+            eRotationRad
+          );
+          // Apply E-rotation after previous rotations by composing it correctly
+          // We want: targetCubeQuaternion * eRotationQuat (apply targetCubeQuaternion, then eRotationQuat)
+          // But multiply() does: eRotationQuat * targetCubeQuaternion (apply targetCubeQuaternion, then eRotationQuat) - wait, that's backwards
+          // Actually multiply() does: targetCubeQuaternion * eRotationQuat in the sense that it applies eRotationQuat first, then targetCubeQuaternion
+          // So we need to use premultiply to get the correct order
+          targetCubeQuaternion.premultiply(eRotationQuat);
+        }
+
         // Clear one-shot options
         if ((controls as any).__resetOpts) delete (controls as any).__resetOpts;
+
+        // If instant is true, set rotation directly without animation
+        if (instant) {
+          cubeGroup.quaternion.copy(targetCubeQuaternion);
+          cubeGroup.updateMatrixWorld(true);
+          onComplete?.();
+          return;
+        }
 
         // Don't move the camera - keep it at current position
         // Only rotate the cube to show white on top from current camera angle

@@ -245,6 +245,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       dullOthersIntensity,
       disableSliceDrag = false,
       preventSliceMoves = false,
+      pieceChildren,
     }: RubiksCube3DProps,
     ref
   ) => {
@@ -601,6 +602,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                             </mesh>
                           );
                         })}
+                        {pieceChildren?.(x, y, z, cubie)}
                       </CubePiece>
                     );
                   });
