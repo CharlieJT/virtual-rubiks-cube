@@ -4,6 +4,7 @@ import { getWhiteCornersSlides } from "./whiteCornersSlides";
 import { getSecondLayerSlides } from "./secondLayerSlides";
 import { getYellowCrossSlides } from "./yellowCrossSlides";
 import { getYellowEdgesSlides } from "./yellowEdgesSlides";
+import { getYellowCornersSlides } from "./yellowCornersSlides";
 
 export type { Slide };
 
@@ -20,6 +21,8 @@ const getSlidesForLesson = (lessonId: string): Slide[] => {
     return getYellowCrossSlides();
   } else if (lessonId === "yellow-edges") {
     return getYellowEdgesSlides();
+  } else if (lessonId === "yellow-corners") {
+    return getYellowCornersSlides();
   }
   return [];
 };

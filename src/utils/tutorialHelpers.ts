@@ -28,10 +28,11 @@ export const getSlideCameraConfig = (
     slideId === "flipped-misoriented-misaligned-green-white"
   ) {
     // Explicit -45deg yaw to standardize the facing on the faces slide
-    // Exception: yellow-cross, yellow-edges, and second-layer intro should show yellow on top
+    // Exception: yellow-cross, yellow-edges, yellow-corners, and second-layer intro should show yellow on top
     if (
       lessonId === "yellow-cross" ||
       lessonId === "yellow-edges" ||
+      lessonId === "yellow-corners" ||
       lessonId === "second-layer"
     ) {
       return {
@@ -51,10 +52,24 @@ export const getSlideCameraConfig = (
     slideId === "find-green-white" ||
     slideId === "flip-green-white" ||
     slideId === "flip-green-white-f2" ||
-    slideId === "flipped-misoriented-green-white" ||
-    slideId === "notation-faces"
+    slideId === "flipped-misoriented-green-white"
   ) {
     // Face more toward green (left along cube Y): stronger negative yaw
+    return { extraYawRad: 0, slideId: slideIdForLogging };
+  }
+
+  // All Notation slides: use same yaw as notation-intro (default, which is 0)
+  if (
+    lessonId === "notation" &&
+    (slideId === "notation-intro" ||
+      slideId === "notation-faces" ||
+      slideId === "notation-turns" ||
+      slideId === "notation-example" ||
+      slideId === "notation-example-2" ||
+      slideId === "notation-example-3" ||
+      slideId === "notation-10-step" ||
+      slideId === "notation-protip")
+  ) {
     return { extraYawRad: 0, slideId: slideIdForLogging };
   }
 
@@ -156,11 +171,10 @@ export const getSlideCameraConfig = (
   }
 
   if (slideId === "recap-mental-model") {
-    // Recap slide: flip upside down (yellow on top) to match white cross practice slides
+    // White Cross recap: show white side up (default orientation)
+    // Other lessons: also default orientation
     return {
       extraYawRad: 0,
-      flipUpsideDown: true,
-      extraERotationDeg: -45,
       slideId: slideIdForLogging,
     };
   }
@@ -190,9 +204,14 @@ export const getSlideCameraConfig = (
     slideId === "yellow-cross-line" ||
     slideId === "yellow-cross-triangle" ||
     slideId === "yellow-cross-dot" ||
+    (slideId === "intro" && lessonId === "yellow-edges") ||
     slideId === "yellow-edges-solution" ||
     slideId === "yellow-edges-solution-2" ||
-    slideId === "yellow-edges-solution-3"
+    slideId === "yellow-edges-solution-3" ||
+    slideId === "yellow-corners-solution" ||
+    slideId === "yellow-corners-solution-2" ||
+    slideId === "yellow-corners-solution-3" ||
+    (slideId === "intro" && lessonId === "yellow-corners")
   ) {
     // Yellow cross/edges slides: yellow side up
     // For line, triangle, dot, yellow-edges-solution, yellow-edges-solution-2, and yellow-edges-solution-3 slides, add yaw
@@ -207,6 +226,12 @@ export const getSlideCameraConfig = (
         ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to -45 after first move
         : slideId === "yellow-edges-solution-3"
         ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to +135 after first move
+        : slideId === "yellow-corners-solution"
+        ? (Math.PI / 180) * 45 // 45 degrees to the left (positive)
+        : slideId === "yellow-corners-solution-2"
+        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to +135 after first sequence
+        : slideId === "yellow-corners-solution-3"
+        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to +225 after first sequence
         : 0;
     return {
       extraYawRad: extraYaw,

@@ -38,9 +38,19 @@ import {
   getCubieColorSet,
 } from "@/utils/tutorialHelpers";
 import {
+  getFixSequence,
+  getFixSequenceDisplay,
+} from "@/utils/fixSequenceHelpers";
+import {
+  parseMove,
+  eqMove,
+  mapMidlayerConceptual,
+} from "@/utils/moveValidationHelpers";
+import {
   isYellowCrossSolved,
   getYellowEdgeMatchStatus,
 } from "@/utils/yellowEdgesHelpers";
+import { getYellowCornerMatchStatus } from "@/utils/yellowCornersHelpers";
 import { CUBIE_SIZE, STICKER_LIFT } from "@components/RubiksCube3D/geometry";
 
 interface TutorialPageProps {
@@ -175,6 +185,44 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   const yellowEdges2YawChangedRef = useRef(false);
   // Track if yaw has been changed for yellow-edges-solution-3
   const yellowEdges3YawChangedRef = useRef(false);
+  // Track which sequence is showing for yellow-corners-solution-2
+  const [
+    showSecondSequenceYellowCorners2,
+    setShowSecondSequenceYellowCorners2,
+  ] = useState(false);
+  const [
+    secondSequenceYellowCorners2Locked,
+    setSecondSequenceYellowCorners2Locked,
+  ] = useState(false);
+  // Track if yaw has been changed for yellow-corners-solution-2
+  const yellowCorners2YawChangedRef = useRef(false);
+  // State for progressive reveal of second sequence in practice-setup-solution-5
+  const [
+    showSecondSequencePracticeSetup5,
+    setShowSecondSequencePracticeSetup5,
+  ] = useState(false);
+  const [
+    secondSequencePracticeSetup5Locked,
+    setSecondSequencePracticeSetup5Locked,
+  ] = useState(false);
+  // State for progressive reveal of second sequence in yellow-corners-solution-3
+  const [
+    showSecondSequenceYellowCorners3,
+    setShowSecondSequenceYellowCorners3,
+  ] = useState(false);
+  const [
+    secondSequenceYellowCorners3Locked,
+    setSecondSequenceYellowCorners3Locked,
+  ] = useState(false);
+  // State for progressive reveal of third sequence in yellow-corners-solution-3
+  const [showThirdSequenceYellowCorners3, setShowThirdSequenceYellowCorners3] =
+    useState(false);
+  const [
+    thirdSequenceYellowCorners3Locked,
+    setThirdSequenceYellowCorners3Locked,
+  ] = useState(false);
+  // Track if yaw has been changed for yellow-corners-solution-3
+  const yellowCorners3YawChangedRef = useRef(false);
 
   // Practice slide completion state
   const [practiceCompleted, setPracticeCompleted] = useState(false);
@@ -286,6 +334,37 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     return getYellowEdgeMatchStatus(cube3D);
   }, [shouldShowYellowEdgeIndicators, cube3D]);
 
+  // Check if all yellow edges match their centers
+  const allYellowEdgesMatchCenters = useMemo(() => {
+    if (!checkSecondLayerSolved(cube3D) || !isYellowCrossSolved(cube3D)) {
+      return false;
+    }
+    const edgeMatchStatus = getYellowEdgeMatchStatus(cube3D);
+    // Check if all edges match (all values in map are true)
+    for (const matches of edgeMatchStatus.values()) {
+      if (!matches) return false;
+    }
+    return edgeMatchStatus.size === 4; // Should have exactly 4 edges
+  }, [cube3D]);
+
+  // Check if we should show yellow corner indicators on slide 2
+  const shouldShowYellowCornerIndicators = useMemo(() => {
+    return (
+      lessonId === "yellow-corners" &&
+      (activeSlide?.id === "yellow-corners-solution" ||
+        activeSlide?.id === "yellow-corners-solution-2" ||
+        activeSlide?.id === "yellow-corners-solution-3") &&
+      checkSecondLayerSolved(cube3D) &&
+      allYellowEdgesMatchCenters
+    );
+  }, [lessonId, activeSlide?.id, cube3D, allYellowEdgesMatchCenters]);
+
+  // Get yellow corner match status
+  const yellowCornerMatchStatus = useMemo(() => {
+    if (!shouldShowYellowCornerIndicators) return new Map<string, boolean>();
+    return getYellowCornerMatchStatus(cube3D);
+  }, [shouldShowYellowCornerIndicators, cube3D]);
+
   // Function to render piece children for yellow edge indicators
   const yellowEdgePieceChildren = useMemo(() => {
     if (!shouldShowYellowEdgeIndicators) return undefined;
@@ -371,6 +450,119 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     };
   }, [shouldShowYellowEdgeIndicators, cube3D, yellowEdgeMatchStatus]);
 
+  // Function to render piece children for yellow corner indicators
+  const yellowCornerPieceChildren = useMemo(() => {
+    if (!shouldShowYellowCornerIndicators) return undefined;
+    return (x: number, y: number, z: number, piece: CubeState) => {
+      // Only render indicators for yellow corner pieces on bottom face (y=0)
+      if (y !== 0) return null;
+      // Check if this is a corner position (x and z are 0 or 2)
+      if (!((x === 0 || x === 2) && (z === 0 || z === 2))) return null;
+
+      const set = getCubieColorSet(piece);
+      // Must be a yellow corner (has yellow + two other colors = 3 colors total)
+      if (set.size !== 3 || !set.has(CUBE_COLORS.YELLOW)) {
+        return null;
+      }
+
+      const key = `${x},${y},${z}`;
+      const matches = yellowCornerMatchStatus.get(key) ?? false;
+      const half = CUBIE_SIZE / 2;
+      const stickerY = -(half + STICKER_LIFT); // Bottom face sticker position
+
+      return (
+        <group
+          position={[0, stickerY - 0.02, 0]}
+          rotation={[Math.PI / 2, 0, 0]}
+        >
+          <Html
+            center
+            transform
+            distanceFactor={0}
+            occlude
+            style={{ pointerEvents: "none" }}
+          >
+            <div
+              style={{
+                width: "24px",
+                height: "24px",
+                borderRadius: "50%",
+                backgroundColor: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: `1px solid ${
+                  matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED
+                }`,
+                opacity: 1,
+                background: matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED,
+              }}
+            >
+              {matches ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transform:
+                      activeSlide?.id === "yellow-corners-solution-3"
+                        ? "rotate(90deg)"
+                        : activeSlide?.id === "yellow-corners-solution-2"
+                        ? "rotate(0deg)"
+                        : "rotate(270deg)",
+                  }}
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              )}
+            </div>
+          </Html>
+        </group>
+      );
+    };
+  }, [
+    shouldShowYellowCornerIndicators,
+    cube3D,
+    yellowCornerMatchStatus,
+    activeSlide?.id,
+  ]);
+
+  // Combined piece children function for both edge and corner indicators
+  const combinedPieceChildren = useMemo(() => {
+    const edgeChildren = yellowEdgePieceChildren;
+    const cornerChildren = yellowCornerPieceChildren;
+
+    if (!edgeChildren && !cornerChildren) return undefined;
+
+    return (x: number, y: number, z: number, piece: CubeState) => {
+      const edgeResult = edgeChildren?.(x, y, z, piece);
+      const cornerResult = cornerChildren?.(x, y, z, piece);
+
+      // If both return results, we need to combine them (shouldn't happen for edges/corners)
+      // For now, prioritize corner if both exist (corners are more specific)
+      return cornerResult || edgeResult || null;
+    };
+  }, [yellowEdgePieceChildren, yellowCornerPieceChildren]);
+
   // Orbit controls hook
   const {
     orbitControlsEnabled,
@@ -387,243 +579,16 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   });
 
   // Expected Fix sequence for the current slide
-  const fixSequence: string[] = useMemo(() => {
-    switch (activeSlide?.id) {
-      // Notation intro/faces: no specific sequence; free play
-      case "notation-intro":
-      case "notation-faces":
-        return [];
-      // Notation: use Fix-like confirmation for Try sequences
-      case "notation-turns":
-        return ["F", "F'", "F2"];
-      case "notation-example":
-        return ["R", "U", "R'", "U'"];
-      case "notation-example-2":
-        return ["F", "R", "U", "R'", "U'", "F'"];
-      case "notation-example-3":
-        return ["R", "U2", "R'", "U'"];
-      case "notation-10-step":
-        return ["F", "U", "R", "U'", "R'", "F'", "R", "U", "R'", "U'"];
-      case "recap-mental-model":
-      case "recap-white-corners":
-      case "second-layer-recap":
-      case "practice-two-edges":
-      case "practice-three-edges":
-      case "practice-full-cross":
-      case "practice-white-corners":
-      case "practice-white-corners-2":
-      case "practice-white-corners-3":
-      case "practice-second-layer":
-      case "practice-second-layer-2":
-      case "practice-second-layer-3":
-        return [];
-      case "flip-green-white-f2":
-        return ["F2"];
-      case "misaligned-green-white":
-        return ["D'", "F2"];
-      case "flip-green-white":
-        return ["F", "U'", "R", "U"];
-      case "flipped-misoriented-green-white":
-        // Teach as combination: F2, then F U' R U
-        return ["F2", "F", "U'", "R", "U"];
-      case "flipped-misoriented-misaligned-green-white":
-        return ["D'", "F2", "F", "U'", "R", "U"];
-      case "midlayer-green-white-extraction":
-        // Three conceptual stages: (B' D' B) free (displayed as R' D' R), then D' align, then F2 place
-        return ["B'", "D'", "B", "D'", "F2"];
-      case "practice-setup-solution":
-        // Solution sequence: R U R' relative to yellow top/red front (visual)
-        // Logical state is white top/green front, so remap: R→F (red front to green front), U→D
-        // So remap: R U R' → F D F'
-        return ["F", "D", "F'"];
-      case "practice-setup-solution-2":
-        // Solution sequence: L' U' L relative to yellow top/green front (visual)
-        // Logical state is white top/green front, so remap: L→R (when flipped, L and R swap), U→D
-        // So remap: L' U' L → R' D' R
-        return ["R'", "D'", "R"];
-      case "practice-setup-solution-3":
-        // Two-part solution (both relative to yellow top/red front, visual):
-        // Part 1: R U2 R' U' → Logical: F D2 F' D'
-        // Part 2: R U R' → Logical: F D F'
-        return ["F", "D2", "F'", "D'", "F", "D", "F'"];
-      case "practice-setup-solution-4":
-        // Two-part solution (both relative to yellow top/red front, visual):
-        // Part 1: R U R' U' → Logical: F D F' D'
-        // Part 2: R U R' → Logical: F D F'
-        return ["F", "D", "F'", "D'", "F", "D", "F'"];
-      case "practice-setup-solution-5":
-        // Three-part solution (all relative to yellow top/red front, visual):
-        // Part 1: R U R' U' → Logical: F D F' D'
-        // Part 2: R U2 R' U' → Logical: F D2 F' D'
-        // Part 3: R U R' → Logical: F D F'
-        return ["F", "D", "F'", "D'", "F", "D2", "F'", "D'", "F", "D", "F'"];
-      case "yellow-cross-line":
-        // Solution sequence: F R U R' U' F' relative to yellow top/green front (visual)
-        // Logical state is white top/green front, so remap: F→R, R→F, U→D
-        // So remap: F R U R' U' F' → R F D F' D' R' (logical for tracking)
-        // Display: F R U R' U' F' (visual notation shown to user)
-        return ["R", "F", "D", "F'", "D'", "R'"];
-      case "yellow-cross-triangle":
-        // Solution: F R U R' U' F' / F R U R' U' F' relative to yellow top/red front (visual)
-        // Logical state is white top/green front, so remap: F→R, R→F, U→D (same as line)
-        // So remap: F R U R' U' F' → R F D F' D' R' (twice for tracking)
-        return [
-          "R",
-          "F",
-          "D",
-          "F'",
-          "D'",
-          "R'",
-          "R",
-          "F",
-          "D",
-          "F'",
-          "D'",
-          "R'",
-        ];
-      case "yellow-cross-dot":
-        // Solution: F R U R' U' F' / U2 / F R U R' U' F' / F R U R' U' F' relative to yellow top/red front (visual)
-        // Logical state is white top/green front, so remap: F→R, R→F, U→D
-        // So remap: F R U R' U' F' → R F D F' D' R', U2 → D2
-        // Parts: 1) R F D F' D' R' (6 moves), 2) D2 (1 move), 3) R F D F' D' R' (6 moves), 4) R F D F' D' R' (6 moves)
-        return [
-          "R",
-          "F",
-          "D",
-          "F'",
-          "D'",
-          "R'",
-          "D2",
-          "R",
-          "F",
-          "D",
-          "F'",
-          "D'",
-          "R'",
-          "R",
-          "F",
-          "D",
-          "F'",
-          "D'",
-          "R'",
-        ];
-      case "yellow-edges-solution":
-        // Solution: R U R' U R U2 R' U relative to yellow top/red front (visual)
-        // Logical state is white top/green front, so remap: R→F, U→D
-        // So remap: R U R' U R U2 R' U → F D F' D F D2 F' D
-        return ["F", "D", "F'", "D", "F", "D2", "F'", "D"];
-      case "yellow-edges-solution-2":
-        // Multi-part solution:
-        // Part 1: U relative to yellow top/red front (visual) → D (logical, yellow top = bottom)
-        // Part 2: R U R' U R U2 R' U relative to yellow top/green front (visual)
-        //   Logical: yellow top/green front → white top/green front, so U→D, R→L
-        //   So: R U R' U R U2 R' U → L D L' D L D2 L' D
-        // Total: D (part 1) + L D L' D L D2 L' D (part 2) = 9 moves
-        return ["D", "L", "D", "L'", "D", "L", "D2", "L'", "D"];
-      case "yellow-edges-solution-3":
-        // Multi-part solution:
-        // Part 1: U2 relative to yellow top/red front (visual) → D2 (logical, yellow top = bottom)
-        // Part 2: R U R' U R U2 R' U relative to yellow top/blue front (visual)
-        //   Logical: yellow top/blue front → white top/green front, so U→D, R→R (blue front maps to blue front)
-        //   So: R U R' U R U2 R' U → R D R' D R D2 R' D
-        // Total: D2 (part 1) + R D R' D R D2 R' D (part 2) = 9 moves
-        return ["D2", "R", "D", "R'", "D", "R", "D2", "R'", "D"];
-      case "second-layer-setup-solution-3":
-        // Two-part solution:
-        // Part 1: U R U R' U' relative to yellow top/green front (visual)
-        //   When yellow top/green front (visual): green is front, orange is right
-        //   In logical (white top/green front): green is front, red is right, orange is left
-        //   So visual R (orange) → logical L (orange left), U→D
-        //   Therefore: U R U R' U' → D L D L' D' (logical)
-        // Part 2: L' U' L relative to yellow top/orange front (visual)
-        //   When yellow top/orange front (visual): orange is front, blue is right
-        //   In logical (white top/green front): green is front, red is right, orange is left, blue is back
-        //   So visual L (green) → logical F (green front), U→D
-        //   Therefore: L' U' L → F' D' F (logical)
-        return ["D", "L", "D", "L'", "D'", "F'", "D'", "F"];
-      case "practice-setup-solution-6":
-        // Three-part solution:
-        // Part 1: R U R' U' relative to yellow top/green front (visual)
-        // When flipped, visual R → logical L (left and right swap)
-        // Logical: L D L' D' (white top/green front, flipped)
-        // Part 2: U relative to yellow top/green front (visual)
-        // Logical: D (white top/green front, flipped)
-        // Part 3: R U R' relative to yellow top/red front (visual)
-        // Logical: F D F' (white top/green front, red front to green front, flipped)
-        return ["L", "D", "L'", "D'", "D", "F", "D", "F'"];
-      case "second-layer-setup-solution":
-        // Two-part solution:
-        // Part 1: U' L' U' L U relative to yellow top/green front (visual)
-        // When flipped, visual L → logical R (left and right swap), U→D
-        // Logical: D' R' D' R D (white top/green front, flipped)
-        // Part 2: R U R' relative to yellow top/red front (visual)
-        // Logical: F D F' (white top/green front, red front to green front, flipped)
-        return ["D'", "R'", "D'", "R", "D", "F", "D", "F'"];
-      case "second-layer-setup-solution-2":
-        // Two-part solution:
-        // Part 1: U R U R' U' relative to yellow top/red front (visual)
-        // Logical: R→F, U→D → D F D F' D'
-        // Part 2: L' U' L relative to yellow top/green front (visual)
-        // Logical: L→R (when flipped, L and R swap), U→D → R' D' R
-        return ["D", "F", "D", "F'", "D'", "R'", "D'", "R"];
-      case "second-layer-setup-solution-4":
-        // Five-part solution:
-        // Part 1: U R U R' U' relative to yellow top/red front (visual)
-        //   Logical: R→F, U→D → D F D F' D'
-        // Part 2: L' U' L relative to yellow top/green front (visual)
-        //   Logical: L→R (when yellow top/green front, visual L maps to logical R), U→D → R' D' R
-        // Part 3: U2 relative to yellow top/green front (visual)
-        //   Logical: U→D → D2
-        // Part 4: U R U R' U' relative to yellow top/red front (visual) - same as Part 1
-        //   Logical: D F D F' D'
-        // Part 5: L' U' L relative to yellow top/green front (visual) - same as Part 2
-        //   Logical: R' D' R
-        return [
-          "D",
-          "F",
-          "D",
-          "F'",
-          "D'",
-          "R'",
-          "D'",
-          "R",
-          "D2",
-          "D",
-          "F",
-          "D",
-          "F'",
-          "D'",
-          "R'",
-          "D'",
-          "R",
-        ];
-      default:
-        return [];
-    }
-  }, [activeSlide?.id]);
+  const fixSequence: string[] = useMemo(
+    () => getFixSequence(activeSlide?.id),
+    [activeSlide?.id]
+  );
 
   // Display sequence for Fix box (what user sees)
-  const fixSequenceDisplay: string[] = useMemo(() => {
-    if (activeSlide?.id === "practice-setup-solution") {
-      // Show R U R' (visual notation, yellow top/red front) in Fix box
-      return ["R", "U", "R'"];
-    }
-    if (activeSlide?.id === "practice-setup-solution-2") {
-      // Show L' U' L (visual notation, yellow top/green front) in Fix box
-      return ["L'", "U'", "L"];
-    }
-    if (activeSlide?.id === "yellow-cross-line") {
-      // Show F R U R' U' F' (visual notation, yellow top/green front) in Fix box
-      return ["F", "R", "U", "R'", "U'", "F'"];
-    }
-    if (activeSlide?.id === "yellow-edges-solution") {
-      // Show R U R' U R U2 R' U (visual notation, yellow top/red front) in Fix box
-      return ["R", "U", "R'", "U", "R", "U2", "R'", "U"];
-    }
-    // Note: practice-setup-solution-3, -4, -5, -6 use MultiPartSequence, so fixSequenceDisplay not needed here
-    // yellow-cross-triangle also uses MultiPartSequence
-    return fixSequence;
-  }, [activeSlide?.id, fixSequence]);
+  const fixSequenceDisplay: string[] = useMemo(
+    () => getFixSequenceDisplay(activeSlide?.id, fixSequence),
+    [activeSlide?.id, fixSequence]
+  );
 
   // Show second sequence for second-layer-setup-solution-4 when fixIndex reaches 9 (with delay)
   useEffect(() => {
@@ -660,6 +625,91 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     fixIndex,
     showSecondSequenceDot,
     secondSequenceDotLocked,
+  ]);
+
+  // Show second sequence for yellow-corners-solution-2 when fixIndex reaches 8 (with delay)
+  useEffect(() => {
+    if (
+      activeSlide?.id === "yellow-corners-solution-2" &&
+      fixIndex === 8 &&
+      !showSecondSequenceYellowCorners2 &&
+      !secondSequenceYellowCorners2Locked
+    ) {
+      // Add 500ms delay before showing second sequence
+      const timer = setTimeout(() => {
+        setShowSecondSequenceYellowCorners2(true);
+        setSecondSequenceYellowCorners2Locked(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    activeSlide?.id,
+    fixIndex,
+    showSecondSequenceYellowCorners2,
+    secondSequenceYellowCorners2Locked,
+  ]);
+
+  // Show second sequence for practice-setup-solution-5 when fixIndex reaches 4 (with delay)
+  useEffect(() => {
+    if (
+      activeSlide?.id === "practice-setup-solution-5" &&
+      fixIndex === 4 &&
+      !showSecondSequencePracticeSetup5 &&
+      !secondSequencePracticeSetup5Locked
+    ) {
+      // Add 500ms delay before showing second sequence
+      const timer = setTimeout(() => {
+        setShowSecondSequencePracticeSetup5(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    activeSlide?.id,
+    fixIndex,
+    showSecondSequencePracticeSetup5,
+    secondSequencePracticeSetup5Locked,
+  ]);
+
+  // Show second sequence for yellow-corners-solution-3 when fixIndex reaches 8 (with delay)
+  useEffect(() => {
+    if (
+      activeSlide?.id === "yellow-corners-solution-3" &&
+      fixIndex === 8 &&
+      !showSecondSequenceYellowCorners3 &&
+      !secondSequenceYellowCorners3Locked
+    ) {
+      // Add 500ms delay before showing second sequence
+      const timer = setTimeout(() => {
+        setShowSecondSequenceYellowCorners3(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    activeSlide?.id,
+    fixIndex,
+    showSecondSequenceYellowCorners3,
+    secondSequenceYellowCorners3Locked,
+  ]);
+
+  // Show third sequence for yellow-corners-solution-3 when fixIndex reaches 16 (with delay)
+  useEffect(() => {
+    if (
+      activeSlide?.id === "yellow-corners-solution-3" &&
+      fixIndex === 16 &&
+      !showThirdSequenceYellowCorners3 &&
+      !thirdSequenceYellowCorners3Locked
+    ) {
+      // Add 500ms delay before showing third sequence
+      const timer = setTimeout(() => {
+        setShowThirdSequenceYellowCorners3(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    activeSlide?.id,
+    fixIndex,
+    showThirdSequenceYellowCorners3,
+    thirdSequenceYellowCorners3Locked,
   ]);
 
   // Reset fix progress whenever slide changes
@@ -708,6 +758,17 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     // Reset sequence visibility for yellow-edges-solution-2 (instant, no delay)
     setShowSecondSequenceYellowEdges2(false);
     setSecondSequenceYellowEdges2Locked(false);
+    // Reset sequence visibility for yellow-corners-solution-2 (instant, no delay)
+    setShowSecondSequenceYellowCorners2(false);
+    setSecondSequenceYellowCorners2Locked(false);
+    // Reset sequence visibility for practice-setup-solution-5 (instant, no delay)
+    setShowSecondSequencePracticeSetup5(false);
+    setSecondSequencePracticeSetup5Locked(false);
+    // Reset sequence visibility for yellow-corners-solution-3 (instant, no delay)
+    setShowSecondSequenceYellowCorners3(false);
+    setSecondSequenceYellowCorners3Locked(false);
+    setShowThirdSequenceYellowCorners3(false);
+    setThirdSequenceYellowCorners3Locked(false);
   }, [activeSlide?.id, fixSequence.length]);
 
   // Trigger a tick animation (can be used mid-sequence and at completion)
@@ -926,6 +987,10 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     yellowEdges2YawChangedRef.current = false;
     // Reset yaw change tracking for yellow-edges-solution-3
     yellowEdges3YawChangedRef.current = false;
+    // Reset yaw change tracking for yellow-corners-solution-2
+    yellowCorners2YawChangedRef.current = false;
+    // Reset yaw change tracking for yellow-corners-solution-3
+    yellowCorners3YawChangedRef.current = false;
 
     if (!activeSlide || !activeSlide.setup) {
       // No setup needed, allow validation immediately
@@ -1127,6 +1192,21 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     yellowEdges2YawChangedRef.current = false;
     // Reset yaw change tracking for yellow-edges-solution-3
     yellowEdges3YawChangedRef.current = false;
+    // Reset sequence visibility for yellow-corners-solution-2
+    setShowSecondSequenceYellowCorners2(false);
+    setSecondSequenceYellowCorners2Locked(false);
+    // Reset yaw change tracking for yellow-corners-solution-2
+    yellowCorners2YawChangedRef.current = false;
+    // Reset sequence visibility for practice-setup-solution-5
+    setShowSecondSequencePracticeSetup5(false);
+    setSecondSequencePracticeSetup5Locked(false);
+    // Reset sequence visibility for yellow-corners-solution-3
+    setShowSecondSequenceYellowCorners3(false);
+    setSecondSequenceYellowCorners3Locked(false);
+    setShowThirdSequenceYellowCorners3(false);
+    setThirdSequenceYellowCorners3Locked(false);
+    // Reset yaw change tracking for yellow-corners-solution-3
+    yellowCorners3YawChangedRef.current = false;
     // Clear practice slide progress
     setPracticeCompleted(false);
     setPracticeShowTick(false);
@@ -1224,7 +1304,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           s?.id === "second-layer-setup-solution-3" ||
           s?.id === "second-layer-setup-solution-4" ||
           s?.id === "yellow-cross-triangle" ||
-          s?.id === "yellow-cross-dot"
+          s?.id === "yellow-cross-dot" ||
+          s?.id === "yellow-corners-solution-2"
         ) {
           setPracticeSetupComplete(true);
         }
@@ -1284,7 +1365,9 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
             activeSlide?.id !== "yellow-cross-triangle" &&
             activeSlide?.id !== "yellow-cross-dot" &&
             activeSlide?.id !== "yellow-edges-solution-2" &&
-            activeSlide?.id !== "yellow-edges-solution-3") ||
+            activeSlide?.id !== "yellow-edges-solution-3" &&
+            activeSlide?.id !== "yellow-corners-solution-2" &&
+            activeSlide?.id !== "yellow-corners-solution-3") ||
           played
         )
           return;
@@ -1419,118 +1502,6 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       // Fix box validation: only when on an active fix slide and move was manual
       // Skip validation if we're still transitioning between slides
       if (fixSequence.length > 0 && wasManual && !isTransitioningRef.current) {
-        // Helper parsers
-        const parseMove = (m: string) => {
-          const base = m[0];
-          const mod = m.length > 1 ? m.slice(1) : ""; // "'" or "2"
-          return { base, mod } as { base: string; mod: "" | "'" | "2" };
-        };
-        const eqMove = (a: string, b: string) => a === b;
-
-        // Map conceptual -> internal for midlayer slide (display R' D' R but internal sequence B' D' B)
-        const mapMidlayerConceptual = (m: string) => {
-          if (activeSlide?.id === "midlayer-green-white-extraction") {
-            if (m === "R'") return "B'";
-            if (m === "R") return "B";
-          }
-          if (activeSlide?.id === "practice-setup-solution") {
-            // Visual R (yellow top/red front) maps to logical F (white top/green front)
-            if (m === "R'") return "F'";
-            if (m === "R") return "F";
-          }
-          if (activeSlide?.id === "practice-setup-solution-2") {
-            // Visual L (yellow top/green front) maps to logical R (white top/green front, when flipped L and R swap)
-            if (m === "L'") return "R'";
-            if (m === "L") return "R";
-          }
-          if (activeSlide?.id === "practice-setup-solution-6") {
-            // Parts 1 and 2 (fixIndex < 5): yellow top/green front
-            // When flipped (yellow top/green front), L and R swap: visual L → logical R
-            // Visual R (green front) → logical L (when flipped, R becomes L)
-            // Part 3 (fixIndex >= 5): yellow top/red front
-            // R (red front) → F (logical, red front to green front)
-            if (fixIndex < 5) {
-              // Parts 1 and 2: green front, when flipped L and R swap
-              // Visual R → Logical L (right becomes left when flipped) - matches fixSequence, pass through
-              // Visual L → Logical R (left becomes right when flipped) - remap to L to match fixSequence
-              // fixSequence expects L, so:
-              // - L (from visual R) → pass through as L ✓
-              // - R (from visual L) → remap to L
-              if (m === "R'") return "L'";
-              if (m === "R") return "L";
-              // L passes through unchanged (visual R detected as logical L matches fixSequence)
-            } else {
-              // Part 3: red front, so R→F
-              if (m === "R'") return "F'";
-              if (m === "R") return "F";
-            }
-          }
-          if (activeSlide?.id === "second-layer-setup-solution") {
-            // Part 1 (fixIndex < 5): yellow top/green front
-            // When flipped (yellow top/green front), L and R swap: visual L → logical R
-            // Part 2 (fixIndex >= 5): yellow top/red front
-            // R (red front) → F (logical, red front to green front)
-            if (fixIndex < 5) {
-              // Part 1: green front, when flipped L and R swap
-              // Visual L → Logical R (left becomes right when flipped)
-              if (m === "L'") return "R'";
-              if (m === "L") return "R";
-            } else {
-              // Part 2: red front, so R→F
-              if (m === "R'") return "F'";
-              if (m === "R") return "F";
-            }
-          }
-          if (activeSlide?.id === "second-layer-setup-solution-2") {
-            // Part 1 (fixIndex < 5): yellow top/red front
-            // R→F, U→D (when yellow top/red front)
-            // Part 2 (fixIndex >= 5): yellow top/green front
-            // L→R (when flipped, L and R swap), U→D
-            if (fixIndex < 5) {
-              // Part 1: red front, R→F
-              if (m === "R'") return "F'";
-              if (m === "R") return "F";
-            } else {
-              // Part 2: green front, when flipped L and R swap
-              if (m === "L'") return "R'";
-              if (m === "L") return "R";
-            }
-          }
-          if (activeSlide?.id === "second-layer-setup-solution-4") {
-            // Parts 1 and 4: yellow top/red front, R→F, U→D
-            // Parts 2 and 5: yellow top/green front, L→R, U→D
-            // Part 3: yellow top/green front, U2→D2
-            if (fixIndex < 5 || (fixIndex >= 9 && fixIndex < 13)) {
-              // Parts 1 and 4: red front, R→F
-              if (m === "R'") return "F'";
-              if (m === "R") return "F";
-            } else if (fixIndex >= 5 && fixIndex < 9) {
-              // Parts 2 and 3: green front, when flipped L and R swap
-              if (m === "L'") return "R'";
-              if (m === "L") return "R";
-            } else if (fixIndex >= 13) {
-              // Part 5: green front, when flipped L and R swap
-              if (m === "L'") return "R'";
-              if (m === "L") return "R";
-            }
-          }
-          // For flipped slides, convert detected U moves (white top) to D moves (yellow top logical bottom)
-          // This handles the case where move detection sees yellow as "top" but logically it's "bottom"
-          if (
-            activeSlide?.id === "practice-setup-solution" ||
-            activeSlide?.id === "practice-setup-solution-2" ||
-            activeSlide?.id === "practice-setup-solution-6" ||
-            activeSlide?.id === "second-layer-setup-solution" ||
-            activeSlide?.id === "second-layer-setup-solution-2" ||
-            activeSlide?.id === "second-layer-setup-solution-4"
-          ) {
-            if (m === "U'") return "D'";
-            if (m === "U") return "D";
-            if (m === "U2") return "D2";
-          }
-          return m;
-        };
-
         const expected = fixSequence[fixIndex];
         if (!expected) {
           // Already complete; ignore
@@ -1539,7 +1510,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         const exp = parseMove(expected);
         // For practice-setup-solution, moves are already in logical form (D' R' D R)
         // The move detected is already logical (D' when dragging on yellow), so no remapping needed
-        const got = parseMove(mapMidlayerConceptual(move as string));
+        const mappedMove = mapMidlayerConceptual(
+          move as string,
+          activeSlide?.id,
+          fixIndex
+        );
+        const got = parseMove(mappedMove);
 
         const resetWithError = async () => {
           setFixErrorPulse(true);
@@ -1567,6 +1543,18 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           // Reset yaw change tracking for yellow-edges-solution-3 on error
           if (activeSlide?.id === "yellow-edges-solution-3") {
             yellowEdges3YawChangedRef.current = false;
+          }
+          // Go back to first sequence on error for yellow-corners-solution-2 (instant, no delay)
+          if (activeSlide?.id === "yellow-corners-solution-2") {
+            setShowSecondSequenceYellowCorners2(false);
+            setSecondSequenceYellowCorners2Locked(false);
+            // Reset yaw change tracking so yaw can change again after reset
+            yellowCorners2YawChangedRef.current = false;
+          }
+          // Go back to first sequence on error for practice-setup-solution-5 (instant, no delay)
+          if (activeSlide?.id === "practice-setup-solution-5") {
+            setShowSecondSequencePracticeSetup5(false);
+            setSecondSequencePracticeSetup5Locked(false);
           }
           await resetToSlideBaseline();
         };
@@ -1895,9 +1883,15 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                 activeSlide?.id === "practice-setup-solution-5" &&
                 (nextIndex === 4 || nextIndex === 8 || nextIndex === 11)
               ) {
-                animateMidlayerStage(
-                  nextIndex === 4 ? 1 : nextIndex === 8 ? 2 : 3
-                );
+                if (nextIndex === 4) {
+                  animateMidlayerStage(1);
+                } else if (nextIndex === 8) {
+                  animateMidlayerStage(2);
+                } else if (nextIndex === 11) {
+                  animateMidlayerStage(3);
+                  // Lock second sequence when complete
+                  setSecondSequencePracticeSetup5Locked(true);
+                }
               }
               if (
                 activeSlide?.id === "practice-setup-solution-6" &&
@@ -1961,6 +1955,32 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                   }
                 }
               }
+              if (
+                activeSlide?.id === "yellow-corners-solution-2" &&
+                (nextIndex === 8 || nextIndex === 16)
+              ) {
+                animateMidlayerStage(nextIndex === 8 ? 1 : 2);
+                // Change yaw from +45 to +135 after first sequence completes (90 degrees to the right)
+                if (nextIndex === 8 && !yellowCorners2YawChangedRef.current) {
+                  yellowCorners2YawChangedRef.current = true;
+                  if (orbitControlsRef.current && cubeViewRef.current) {
+                    const c: any = orbitControlsRef.current;
+                    c.__resetOpts = {
+                      extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
+                      flipUpsideDown: true,
+                      extraERotationDeg: -45,
+                      slideId: activeSlide.id,
+                    };
+                    cubeViewRef.current.resetToInitialPosition(
+                      orbitControlsRef,
+                      cubeRef,
+                      () => {
+                        // Yaw change complete
+                      }
+                    );
+                  }
+                }
+              }
               setFixDoublePartialDir(0);
               // For steps with two-stage UI (5 and 6), animate the small inline first tick once when the first stage completes via full double
               if (
@@ -1999,7 +2019,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           }
         } else {
           // Single quarter expected: must match exactly
-          if (eqMove(mapMidlayerConceptual(move as string), expected)) {
+          const mappedMoveForEq = mapMidlayerConceptual(
+            move as string,
+            activeSlide?.id,
+            fixIndex
+          );
+          if (eqMove(mappedMoveForEq, expected)) {
             const next = fixIndex + 1;
             setFixIndex(next);
             if (
@@ -2142,7 +2167,15 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
               activeSlide?.id === "practice-setup-solution-5" &&
               (next === 4 || next === 8 || next === 11)
             ) {
-              animateMidlayerStage(next === 4 ? 1 : next === 8 ? 2 : 3);
+              if (next === 4) {
+                animateMidlayerStage(1);
+              } else if (next === 8) {
+                animateMidlayerStage(2);
+              } else if (next === 11) {
+                animateMidlayerStage(3);
+                // Lock second sequence when complete
+                setSecondSequencePracticeSetup5Locked(true);
+              }
             }
             if (
               activeSlide?.id === "second-layer-setup-solution-3" &&
@@ -2211,6 +2244,76 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
               if (next === 19) {
                 // Lock second sequence when complete
                 setSecondSequenceDotLocked(true);
+              }
+            }
+            if (
+              activeSlide?.id === "yellow-corners-solution-2" &&
+              (next === 8 || next === 16)
+            ) {
+              animateMidlayerStage(next === 8 ? 1 : 2);
+              // Change yaw from +45 to +135 after first sequence completes (180 degrees to the right)
+              if (next === 8 && !yellowCorners2YawChangedRef.current) {
+                yellowCorners2YawChangedRef.current = true;
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
+                    flipUpsideDown: true,
+                    extraERotationDeg: -45,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+              if (next === 16) {
+                // Lock second sequence when complete
+                setSecondSequenceYellowCorners2Locked(true);
+              }
+            }
+            if (
+              activeSlide?.id === "yellow-corners-solution-3" &&
+              (next === 8 || next === 16 || next === 24)
+            ) {
+              if (next === 8) {
+                animateMidlayerStage(1);
+              } else if (next === 16) {
+                animateMidlayerStage(2);
+              } else if (next === 24) {
+                animateMidlayerStage(3);
+              }
+              // Change yaw from +45 to +225 after first sequence completes (180 degrees to the right)
+              if (next === 8 && !yellowCorners3YawChangedRef.current) {
+                yellowCorners3YawChangedRef.current = true;
+                if (orbitControlsRef.current && cubeViewRef.current) {
+                  const c: any = orbitControlsRef.current;
+                  c.__resetOpts = {
+                    extraYawRad: (Math.PI / 180) * 225, // 225 degrees to the right (positive)
+                    flipUpsideDown: true,
+                    extraERotationDeg: -45,
+                    slideId: activeSlide.id,
+                  };
+                  cubeViewRef.current.resetToInitialPosition(
+                    orbitControlsRef,
+                    cubeRef,
+                    () => {
+                      // Yaw change complete
+                    }
+                  );
+                }
+              }
+              if (next === 16) {
+                // Lock second sequence when complete
+                setSecondSequenceYellowCorners3Locked(true);
+              }
+              if (next === 24) {
+                // Lock third sequence when complete
+                setThirdSequenceYellowCorners3Locked(true);
               }
             }
             if (
@@ -2709,7 +2812,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                       }
                       return 0;
                     })()}
-                    pieceChildren={yellowEdgePieceChildren}
+                    pieceChildren={combinedPieceChildren}
                   />
                 </Canvas>
               </div>
@@ -3028,10 +3131,11 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                   {(() => {
                     // All notation slides get Reset
                     // For other lessons: slides 1 & 2 (index 0 & 1) get Re-position, rest get Reset
-                    // Exception: yellow-edges slide 2 (yellow-edges-solution) gets Reset
+                    // Exception: yellow-edges slide 2 (yellow-edges-solution) and yellow-corners slide 2 (yellow-corners-solution) get Reset
                     const shouldShowReset =
                       lessonId === "notation" ||
                       activeSlide?.id === "yellow-edges-solution" ||
+                      activeSlide?.id === "yellow-corners-solution" ||
                       currentSlide >= 2;
                     const shouldShowReposition = !shouldShowReset;
 
@@ -3137,7 +3241,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                       activeSlide?.id === "practice-setup-solution" ||
                       activeSlide?.id === "practice-setup-solution-2" ||
                       activeSlide?.id === "yellow-cross-line" ||
-                      activeSlide?.id === "yellow-edges-solution"
+                      activeSlide?.id === "yellow-edges-solution" ||
+                      activeSlide?.id === "yellow-corners-solution"
                     ) {
                       return (
                         <div className="flex flex-col text-left gap-1">
@@ -3194,7 +3299,15 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                           >
                             {!shouldHideFrontFace && (
                               <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                                Front Face:
+                                Front Face:{" "}
+                                {lessonId === "notation" && (
+                                  <span
+                                    className="font-bold normal-case"
+                                    style={{ color: CUBE_COLORS.GREEN }}
+                                  >
+                                    Green
+                                  </span>
+                                )}
                               </div>
                             )}
                             <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200 ml-0">
@@ -3208,12 +3321,42 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                         <div className="mb-1">
                           {!shouldHideFrontFace && (
                             <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200 mb-2">
-                              Front Face:
+                              Front Face:{" "}
+                              {lessonId === "notation" && (
+                                <span
+                                  className="font-bold normal-case"
+                                  style={{ color: CUBE_COLORS.GREEN }}
+                                >
+                                  Green
+                                </span>
+                              )}
                             </div>
                           )}
-                          <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                            {lessonId === "notation" ? "Try:" : "Fix:"}
-                          </span>
+                          {lessonId === "notation" ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
+                                Try:
+                              </span>
+                              <AlgorithmSequence
+                                moves={fixSequenceDisplay}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                              {/* Animated completion tick */}
+                              {fixShowTick && (
+                                <CompletionTick
+                                  animKey={fixTickAnimKey}
+                                  progress={fixTickProgress}
+                                  line={fixTickLine}
+                                  color="green"
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
+                              Fix:
+                            </span>
+                          )}
                         </div>
                       );
                     }
@@ -3221,7 +3364,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                   {activeSlide?.id !== "practice-setup-solution" &&
                   activeSlide?.id !== "practice-setup-solution-2" &&
                   activeSlide?.id !== "yellow-cross-line" &&
-                  activeSlide?.id !== "yellow-edges-solution" ? (
+                  activeSlide?.id !== "yellow-edges-solution" &&
+                  activeSlide?.id !== "yellow-corners-solution" ? (
                     <div className="flex items-center gap-0">
                       {/* Animated completion tick (not shown for step 5) */}
                       {false &&
@@ -3324,62 +3468,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                             })()}
                           </div>
                           {fixIndex >= 1 && (
-                            <div className="relative w-6 h-6 ml-1">
-                              <svg
-                                key={fixTickAnimKey}
-                                className="w-6 h-6 transform -rotate-90"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="#e5e7eb"
-                                  strokeWidth="2"
-                                  fill="none"
-                                />
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  fill="none"
-                                  className="text-green-500"
-                                  style={{
-                                    strokeDasharray: "63",
-                                    strokeDashoffset: fixFirstTickProgress
-                                      ? 0
-                                      : 63,
-                                    transition:
-                                      "stroke-dashoffset 0.4s ease-in-out",
-                                  }}
-                                />
-                              </svg>
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <svg
-                                  className="w-4 h-4 text-green-500"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={3}
-                                    d="M5 13l4 4L19 7"
-                                    style={{
-                                      strokeDasharray: "20",
-                                      strokeDashoffset: fixFirstTickLine
-                                        ? 0
-                                        : 20,
-                                      transition:
-                                        "stroke-dashoffset 0.5s ease-out",
-                                    }}
-                                  />
-                                </svg>
-                              </div>
-                            </div>
+                            <CompletionTick
+                              animKey={fixTickAnimKey}
+                              progress={fixFirstTickProgress}
+                              line={fixFirstTickLine}
+                              color="green"
+                            />
                           )}
 
                           <span className="mx-1 text-gray-400">/</span>
@@ -3431,58 +3525,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                             })}
                           </div>
                           {fixCompleted && (
-                            <div className="relative w-6 h-6 ml-1">
-                              <svg
-                                key={fixTickAnimKey}
-                                className="w-6 h-6 transform -rotate-90"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="#e5e7eb"
-                                  strokeWidth="2"
-                                  fill="none"
-                                />
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  fill="none"
-                                  className="text-green-500"
-                                  style={{
-                                    strokeDasharray: "63",
-                                    strokeDashoffset: fixTickProgress ? 0 : 63,
-                                    transition:
-                                      "stroke-dashoffset 0.4s ease-in-out",
-                                  }}
-                                />
-                              </svg>
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <svg
-                                  className="w-4 h-4 text-green-500"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={3}
-                                    d="M5 13l4 4L19 7"
-                                    style={{
-                                      strokeDasharray: "20",
-                                      strokeDashoffset: fixTickLine ? 0 : 20,
-                                      transition:
-                                        "stroke-dashoffset 0.5s ease-out",
-                                    }}
-                                  />
-                                </svg>
-                              </div>
-                            </div>
+                            <CompletionTick
+                              animKey={fixTickAnimKey}
+                              progress={fixTickProgress}
+                              line={fixTickLine}
+                              color="green"
+                            />
                           )}
                         </>
                       ) : activeSlide?.id === "misaligned-green-white" ? (
@@ -3526,62 +3574,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                   </div>
                                 </div>
                                 {fixIndex >= 1 && (
-                                  <div className="relative w-6 h-6 ml-1">
-                                    <svg
-                                      key={fixTickAnimKey}
-                                      className="w-6 h-6 transform -rotate-90"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="#e5e7eb"
-                                        strokeWidth="2"
-                                        fill="none"
-                                      />
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        fill="none"
-                                        className="text-green-500"
-                                        style={{
-                                          strokeDasharray: "63",
-                                          strokeDashoffset: fixFirstTickProgress
-                                            ? 0
-                                            : 63,
-                                          transition:
-                                            "stroke-dashoffset 0.4s ease-in-out",
-                                        }}
-                                      />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <svg
-                                        className="w-4 h-4 text-green-500"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={3}
-                                          d="M5 13l4 4L19 7"
-                                          style={{
-                                            strokeDasharray: "20",
-                                            strokeDashoffset: fixFirstTickLine
-                                              ? 0
-                                              : 20,
-                                            transition:
-                                              "stroke-dashoffset 0.5s ease-out",
-                                          }}
-                                        />
-                                      </svg>
-                                    </div>
-                                  </div>
+                                  <CompletionTick
+                                    animKey={fixTickAnimKey}
+                                    progress={fixFirstTickProgress}
+                                    line={fixFirstTickLine}
+                                    color="green"
+                                  />
                                 )}
                               </>
                             );
@@ -3627,62 +3625,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                   </div>
                                 </div>
                                 {fixCompleted && (
-                                  <div className="relative w-6 h-6 ml-1">
-                                    <svg
-                                      key={fixTickAnimKey}
-                                      className="w-6 h-6 transform -rotate-90"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="#e5e7eb"
-                                        strokeWidth="2"
-                                        fill="none"
-                                      />
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        fill="none"
-                                        className="text-green-500"
-                                        style={{
-                                          strokeDasharray: "63",
-                                          strokeDashoffset: fixTickProgress
-                                            ? 0
-                                            : 63,
-                                          transition:
-                                            "stroke-dashoffset 0.4s ease-in-out",
-                                        }}
-                                      />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <svg
-                                        className="w-4 h-4 text-green-500"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={3}
-                                          d="M5 13l4 4L19 7"
-                                          style={{
-                                            strokeDasharray: "20",
-                                            strokeDashoffset: fixTickLine
-                                              ? 0
-                                              : 20,
-                                            transition:
-                                              "stroke-dashoffset 0.5s ease-out",
-                                          }}
-                                        />
-                                      </svg>
-                                    </div>
-                                  </div>
+                                  <CompletionTick
+                                    animKey={fixTickAnimKey}
+                                    progress={fixTickProgress}
+                                    line={fixTickLine}
+                                    color="green"
+                                  />
                                 )}
                               </>
                             );
@@ -3730,62 +3678,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                   </div>
                                 </div>
                                 {fixIndex >= 1 && (
-                                  <div className="relative w-6 h-6 ml-1">
-                                    <svg
-                                      key={fixTickAnimKey}
-                                      className="w-6 h-6 transform -rotate-90"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="#e5e7eb"
-                                        strokeWidth="2"
-                                        fill="none"
-                                      />
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        fill="none"
-                                        className="text-green-500"
-                                        style={{
-                                          strokeDasharray: "63",
-                                          strokeDashoffset: fixFirstTickProgress
-                                            ? 0
-                                            : 63,
-                                          transition:
-                                            "stroke-dashoffset 0.4s ease-in-out",
-                                        }}
-                                      />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <svg
-                                        className="w-4 h-4 text-green-500"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={3}
-                                          d="M5 13l4 4L19 7"
-                                          style={{
-                                            strokeDasharray: "20",
-                                            strokeDashoffset: fixFirstTickLine
-                                              ? 0
-                                              : 20,
-                                            transition:
-                                              "stroke-dashoffset 0.5s ease-out",
-                                          }}
-                                        />
-                                      </svg>
-                                    </div>
-                                  </div>
+                                  <CompletionTick
+                                    animKey={fixTickAnimKey}
+                                    progress={fixFirstTickProgress}
+                                    line={fixFirstTickLine}
+                                    color="green"
+                                  />
                                 )}
                               </>
                             );
@@ -3830,61 +3728,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                                   </div>
                                 </div>
                                 {fixIndex >= 2 && (
-                                  <div className="relative w-6 h-6 ml-1">
-                                    <svg
-                                      key={fixTickAnimKey}
-                                      className="w-6 h-6 transform -rotate-90"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="#e5e7eb"
-                                        strokeWidth="2"
-                                        fill="none"
-                                      />
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        fill="none"
-                                        className="text-green-500"
-                                        style={{
-                                          strokeDasharray: "63",
-                                          strokeDashoffset:
-                                            fixSecondTickProgress ? 0 : 63,
-                                          transition:
-                                            "stroke-dashoffset 0.4s ease-in-out",
-                                        }}
-                                      />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <svg
-                                        className="w-4 h-4 text-green-500"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={3}
-                                          d="M5 13l4 4L19 7"
-                                          style={{
-                                            strokeDasharray: "20",
-                                            strokeDashoffset: fixSecondTickLine
-                                              ? 0
-                                              : 20,
-                                            transition:
-                                              "stroke-dashoffset 0.5s ease-out",
-                                          }}
-                                        />
-                                      </svg>
-                                    </div>
-                                  </div>
+                                  <CompletionTick
+                                    animKey={fixTickAnimKey}
+                                    progress={fixSecondTickProgress}
+                                    line={fixSecondTickLine}
+                                    color="green"
+                                  />
                                 )}
                               </>
                             );
@@ -3938,58 +3787,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                             })}
                           </div>
                           {fixCompleted && (
-                            <div className="relative w-6 h-6 ml-1">
-                              <svg
-                                key={fixTickAnimKey}
-                                className="w-6 h-6 transform -rotate-90"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="#e5e7eb"
-                                  strokeWidth="2"
-                                  fill="none"
-                                />
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  fill="none"
-                                  className="text-green-500"
-                                  style={{
-                                    strokeDasharray: "63",
-                                    strokeDashoffset: fixTickProgress ? 0 : 63,
-                                    transition:
-                                      "stroke-dashoffset 0.4s ease-in-out",
-                                  }}
-                                />
-                              </svg>
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <svg
-                                  className="w-4 h-4 text-green-500"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={3}
-                                    d="M5 13l4 4L19 7"
-                                    style={{
-                                      strokeDasharray: "20",
-                                      strokeDashoffset: fixTickLine ? 0 : 20,
-                                      transition:
-                                        "stroke-dashoffset 0.5s ease-out",
-                                    }}
-                                  />
-                                </svg>
-                              </div>
-                            </div>
+                            <CompletionTick
+                              animKey={fixTickAnimKey}
+                              progress={fixTickProgress}
+                              line={fixTickLine}
+                              color="green"
+                            />
                           )}
                         </>
                       ) : activeSlide?.id === "practice-setup-solution-3" ? (
@@ -4187,6 +3990,194 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                           currentIndex={fixIndex}
                           partialDirection={fixDoublePartialDir}
                         />
+                      ) : activeSlide?.id === "yellow-corners-solution-2" ? (
+                        <div
+                          className="relative overflow-hidden"
+                          style={{ height: "80px" }}
+                        >
+                          <div
+                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
+                              showSecondSequenceYellowCorners2 ||
+                              secondSequenceYellowCorners2Locked
+                                ? "-translate-y-[80px]"
+                                : "translate-y-0"
+                            }`}
+                          >
+                            {/* First sequence */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: [
+                                      "U",
+                                      "R",
+                                      "U'",
+                                      "L'",
+                                      "U",
+                                      "R'",
+                                      "U'",
+                                      "L",
+                                    ],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 0,
+                                    boundaryIndex: 8,
+                                    tickAnimKey: midStage1Key,
+                                    tickProgress: midStage1Progress,
+                                    tickLine: midStage1Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                            {/* Second sequence */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: [
+                                      "U",
+                                      "R",
+                                      "U'",
+                                      "L'",
+                                      "U",
+                                      "R'",
+                                      "U'",
+                                      "L",
+                                    ],
+                                    colorName: "Blue",
+                                    colorValue: CUBE_COLORS.BLUE,
+                                    startIndex: 8,
+                                    boundaryIndex: 16,
+                                    tickAnimKey: midStage2Key,
+                                    tickProgress: midStage2Progress,
+                                    tickLine: midStage2Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : activeSlide?.id === "yellow-corners-solution-3" ? (
+                        <div
+                          className="relative overflow-hidden"
+                          style={{ height: "80px" }}
+                        >
+                          <div
+                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
+                              showThirdSequenceYellowCorners3 ||
+                              thirdSequenceYellowCorners3Locked
+                                ? "-translate-y-[160px]"
+                                : showSecondSequenceYellowCorners3 ||
+                                  secondSequenceYellowCorners3Locked
+                                ? "-translate-y-[80px]"
+                                : "translate-y-0"
+                            }`}
+                          >
+                            {/* First sequence */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: [
+                                      "U",
+                                      "R",
+                                      "U'",
+                                      "L'",
+                                      "U",
+                                      "R'",
+                                      "U'",
+                                      "L",
+                                    ],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 0,
+                                    boundaryIndex: 8,
+                                    tickAnimKey: midStage1Key,
+                                    tickProgress: midStage1Progress,
+                                    tickLine: midStage1Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                            {/* Second sequence */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: [
+                                      "U",
+                                      "R",
+                                      "U'",
+                                      "L'",
+                                      "U",
+                                      "R'",
+                                      "U'",
+                                      "L",
+                                    ],
+                                    colorName: "Orange",
+                                    colorValue: CUBE_COLORS.ORANGE,
+                                    startIndex: 8,
+                                    boundaryIndex: 16,
+                                    tickAnimKey: midStage2Key,
+                                    tickProgress: midStage2Progress,
+                                    tickLine: midStage2Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                            {/* Third sequence */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: [
+                                      "U",
+                                      "R",
+                                      "U'",
+                                      "L'",
+                                      "U",
+                                      "R'",
+                                      "U'",
+                                      "L",
+                                    ],
+                                    colorName: "Orange",
+                                    colorValue: CUBE_COLORS.ORANGE,
+                                    startIndex: 16,
+                                    boundaryIndex: 24,
+                                    tickAnimKey: midStage3Key,
+                                    tickProgress: midStage3Progress,
+                                    tickLine: midStage3Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       ) : activeSlide?.id === "yellow-edges-solution-3" ? (
                         <MultiPartSequence
                           parts={[
@@ -4224,42 +4215,74 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                           partialDirection={fixDoublePartialDir}
                         />
                       ) : activeSlide?.id === "practice-setup-solution-5" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["R", "U", "R'", "U'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 4,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["R", "U2", "R'", "U'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 4,
-                              boundaryIndex: 8,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                            {
-                              moves: ["R", "U", "R'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 8,
-                              boundaryIndex: 11,
-                              tickAnimKey: midStage3Key,
-                              tickProgress: midStage3Progress,
-                              tickLine: midStage3Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
+                        <div
+                          className="relative overflow-hidden"
+                          style={{ height: "80px" }}
+                        >
+                          <div
+                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
+                              showSecondSequencePracticeSetup5 ||
+                              secondSequencePracticeSetup5Locked
+                                ? "-translate-y-[80px]"
+                                : "translate-y-0"
+                            }`}
+                          >
+                            {/* First sequence (part 1) */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: ["R", "U", "R'", "U'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 0,
+                                    boundaryIndex: 4,
+                                    tickAnimKey: midStage1Key,
+                                    tickProgress: midStage1Progress,
+                                    tickLine: midStage1Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                            {/* Second sequence (parts 2-3) */}
+                            <div
+                              style={{ height: "80px", flexShrink: 0 }}
+                              className="pt-4"
+                            >
+                              <MultiPartSequence
+                                parts={[
+                                  {
+                                    moves: ["R", "U2", "R'", "U'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 4,
+                                    boundaryIndex: 8,
+                                    tickAnimKey: midStage2Key,
+                                    tickProgress: midStage2Progress,
+                                    tickLine: midStage2Line,
+                                  },
+                                  {
+                                    moves: ["R", "U", "R'"],
+                                    colorName: "Red",
+                                    colorValue: CUBE_COLORS.RED,
+                                    startIndex: 8,
+                                    boundaryIndex: 11,
+                                    tickAnimKey: midStage3Key,
+                                    tickProgress: midStage3Progress,
+                                    tickLine: midStage3Line,
+                                  },
+                                ]}
+                                currentIndex={fixIndex}
+                                partialDirection={fixDoublePartialDir}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       ) : activeSlide?.id ===
                         "midlayer-green-white-extraction" ? (
                         <MultiPartSequence
@@ -4510,8 +4533,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        // Default rendering for other slides
+                      ) : lessonId === "notation" ? null : (
+                        // Default rendering for other slides (but not Notation, as it's handled above)
                         <AlgorithmSequence
                           moves={
                             activeSlide?.id === "practice-setup-solution" ||
@@ -4534,6 +4557,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                       )}
                       {/* Animated completion tick */}
                       {fixShowTick &&
+                        lessonId !== "notation" &&
                         ![
                           "flipped-misoriented-green-white",
                           "misaligned-green-white",
@@ -4551,6 +4575,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
                           "yellow-cross-dot",
                           "yellow-edges-solution-2",
                           "yellow-edges-solution-3",
+                          "yellow-corners-solution-2",
+                          "yellow-corners-solution-3",
                         ].includes(activeSlide?.id || "") && (
                           <CompletionTick
                             animKey={fixTickAnimKey}
