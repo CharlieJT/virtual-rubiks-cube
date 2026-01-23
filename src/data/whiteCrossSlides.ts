@@ -16,7 +16,7 @@ export const whiteCrossSlides: Slide[] = [
     id: "intro",
     title: "What we're aiming to achieve",
     description:
-      "Your first goal is to create a white cross around the white center piece. Each white edge should match the color of the center piece on its side. Drag the cube to spin and see how the cross and matching edges look from different angles.",
+      "You're now ready to start solving the solve the cube. In this lesson, we'll be learning how to solve the white cross. The white cross is the first step in solving the cube. It's the foundation of the cube and it's the first step in solving the cube.\n\nHere we have an example of what we're aiming to achieve. We want to create a white cross around the white center piece. Each white edge should match the color of the center piece on its side. Drag the cube to spin and see how the cross and matching edges look from different angles.",
     allowFaceMoves: false,
     setup: (cube: CubeJSWrapper) => {
       cube.reset();
@@ -107,7 +107,7 @@ export const whiteCrossSlides: Slide[] = [
     filter: whiteCrossFilter,
   },
   {
-    id: "recap-mental-model",
+    id: "recap-white-cross",
     title: "Quick recap: the mental model",
     description: "A short recap of how to reason about the green/white edge.",
     allowFaceMoves: false,

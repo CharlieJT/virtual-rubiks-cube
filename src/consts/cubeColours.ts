@@ -6,6 +6,7 @@ const CUBE_COLORS = {
   BLUE: "#2979FF",
   GREEN: "#00E676",
   BLACK: "#1a1a1a",
+  GRAY: "#9ca3af",
 };
 
 export default CUBE_COLORS;

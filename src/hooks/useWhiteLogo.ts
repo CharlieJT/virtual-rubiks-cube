@@ -450,10 +450,25 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     [getWhiteCenterFaceFromState, cubeState]
   );
 
+  // Reset logo to default position
+  const resetLogo = useCallback(() => {
+    setWhiteLogoAngle(0);
+    displayedAngleRef.current = 0;
+    whiteQuatRef.current.identity();
+    const face = getWhiteCenterFaceFromState();
+    if (face) {
+      prevWhiteFaceRef.current = face;
+    } else {
+      prevWhiteFaceRef.current = null;
+    }
+    lastAppliedMoveRef.current = null;
+  }, [getWhiteCenterFaceFromState]);
+
   return {
     whiteLogoAngle,
     setWhiteLogoAngle,
     applyMoveToWhiteLogoAngle,
+    resetLogo,
   };
 };
 

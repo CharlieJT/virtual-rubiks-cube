@@ -1,39 +1,30 @@
 import React from "react";
 
 export interface MovePillState {
-  /** The move notation (e.g., "R", "U'", "F2") */
   move: string;
-  /** Whether this move is completed */
   isDone: boolean;
-  /** Whether this is the current move being executed */
   isCurrent: boolean;
-  /** Whether this is a partial double move (halfway through a double turn) */
   isPartial?: boolean;
-  /** Whether this is the first move in the sequence */
   isFirst?: boolean;
-  /** Whether this is the last move in the sequence */
   isLast?: boolean;
 }
 
 interface AlgorithmSequenceProps {
-  /** Array of move strings */
   moves: string[];
-  /** Current move index (0-based) */
   currentIndex: number;
-  /** Direction for partial double moves (1 for CW, -1 for CCW, 0 for none) */
   partialDirection?: 0 | 1 | -1;
-  /** Optional border color class (default: border-green-600) or inline style value */
   borderColor?: string;
-  /** Start index in the full sequence (for multi-part sequences) */
   startIndex?: number;
+  hideBorder?: boolean;
 }
 
 const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
   moves,
   currentIndex,
   partialDirection = 0,
-  borderColor = "border-green-600",
+  borderColor = "border-green-500",
   startIndex = 0,
+  hideBorder = false,
 }) => {
   const getPillState = (idx: number): MovePillState => {
     const globalIdx = startIndex + idx;
@@ -65,7 +56,7 @@ const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
     }
 
     if (state.isDone) {
-      baseClass += " bg-green-500 text-white border-green-600";
+      baseClass += " bg-green-500 text-white border-green-500";
     } else if (state.isPartial) {
       baseClass += " text-white border-blue-600";
     } else if (state.isCurrent) {
@@ -88,13 +79,13 @@ const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
     return undefined;
   };
 
-  // Handle border color: if it starts with "#" it's an inline style, otherwise it's a Tailwind class
   const isInlineColor = borderColor && borderColor.startsWith("#");
-  const borderColorClass = borderColor || "border-green-600";
-  const containerStyle = isInlineColor
-    ? { borderColor: borderColor }
-    : undefined;
-  const containerClassName = isInlineColor
+  const borderColorClass = borderColor || "border-green-500";
+  const containerStyle =
+    isInlineColor && !hideBorder ? { borderColor: borderColor } : undefined;
+  const containerClassName = hideBorder
+    ? "flex items-center gap-0"
+    : isInlineColor
     ? "flex items-center border rounded-[7px] gap-0"
     : `flex items-center ${borderColorClass} border rounded-[7px] gap-0`;
 

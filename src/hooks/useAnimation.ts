@@ -110,7 +110,8 @@ export const useImperativeHandle3D = (
   isAnimating?: boolean,
   onOrbitControlsChange?: (enabled: boolean) => void,
   isTimerMode: boolean = false,
-  inputDisabled: boolean = false
+  inputDisabled: boolean = false,
+  resetLogo?: () => void
 ) => {
   const { camera, gl } = useThree();
 
@@ -467,47 +468,47 @@ export const useImperativeHandle3D = (
         const startCameraPosition = camera.position.clone();
         const startCameraTarget = controls.target.clone();
 
-        let animationFrame = 0;
-        const totalFrames = 60; // 1 second at 60fps
+        // Use time-based animation instead of frame-based for consistent duration across devices
+        const duration = 600; // 600ms for consistent speed on all devices
+        const startTime = performance.now();
 
         const animate = () => {
-          if (animationFrame <= totalFrames) {
-            const progress = animationFrame / totalFrames;
-            // Stronger ease-in-out curve (quintic)
-            const easedProgress =
-              progress < 0.5
-                ? 16 * progress * progress * progress * progress * progress
-                : 1 - Math.pow(-2 * progress + 2, 5) / 2;
+          const elapsed = performance.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
 
-            // Don't animate camera - keep it at current position
-            // Only animate cube rotation
-            const newCameraPosition = startCameraPosition;
-            const newCameraTarget = startCameraTarget;
+          // Stronger ease-in-out curve (quintic)
+          const easedProgress =
+            progress < 0.5
+              ? 16 * progress * progress * progress * progress * progress
+              : 1 - Math.pow(-2 * progress + 2, 5) / 2;
 
-            // Set camera position directly
-            camera.position.copy(newCameraPosition);
-            controls.target.copy(newCameraTarget);
+          // Don't animate camera - keep it at current position
+          // Only animate cube rotation
+          const newCameraPosition = startCameraPosition;
+          const newCameraTarget = startCameraTarget;
 
-            // Force camera to look at target and update controls
-            camera.lookAt(newCameraTarget);
-            camera.updateMatrixWorld(true);
+          // Set camera position directly
+          camera.position.copy(newCameraPosition);
+          controls.target.copy(newCameraTarget);
 
-            // Update controls to match the new state
-            controls.update();
+          // Force camera to look at target and update controls
+          camera.lookAt(newCameraTarget);
+          camera.updateMatrixWorld(true);
 
-            // Animate cube rotation
-            const interpolatedCubeQuaternion = currentCubeQuaternion
-              .clone()
-              .slerp(targetCubeQuaternion, easedProgress);
-            cubeGroup.quaternion.copy(interpolatedCubeQuaternion);
+          // Update controls to match the new state
+          controls.update();
 
-            if (animationFrame === totalFrames) {
-              // Last frame - animation is complete
-              onComplete?.();
-            } else {
-              animationFrame++;
-              requestAnimationFrame(animate);
-            }
+          // Animate cube rotation
+          const interpolatedCubeQuaternion = currentCubeQuaternion
+            .clone()
+            .slerp(targetCubeQuaternion, easedProgress);
+          cubeGroup.quaternion.copy(interpolatedCubeQuaternion);
+
+          if (progress >= 1) {
+            // Animation is complete
+            onComplete?.();
+          } else {
+            requestAnimationFrame(animate);
           }
         };
 
@@ -515,6 +516,9 @@ export const useImperativeHandle3D = (
       },
       handlePointerDown: handleBoundaryPointerDown,
       handlePointerUp: handleBoundaryPointerUp,
+      resetLogo: () => {
+        resetLogo?.();
+      },
     }),
     [
       camera,
@@ -523,6 +527,7 @@ export const useImperativeHandle3D = (
       groupRef,
       trackingStateRef,
       cleanupDragState,
+      resetLogo,
     ]
   );
 

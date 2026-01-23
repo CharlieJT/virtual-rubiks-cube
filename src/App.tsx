@@ -24,6 +24,7 @@ import SolutionAlreadyGeneratedModal from "@components/SolutionAlreadyGeneratedM
 import BestTimesModal from "@components/BestTimesModal";
 import LearnToSolveModal from "@components/LearnToSolveModal";
 import TutorialPage from "@components/TutorialPage";
+import HowRubiksCubeWorksLesson from "@components/lessons/HowRubiksCubeWorksLesson";
 import NotationLesson from "@components/lessons/NotationLesson";
 import WhiteCrossLesson from "@components/lessons/WhiteCrossLesson";
 import WhiteCornersLesson from "@components/lessons/WhiteCornersLesson";
@@ -156,6 +157,9 @@ const App = () => {
   const [solutionIndex, setSolutionIndex] = useState<number>(-1);
   // Track the source of solution overlay: "generate" means it should persist on manual moves, "solve" means it should hide
   const solutionOverlaySourceRef = useRef<"generate" | "solve" | null>(null);
+  // Refs to avoid recreating pumpQueue callback on every state change
+  const scrambleMovesRef = useRef<string[] | null>(null);
+  const solutionRef = useRef<Solution | null>(null);
   const [isScramblingState, setIsScramblingState] = useState(false);
   // Track remaining scramble moves to robustly end scrambling across devices
   const scrambleRemainingRef = useRef(0);
@@ -172,6 +176,14 @@ const App = () => {
   isAnimatingRef.current = isAnimating;
   pendingMoveRef.current = pendingMove;
 
+  // Keep refs in sync with state
+  useEffect(() => {
+    scrambleMovesRef.current = scrambleMoves;
+  }, [scrambleMoves]);
+  useEffect(() => {
+    solutionRef.current = solution;
+  }, [solution]);
+
   const pumpQueue = useCallback(() => {
     if (isAnimatingRef.current || AnimationHelper.isLocked()) return;
     if (pendingMoveRef.current) return;
@@ -180,11 +192,11 @@ const App = () => {
       // Advance the appropriate highlight index based on current run type
       if (currentRunRef.current === "scramble") {
         setScrambleIndex((i) =>
-          Math.min(i + 1, (scrambleMoves?.length ?? 1) - 1)
+          Math.min(i + 1, (scrambleMovesRef.current?.length ?? 1) - 1)
         );
       } else if (currentRunRef.current === "solve") {
         setSolutionIndex((i) =>
-          Math.min(i + 1, (solution?.steps.length ?? 1) - 1)
+          Math.min(i + 1, (solutionRef.current?.steps.length ?? 1) - 1)
         );
       }
       lastMoveSourceRef.current = "queue";
@@ -194,7 +206,7 @@ const App = () => {
     } else {
       // No more moves queued; end-of-run cleanup will be handled in handleMoveAnimationDone
     }
-  }, [scrambleMoves, scrambleIndex, solution, solutionIndex]);
+  }, []); // No dependencies - uses refs instead
 
   // Retry pumping until AnimationHelper unlocks to avoid stalling after first move
   const pumpQueueSoon = useCallback(() => {
@@ -657,8 +669,16 @@ const App = () => {
     setShowLearnToSolveModal(false);
   }, []);
 
+  const tutorialLessonIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    tutorialLessonIdRef.current = tutorialLessonId;
+  }, [tutorialLessonId]);
+
   const handleTutorialBack = useCallback(() => {
+    const currentLessonId = tutorialLessonIdRef.current;
     setTutorialLessonId(null);
+    // Store lesson ID to navigate to correct section when modal opens
+    (window as any).__tutorialBackLessonId = currentLessonId;
     setShowLearnToSolveModal(true);
   }, []);
 
@@ -1110,6 +1130,8 @@ const App = () => {
     const onBack = handleTutorialBack;
 
     switch (lessonId) {
+      case "rubiks-cube-introduction":
+        return <HowRubiksCubeWorksLesson onBack={onBack} />;
       case "notation":
         return <NotationLesson onBack={onBack} />;
       case "white-cross":
@@ -1291,7 +1313,7 @@ const App = () => {
             >
               <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
               <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
-              <ambientLight intensity={0.95} color={"#fff"} />
+              <ambientLight intensity={1.2} color={"#fff"} />
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
@@ -1422,6 +1444,7 @@ const App = () => {
         isOpen={showLearnToSolveModal}
         onClose={handleLearnToSolveClose}
         onStartTutorial={handleTutorialStart}
+        initialLessonId={(window as any).__tutorialBackLessonId || undefined}
       />
 
       <Footer />

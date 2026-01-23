@@ -35,8 +35,7 @@ export const useTutorialOrbitControls = ({
       if (forceOrbitDisabledRef.current) {
         next = false;
       } else {
-        // No slides are locked anymore - notation-protip should allow orbit
-        // (orbit can still be disabled by forceOrbitDisabledRef or if allowFaceMoves is false)
+        // Orbit can be disabled by forceOrbitDisabledRef or if allowFaceMoves is false
         if (activeSlide && !activeSlide.allowFaceMoves) {
           next = true;
         } else {
@@ -55,9 +54,8 @@ export const useTutorialOrbitControls = ({
   );
 
   const disableOrbitTemporarily = useCallback(() => {
-    const controls: any = orbitControlsRef.current;
+    const controls = orbitControlsRef.current;
     if (!controls) return;
-    // If we're already in a controlled transition, don't re-snapshot/override
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
     orbitPrevRef.current = {
@@ -67,7 +65,6 @@ export const useTutorialOrbitControls = ({
       staticMoving: Boolean(controls.staticMoving),
       rotateSpeed: Number(controls.rotateSpeed ?? 1.2),
     };
-    // Fully disable user input and internal momentum
     controls.enabled = false;
     controls.noRotate = true;
     if (typeof controls.staticMoving === "boolean")
@@ -79,9 +76,8 @@ export const useTutorialOrbitControls = ({
   }, [orbitControlsRef, isTransitioningRef]);
 
   const clearControlsInternal = useCallback(() => {
-    const controls: any = orbitControlsRef.current;
+    const controls = orbitControlsRef.current;
     if (!controls) return;
-    // TrackballControls internals
     if (controls.movePrev?.set) controls.movePrev.set(0, 0);
     if (controls.moveCurr?.set) controls.moveCurr.set(0, 0);
     if (controls.lastAxis?.set) controls.lastAxis.set(0, 0, 0);
@@ -94,11 +90,9 @@ export const useTutorialOrbitControls = ({
     if (controls.panEnd?.set) controls.panEnd.set(0, 0);
     if (controls.zoomStart?.set) controls.zoomStart.set(0, 0);
     if (controls.zoomEnd?.set) controls.zoomEnd.set(0, 0);
-    // OrbitControls fields (noop for Trackball, safe to set)
     if (controls.rotateStart?.set) controls.rotateStart.set(0, 0);
     if (controls.rotateEnd?.set) controls.rotateEnd.set(0, 0);
-    if (typeof controls.state !== "undefined") controls.state = -1; // STATE.NONE
-    // Sync lastPosition/quaternion to current camera to avoid immediate correction
+    if (typeof controls.state !== "undefined") controls.state = -1;
     if (controls.object) {
       if (controls.lastPosition?.copy)
         controls.lastPosition.copy(controls.object.position);

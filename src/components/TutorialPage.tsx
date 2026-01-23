@@ -1,57 +1,50 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { createPortal } from "react-dom";
-import { Canvas } from "@react-three/fiber";
 import { Vector3 } from "three";
-import { TrackballControls, PerformanceMonitor, Html } from "@react-three/drei";
-import RubiksCube3D from "@components/RubiksCube3D";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
-import type { CubeMove, CubeState } from "@/types/cube";
+import type { CubeMove } from "@/types/cube";
 import { CubeJSWrapper } from "@utils/cubejsWrapper";
 import { AnimationHelper } from "@utils/animationHelper";
-import Button from "@components/UI/Button";
 import cubejsTo3D from "@utils/cubejsTo3D";
-import LessonContent from "@components/LessonContent";
 import useIsTouchDevice from "@/hooks/useIsTouchDevice";
 import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
 import useTrackpadHandlers from "@/hooks/useTrackpadHandlers";
-import SpinTrackpad from "@components/UI/SpinTrackpad";
 import useDprManager from "@/hooks/useDprManager";
 import { useTutorialOrbitControls } from "@/hooks/useTutorialOrbitControls";
-import CUBE_COLORS from "@/consts/cubeColours";
-import TypewriterText from "@components/tutorials/TypewriterText";
-import PracticeStatusIndicator from "@components/tutorials/PracticeStatusIndicator";
-import CompletionTick from "@components/tutorials/CompletionTick";
-import AlgorithmSequence from "@components/tutorials/AlgorithmSequence";
-import MultiPartSequence from "@components/tutorials/MultiPartSequence";
 import getSlidesForLesson, {
   type Slide,
 } from "@components/tutorials/slideDefinitions";
 import {
-  createTutorialCubeState,
   isWhiteCrossSolved as checkWhiteCrossSolved,
   isWhiteCornersSolved as checkWhiteCornersSolved,
   isSecondLayerSolved as checkSecondLayerSolved,
   getSlideCameraConfig,
-  findWhiteGreenRedCorner,
-  findRedGreenSecondLayerEdge,
-  findGreenWhiteEdge,
-  getCubieColorSet,
 } from "@/utils/tutorialHelpers";
 import {
   getFixSequence,
   getFixSequenceDisplay,
 } from "@/utils/fixSequenceHelpers";
 import {
-  parseMove,
-  eqMove,
-  mapMidlayerConceptual,
-} from "@/utils/moveValidationHelpers";
-import {
-  isYellowCrossSolved,
-  getYellowEdgeMatchStatus,
-} from "@/utils/yellowEdgesHelpers";
-import { getYellowCornerMatchStatus } from "@/utils/yellowCornersHelpers";
-import { CUBIE_SIZE, STICKER_LIFT } from "@components/RubiksCube3D/geometry";
+  isPracticeSlide as checkIsPracticeSlide,
+  isRecapSlide as checkIsRecapSlide,
+  requiresSetupDelay,
+} from "@/consts/tutorialSlideConfig";
+import { hasActiveHighlightBorder } from "@/consts/tutorialSlideConstants";
+import { useFixSequenceState } from "@/hooks/useFixSequenceState";
+import { useMidStageTicks } from "@/hooks/useMidStageTicks";
+import { useSlideSpecificState } from "@/hooks/useSlideSpecificState";
+import { usePracticeSlideCompletion } from "@/hooks/usePracticeSlideCompletion";
+import { useSlideTransition } from "@/hooks/useSlideTransition";
+import { useFixSequenceValidation } from "@/hooks/useFixSequenceValidation";
+import { useYellowIndicators } from "@/hooks/useYellowIndicators";
+import { useSequencePortalPosition } from "@/hooks/useSequencePortalPosition";
+import { useTutorialCube3D } from "@/hooks/useTutorialCube3D";
+import { useSlideInteractionRules } from "@/hooks/useSlideInteractionRules";
+import { useSlideSetup } from "@/hooks/useSlideSetup";
+import { makeCentersGrey } from "@/utils/makeCentersGrey";
+import TutorialCubeView from "@components/tutorials/TutorialCubeView";
+import SlideFooter from "@components/tutorials/SlideFooter";
+import SlideSidePanel from "@components/tutorials/SlideSidePanel";
+import TutorialHeader from "@components/tutorials/TutorialHeader";
 
 interface TutorialPageProps {
   lessonId: string;
@@ -60,13 +53,11 @@ interface TutorialPageProps {
 }
 
 const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
-  // Core cube state/refs
   const cubeRef = useRef(new CubeJSWrapper());
   const [cube3D, setCube3D] = useState(() =>
     cubejsTo3D(cubeRef.current.getCube())
   );
 
-  // Animation/move state
   const [pendingMove, setPendingMove] = useState<CubeMove | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const isAnimatingRef = useRef(false);
@@ -75,7 +66,6 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     null
   );
 
-  // Undo/Redo
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const moveHistoryRef = useRef<string[]>([]);
@@ -87,483 +77,183 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     historyIndexRef.current = historyIndex;
   }, [historyIndex]);
 
-  // Reset-to-solved queue
-  // Reset modal removed; no state needed
   const [isResetting, setIsResetting] = useState(false);
+  const [isResettingOrbit, setIsResettingOrbit] = useState(false);
   const [resetQueue, setResetQueue] = useState<string[] | null>(null);
   const resetIndexRef = useRef(0);
-  // Mirror isResetting in a ref so callbacks can read the latest value
   const isResettingRef = useRef(false);
   useEffect(() => {
     isResettingRef.current = isResetting;
   }, [isResetting]);
 
-  // UI/controls
   const [inputDisabled, setInputDisabled] = useState(false);
-  const [showLessonContent, setShowLessonContent] = useState(false);
   const queueFast = false;
   const queueFastMs: number | null = null;
-  // Guard to ignore orbit toggles during controlled transitions
   const isTransitioningRef = useRef(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // Refs for 3D/controls
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
   const orbitControlsRef = useRef<any>(null);
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
   const overlayContainerRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<any>(null);
-  // Transition token to prevent stale callbacks from overriding latest state
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const transitionIdRef = useRef(0);
 
-  // Device flags and DPR manager (independent of orbit callback)
   const isTouchDevice = useIsTouchDevice();
   const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } =
     useDprManager(isTouchDevice);
   const [precisionActive] = useState(false);
-  // Force-disable orbit while animating moves (so view-only slides don't keep it enabled)
   const forceOrbitDisabledRef = useRef(false);
 
-  // Fix box: per-slide step-by-step sequence tracking (declare types/states here, configure after activeSlide below)
-  const [fixIndex, setFixIndex] = useState(0);
-  const [fixDoublePartialDir, setFixDoublePartialDir] = useState<0 | 1 | -1>(0);
-  const [fixErrorPulse, setFixErrorPulse] = useState(false);
-  const [fixShowTick, setFixShowTick] = useState(false);
-  const [fixTickAnimKey, setFixTickAnimKey] = useState(0);
-  const [fixTickProgress, setFixTickProgress] = useState(false);
-  const [fixTickLine, setFixTickLine] = useState(false);
-  // One-time inline tick for step 5 (animate only once when first earned)
-  const [fixFirstTickPlayed, setFixFirstTickPlayed] = useState(false);
-  const [fixFirstTickProgress, setFixFirstTickProgress] = useState(false);
-  const [fixFirstTickLine, setFixFirstTickLine] = useState(false);
-  // One-time inline tick for a second mid-stage (used on slide 7)
-  const [fixSecondTickPlayed, setFixSecondTickPlayed] = useState(false);
-  const [fixSecondTickProgress, setFixSecondTickProgress] = useState(false);
-  const [fixSecondTickLine, setFixSecondTickLine] = useState(false);
-  // (Removed generic third tick in favor of midlayer-specific states)
-  // Midlayer-specific stage tick states (avoid reusing earlier slide flags so animations replay)
-  const [midStage1Played, setMidStage1Played] = useState(false);
-  const [midStage1Progress, setMidStage1Progress] = useState(false);
-  const [midStage1Line, setMidStage1Line] = useState(false);
-  const [midStage2Played, setMidStage2Played] = useState(false);
-  const [midStage2Progress, setMidStage2Progress] = useState(false);
-  const [midStage2Line, setMidStage2Line] = useState(false);
-  const [midStage3Played, setMidStage3Played] = useState(false);
-  const [midStage3Progress, setMidStage3Progress] = useState(false);
-  const [midStage3Line, setMidStage3Line] = useState(false);
-  const [midStage4Played, setMidStage4Played] = useState(false);
-  const [midStage4Progress, setMidStage4Progress] = useState(false);
-  const [midStage4Line, setMidStage4Line] = useState(false);
-  const [midStage5Played, setMidStage5Played] = useState(false);
-  const [midStage5Progress, setMidStage5Progress] = useState(false);
-  const [midStage5Line, setMidStage5Line] = useState(false);
-  // Remount keys to force fresh SVG mount per stage (ensures dash animation reliably fires like slide 7)
-  const [midStage1Key, setMidStage1Key] = useState(0);
-  const [midStage2Key, setMidStage2Key] = useState(0);
-  const [midStage3Key, setMidStage3Key] = useState(0);
-  const [midStage4Key, setMidStage4Key] = useState(0);
-  const [midStage5Key, setMidStage5Key] = useState(0);
-  // Track which sequence is showing for second-layer-setup-solution-4
-  const [showSecondSequence, setShowSecondSequence] = useState(false);
-  const [secondSequenceLocked, setSecondSequenceLocked] = useState(false);
-  // Track which sequence is showing for yellow-cross-dot
-  const [showSecondSequenceDot, setShowSecondSequenceDot] = useState(false);
-  const [secondSequenceDotLocked, setSecondSequenceDotLocked] = useState(false);
-  // Track which sequence is showing for yellow-edges-solution-2
-  const [showSecondSequenceYellowEdges2, setShowSecondSequenceYellowEdges2] =
-    useState(false);
-  const [
-    secondSequenceYellowEdges2Locked,
-    setSecondSequenceYellowEdges2Locked,
-  ] = useState(false);
-  // Track if yaw has been changed for slide 8 (practice-setup-solution-6)
-  const slide8YawChangedRef = useRef(false);
-  // Track if yaw has been changed for slide 6 (midlayer-green-white-extraction)
-  const slide6YawChangedRef = useRef(false);
-  // Track yaw state for slide 8 of white cross (midlayer-green-white-extraction): 0=initial(-90deg), 1=after first seq(0deg), 2=after second D'(0deg)
-  const slide8WhiteCrossYawStateRef = useRef(0);
-  // Track if yaw has been changed for yellow-edges-solution-2
-  const yellowEdges2YawChangedRef = useRef(false);
-  // Track if yaw has been changed for yellow-edges-solution-3
-  const yellowEdges3YawChangedRef = useRef(false);
-  // Track which sequence is showing for yellow-corners-solution-2
-  const [
-    showSecondSequenceYellowCorners2,
-    setShowSecondSequenceYellowCorners2,
-  ] = useState(false);
-  const [
-    secondSequenceYellowCorners2Locked,
-    setSecondSequenceYellowCorners2Locked,
-  ] = useState(false);
-  // Track if yaw has been changed for yellow-corners-solution-2
-  const yellowCorners2YawChangedRef = useRef(false);
-  // State for progressive reveal of second sequence in practice-setup-solution-5
-  const [
-    showSecondSequencePracticeSetup5,
-    setShowSecondSequencePracticeSetup5,
-  ] = useState(false);
-  const [
-    secondSequencePracticeSetup5Locked,
-    setSecondSequencePracticeSetup5Locked,
-  ] = useState(false);
-  // State for progressive reveal of second sequence in yellow-corners-solution-3
-  const [
-    showSecondSequenceYellowCorners3,
-    setShowSecondSequenceYellowCorners3,
-  ] = useState(false);
-  const [
-    secondSequenceYellowCorners3Locked,
-    setSecondSequenceYellowCorners3Locked,
-  ] = useState(false);
-  // State for progressive reveal of third sequence in yellow-corners-solution-3
-  const [showThirdSequenceYellowCorners3, setShowThirdSequenceYellowCorners3] =
-    useState(false);
-  const [
-    thirdSequenceYellowCorners3Locked,
-    setThirdSequenceYellowCorners3Locked,
-  ] = useState(false);
-  // Track if yaw has been changed for yellow-corners-solution-3
-  const yellowCorners3YawChangedRef = useRef(false);
-
-  // Practice slide completion state
-  const [practiceCompleted, setPracticeCompleted] = useState(false);
-  const [practiceShowTick, setPracticeShowTick] = useState(false);
-  const [practiceTickProgress, setPracticeTickProgress] = useState(false);
-  const [practiceTickLine, setPracticeTickLine] = useState(false);
-  const [practiceTickAnimKey, setPracticeTickAnimKey] = useState(0);
-  const [practiceSetupComplete, setPracticeSetupComplete] = useState(false);
-  const [practiceInitialCrossState, setPracticeInitialCrossState] = useState<
-    boolean | null
-  >(null);
-
-  // end fix box state  // Slides for this lesson
   const slides: Slide[] = useMemo(() => {
     return getSlidesForLesson(lessonId);
   }, [lessonId]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const activeSlide = slides[currentSlide];
 
-  // Derive tutorialCube3D from cube3D using useMemo to ensure they're always in sync
-  const tutorialCube3D = useMemo(() => {
-    const base = createTutorialCubeState(lessonId, cube3D);
-    const grey = "#808080";
+  // Reset logo when slide changes
+  useEffect(() => {
+    cubeViewRef.current?.resetLogo();
+  }, [currentSlide]);
 
-    // Apply filter first if it exists
-    let filtered = base;
-    if (activeSlide?.filter) {
-      filtered = base.map((layer) =>
-        layer.map((row) =>
-          row.map((piece) => {
-            const visible = activeSlide.filter!(piece);
-            if (visible) {
-              return piece;
-            }
-            return {
-              ...piece,
-              colors: {
-                front: grey,
-                back: grey,
-                left: grey,
-                right: grey,
-                top: grey,
-                bottom: grey,
-              },
-            };
-          })
-        )
-      );
-    }
+  const fixSequence: string[] = useMemo(
+    () => getFixSequence(activeSlide?.id),
+    [activeSlide?.id]
+  );
 
-    // For yellow-cross lesson, grey out non-yellow colors on yellow edge pieces
-    // This runs after filtering so we only process visible pieces
-    if (lessonId === "yellow-cross") {
-      return filtered.map((layer) =>
-        layer.map((row) =>
-          row.map((piece) => {
-            const set = getCubieColorSet(piece);
-            // Check if this is a yellow edge piece (2 colors, one is yellow)
-            if (set.size === 2 && set.has(CUBE_COLORS.YELLOW)) {
-              // This is a yellow edge piece - grey out the non-yellow color, keep yellow
-              const newColors = { ...piece.colors };
-              // Find which color is not yellow and grey it out
-              const faceKeys: Array<keyof typeof piece.colors> = [
-                "front",
-                "back",
-                "left",
-                "right",
-                "top",
-                "bottom",
-              ];
-              for (const face of faceKeys) {
-                const color = piece.colors[face];
-                // Only grey out colors that are NOT yellow (preserve yellow)
-                if (
-                  color &&
-                  color !== CUBE_COLORS.YELLOW &&
-                  color !== grey &&
-                  color !== CUBE_COLORS.BLACK
-                ) {
-                  newColors[face] = grey;
-                }
-              }
-              return { ...piece, colors: newColors };
-            }
-            return piece;
-          })
-        )
-      );
-    }
+  const fixSequenceState = useFixSequenceState(
+    activeSlide?.id,
+    fixSequence.length
+  );
+  const {
+    fixIndex,
+    setFixIndex,
+    fixDoublePartialDir,
+    setFixDoublePartialDir,
+    fixErrorPulse,
+    setFixErrorPulse,
+    setFixShowTick,
+    fixFirstTickPlayed,
+    setFixFirstTickPlayed,
+    setFixFirstTickProgress,
+    setFixFirstTickLine,
+    fixSecondTickPlayed,
+    setFixSecondTickPlayed,
+    setFixSecondTickProgress,
+    setFixSecondTickLine,
+    fixCompleted,
+    triggerFixTick,
+    resetFixState,
+  } = fixSequenceState;
 
-    return filtered;
-  }, [lessonId, cube3D, activeSlide]);
+  const midStageTicks = useMidStageTicks(activeSlide?.id);
+  const {
+    midStage1Progress,
+    midStage1Line,
+    midStage1Key,
+    midStage2Progress,
+    midStage2Line,
+    midStage2Key,
+    midStage3Progress,
+    midStage3Line,
+    midStage3Key,
+    midStage4Progress,
+    midStage4Line,
+    midStage4Key,
+    midStage5Progress,
+    midStage5Line,
+    midStage5Key,
+    midStage6Key,
+    midStage6Progress,
+    midStage6Line,
+    midStage7Key,
+    midStage7Progress,
+    midStage7Line,
+    resetMidStageTicks,
+    animateMidlayerStage,
+  } = midStageTicks;
 
-  // Check if we should show yellow edge indicators on slide 2 and slide 3
-  const shouldShowYellowEdgeIndicators = useMemo(() => {
-    return (
-      lessonId === "yellow-edges" &&
-      (activeSlide?.id === "yellow-edges-solution" ||
-        activeSlide?.id === "yellow-edges-solution-2" ||
-        activeSlide?.id === "yellow-edges-solution-3") &&
-      checkSecondLayerSolved(cube3D) &&
-      isYellowCrossSolved(cube3D)
-    );
-  }, [lessonId, activeSlide?.id, cube3D]);
+  const slideSpecificState = useSlideSpecificState(activeSlide?.id);
+  const {
+    setShowSecondSequenceYellowEdges2,
+    setSecondSequenceYellowEdges2Locked,
+    slide8YawChangedRef,
+    slide6YawChangedRef,
+    slide8WhiteCrossYawStateRef,
+    secondLayerSetupYawChangedRef,
+    secondLayerSetup2YawChangedRef,
+    secondLayerSetup3YawChangedRef,
+    secondLayerSetup4YawChangedRef,
+    yellowEdges2YawChangedRef,
+    yellowEdges3YawChangedRef,
+    yellowEdges4YawChangedRef,
+    yellowCorners2YawChangedRef,
+    yellowCorners3YawChangedRef,
+    orientTwoCornersYawChangedRef,
+    orientThreeCornersYawChangedRef,
+    orientFourCornersYawChangedRef,
+    practiceSetupSolution9YawChangedRef,
+    resetSlideSpecificState,
+  } = slideSpecificState;
 
-  // Get yellow edge match status
-  const yellowEdgeMatchStatus = useMemo(() => {
-    if (!shouldShowYellowEdgeIndicators) return new Map<string, boolean>();
-    return getYellowEdgeMatchStatus(cube3D);
-  }, [shouldShowYellowEdgeIndicators, cube3D]);
-
-  // Check if all yellow edges match their centers
-  const allYellowEdgesMatchCenters = useMemo(() => {
-    if (!checkSecondLayerSolved(cube3D) || !isYellowCrossSolved(cube3D)) {
-      return false;
-    }
-    const edgeMatchStatus = getYellowEdgeMatchStatus(cube3D);
-    // Check if all edges match (all values in map are true)
-    for (const matches of edgeMatchStatus.values()) {
-      if (!matches) return false;
-    }
-    return edgeMatchStatus.size === 4; // Should have exactly 4 edges
+  const isWhiteCrossSolved = useCallback(() => {
+    return checkWhiteCrossSolved(cube3D);
   }, [cube3D]);
 
-  // Check if we should show yellow corner indicators on slide 2
-  const shouldShowYellowCornerIndicators = useMemo(() => {
-    return (
-      lessonId === "yellow-corners" &&
-      (activeSlide?.id === "yellow-corners-solution" ||
-        activeSlide?.id === "yellow-corners-solution-2" ||
-        activeSlide?.id === "yellow-corners-solution-3") &&
-      checkSecondLayerSolved(cube3D) &&
-      allYellowEdgesMatchCenters
-    );
-  }, [lessonId, activeSlide?.id, cube3D, allYellowEdgesMatchCenters]);
+  const isWhiteCornersSolved = useCallback(() => {
+    return checkWhiteCornersSolved(cube3D);
+  }, [cube3D]);
 
-  // Get yellow corner match status
-  const yellowCornerMatchStatus = useMemo(() => {
-    if (!shouldShowYellowCornerIndicators) return new Map<string, boolean>();
-    return getYellowCornerMatchStatus(cube3D);
-  }, [shouldShowYellowCornerIndicators, cube3D]);
+  const isSecondLayerSolved = useCallback(() => {
+    return checkSecondLayerSolved(cube3D);
+  }, [cube3D]);
 
-  // Function to render piece children for yellow edge indicators
-  const yellowEdgePieceChildren = useMemo(() => {
-    if (!shouldShowYellowEdgeIndicators) return undefined;
-    return (x: number, y: number, z: number, piece: CubeState) => {
-      // Only render indicators for yellow edge pieces on bottom face (y=0) with yellow on bottom
-      if (y !== 0) return null;
-      const set = getCubieColorSet(piece);
-      if (
-        set.size !== 2 ||
-        !set.has(CUBE_COLORS.YELLOW) ||
-        piece.colors.bottom !== CUBE_COLORS.YELLOW
-      ) {
-        return null;
-      }
-
-      const key = `${x},${y},${z}`;
-      const matches = yellowEdgeMatchStatus.get(key) ?? false;
-      const half = CUBIE_SIZE / 2;
-      const stickerY = -(half + STICKER_LIFT); // Bottom face sticker position
-
-      return (
-        <group
-          position={[0, stickerY - 0.02, 0]}
-          rotation={[Math.PI / 2, 0, 0]}
-        >
-          <Html
-            center
-            transform
-            distanceFactor={0}
-            occlude
-            style={{ pointerEvents: "none" }}
-          >
-            <div
-              style={{
-                width: "24px",
-                height: "24px",
-                borderRadius: "50%",
-                backgroundColor: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: `1px solid ${
-                  matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED
-                }`,
-                // boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
-                opacity: 1,
-                background: matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED,
-              }}
-            >
-              {matches ? (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ transform: "rotate(270deg)" }}
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              )}
-            </div>
-          </Html>
-        </group>
-      );
-    };
-  }, [shouldShowYellowEdgeIndicators, cube3D, yellowEdgeMatchStatus]);
-
-  // Function to render piece children for yellow corner indicators
-  const yellowCornerPieceChildren = useMemo(() => {
-    if (!shouldShowYellowCornerIndicators) return undefined;
-    return (x: number, y: number, z: number, piece: CubeState) => {
-      // Only render indicators for yellow corner pieces on bottom face (y=0)
-      if (y !== 0) return null;
-      // Check if this is a corner position (x and z are 0 or 2)
-      if (!((x === 0 || x === 2) && (z === 0 || z === 2))) return null;
-
-      const set = getCubieColorSet(piece);
-      // Must be a yellow corner (has yellow + two other colors = 3 colors total)
-      if (set.size !== 3 || !set.has(CUBE_COLORS.YELLOW)) {
-        return null;
-      }
-
-      const key = `${x},${y},${z}`;
-      const matches = yellowCornerMatchStatus.get(key) ?? false;
-      const half = CUBIE_SIZE / 2;
-      const stickerY = -(half + STICKER_LIFT); // Bottom face sticker position
-
-      return (
-        <group
-          position={[0, stickerY - 0.02, 0]}
-          rotation={[Math.PI / 2, 0, 0]}
-        >
-          <Html
-            center
-            transform
-            distanceFactor={0}
-            occlude
-            style={{ pointerEvents: "none" }}
-          >
-            <div
-              style={{
-                width: "24px",
-                height: "24px",
-                borderRadius: "50%",
-                backgroundColor: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: `1px solid ${
-                  matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED
-                }`,
-                opacity: 1,
-                background: matches ? CUBE_COLORS.GREEN : CUBE_COLORS.RED,
-              }}
-            >
-              {matches ? (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    transform:
-                      activeSlide?.id === "yellow-corners-solution-3"
-                        ? "rotate(90deg)"
-                        : activeSlide?.id === "yellow-corners-solution-2"
-                        ? "rotate(0deg)"
-                        : "rotate(270deg)",
-                  }}
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              )}
-            </div>
-          </Html>
-        </group>
-      );
-    };
-  }, [
-    shouldShowYellowCornerIndicators,
+  const practiceCompletion = usePracticeSlideCompletion({
+    activeSlideId: activeSlide?.id,
     cube3D,
-    yellowCornerMatchStatus,
-    activeSlide?.id,
-  ]);
+    moveHistory,
+    isWhiteCrossSolved,
+    isWhiteCornersSolved,
+    isSecondLayerSolved,
+  });
+  const {
+    practiceCompleted,
+    setPracticeCompleted,
+    practiceShowTick,
+    setPracticeShowTick,
+    practiceTickProgress,
+    setPracticeTickProgress,
+    practiceTickLine,
+    setPracticeTickLine,
+    practiceTickAnimKey,
+    setPracticeSetupComplete,
+    setPracticeInitialCrossState,
+    resetPracticeCompletion,
+  } = practiceCompletion;
 
-  // Combined piece children function for both edge and corner indicators
-  const combinedPieceChildren = useMemo(() => {
-    const edgeChildren = yellowEdgePieceChildren;
-    const cornerChildren = yellowCornerPieceChildren;
+  const baseTutorialCube3D = useTutorialCube3D({
+    lessonId,
+    cube3D,
+    activeSlideFilter: activeSlide?.filter,
+  });
 
-    if (!edgeChildren && !cornerChildren) return undefined;
+  const tutorialCube3D = useMemo(() => {
+    if (
+      lessonId === "rubiks-cube-introduction" &&
+      (activeSlide?.id === "edge-pieces" || activeSlide?.id === "corner-pieces")
+    ) {
+      return makeCentersGrey(baseTutorialCube3D);
+    }
+    return baseTutorialCube3D;
+  }, [lessonId, activeSlide?.id, baseTutorialCube3D]);
 
-    return (x: number, y: number, z: number, piece: CubeState) => {
-      const edgeResult = edgeChildren?.(x, y, z, piece);
-      const cornerResult = cornerChildren?.(x, y, z, piece);
+  const { combinedPieceChildren } = useYellowIndicators({
+    lessonId,
+    activeSlideId: activeSlide?.id,
+    cube3D,
+    fixIndex,
+  });
 
-      // If both return results, we need to combine them (shouldn't happen for edges/corners)
-      // For now, prioritize corner if both exist (corners are more specific)
-      return cornerResult || edgeResult || null;
-    };
-  }, [yellowEdgePieceChildren, yellowCornerPieceChildren]);
-
-  // Orbit controls hook
   const {
     orbitControlsEnabled,
     setOrbitControlsEnabled,
@@ -578,343 +268,28 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     forceOrbitDisabledRef,
   });
 
-  // Expected Fix sequence for the current slide
-  const fixSequence: string[] = useMemo(
-    () => getFixSequence(activeSlide?.id),
-    [activeSlide?.id]
-  );
-
-  // Display sequence for Fix box (what user sees)
   const fixSequenceDisplay: string[] = useMemo(
     () => getFixSequenceDisplay(activeSlide?.id, fixSequence),
     [activeSlide?.id, fixSequence]
   );
 
-  // Show second sequence for second-layer-setup-solution-4 when fixIndex reaches 9 (with delay)
-  useEffect(() => {
-    if (
-      activeSlide?.id === "second-layer-setup-solution-4" &&
-      fixIndex === 9 &&
-      !showSecondSequence &&
-      !secondSequenceLocked
-    ) {
-      // Add 500ms delay before showing second sequence
-      const timer = setTimeout(() => {
-        setShowSecondSequence(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [activeSlide?.id, fixIndex, showSecondSequence, secondSequenceLocked]);
-
-  // Show second sequence for yellow-cross-dot when fixIndex reaches 7 (with delay)
-  useEffect(() => {
-    if (
-      activeSlide?.id === "yellow-cross-dot" &&
-      fixIndex === 7 &&
-      !showSecondSequenceDot &&
-      !secondSequenceDotLocked
-    ) {
-      // Add 500ms delay before showing second sequence
-      const timer = setTimeout(() => {
-        setShowSecondSequenceDot(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [
-    activeSlide?.id,
-    fixIndex,
-    showSecondSequenceDot,
-    secondSequenceDotLocked,
-  ]);
-
-  // Show second sequence for yellow-corners-solution-2 when fixIndex reaches 8 (with delay)
-  useEffect(() => {
-    if (
-      activeSlide?.id === "yellow-corners-solution-2" &&
-      fixIndex === 8 &&
-      !showSecondSequenceYellowCorners2 &&
-      !secondSequenceYellowCorners2Locked
-    ) {
-      // Add 500ms delay before showing second sequence
-      const timer = setTimeout(() => {
-        setShowSecondSequenceYellowCorners2(true);
-        setSecondSequenceYellowCorners2Locked(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [
-    activeSlide?.id,
-    fixIndex,
-    showSecondSequenceYellowCorners2,
-    secondSequenceYellowCorners2Locked,
-  ]);
-
-  // Show second sequence for practice-setup-solution-5 when fixIndex reaches 4 (with delay)
-  useEffect(() => {
-    if (
-      activeSlide?.id === "practice-setup-solution-5" &&
-      fixIndex === 4 &&
-      !showSecondSequencePracticeSetup5 &&
-      !secondSequencePracticeSetup5Locked
-    ) {
-      // Add 500ms delay before showing second sequence
-      const timer = setTimeout(() => {
-        setShowSecondSequencePracticeSetup5(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [
-    activeSlide?.id,
-    fixIndex,
-    showSecondSequencePracticeSetup5,
-    secondSequencePracticeSetup5Locked,
-  ]);
-
-  // Show second sequence for yellow-corners-solution-3 when fixIndex reaches 8 (with delay)
-  useEffect(() => {
-    if (
-      activeSlide?.id === "yellow-corners-solution-3" &&
-      fixIndex === 8 &&
-      !showSecondSequenceYellowCorners3 &&
-      !secondSequenceYellowCorners3Locked
-    ) {
-      // Add 500ms delay before showing second sequence
-      const timer = setTimeout(() => {
-        setShowSecondSequenceYellowCorners3(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [
-    activeSlide?.id,
-    fixIndex,
-    showSecondSequenceYellowCorners3,
-    secondSequenceYellowCorners3Locked,
-  ]);
-
-  // Show third sequence for yellow-corners-solution-3 when fixIndex reaches 16 (with delay)
-  useEffect(() => {
-    if (
-      activeSlide?.id === "yellow-corners-solution-3" &&
-      fixIndex === 16 &&
-      !showThirdSequenceYellowCorners3 &&
-      !thirdSequenceYellowCorners3Locked
-    ) {
-      // Add 500ms delay before showing third sequence
-      const timer = setTimeout(() => {
-        setShowThirdSequenceYellowCorners3(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [
-    activeSlide?.id,
-    fixIndex,
-    showThirdSequenceYellowCorners3,
-    thirdSequenceYellowCorners3Locked,
-  ]);
-
-  // Reset fix progress whenever slide changes
-  useEffect(() => {
-    setFixIndex(0);
-    setFixDoublePartialDir(0);
-    setFixErrorPulse(false);
-    setFixShowTick(false);
-    setFixTickAnimKey((k) => k + 1);
-    setFixTickProgress(false);
-    setFixTickLine(false);
-    // Reset first inline tick state so it can animate again on new runs
-    setFixFirstTickPlayed(false);
-    setFixFirstTickProgress(false);
-    setFixFirstTickLine(false);
-    // Reset second inline tick state for multi-stage slides
-    setFixSecondTickPlayed(false);
-    setFixSecondTickProgress(false);
-    setFixSecondTickLine(false);
-    setMidStage1Played(false);
-    setMidStage1Progress(false);
-    setMidStage1Line(false);
-    setMidStage2Played(false);
-    setMidStage2Progress(false);
-    setMidStage2Line(false);
-    setMidStage3Played(false);
-    setMidStage3Progress(false);
-    setMidStage3Line(false);
-    setMidStage4Played(false);
-    setMidStage4Progress(false);
-    setMidStage4Line(false);
-    setMidStage5Played(false);
-    setMidStage5Progress(false);
-    setMidStage5Line(false);
-    setMidStage1Key(0);
-    setMidStage2Key(0);
-    setMidStage3Key(0);
-    setMidStage4Key(0);
-    setMidStage5Key(0);
-    // Reset sequence visibility for second-layer-setup-solution-4 (instant, no delay)
-    setShowSecondSequence(false);
-    setSecondSequenceLocked(false);
-    // Reset sequence visibility for yellow-cross-dot (instant, no delay)
-    setShowSecondSequenceDot(false);
-    setSecondSequenceDotLocked(false);
-    // Reset sequence visibility for yellow-edges-solution-2 (instant, no delay)
-    setShowSecondSequenceYellowEdges2(false);
-    setSecondSequenceYellowEdges2Locked(false);
-    // Reset sequence visibility for yellow-corners-solution-2 (instant, no delay)
-    setShowSecondSequenceYellowCorners2(false);
-    setSecondSequenceYellowCorners2Locked(false);
-    // Reset sequence visibility for practice-setup-solution-5 (instant, no delay)
-    setShowSecondSequencePracticeSetup5(false);
-    setSecondSequencePracticeSetup5Locked(false);
-    // Reset sequence visibility for yellow-corners-solution-3 (instant, no delay)
-    setShowSecondSequenceYellowCorners3(false);
-    setSecondSequenceYellowCorners3Locked(false);
-    setShowThirdSequenceYellowCorners3(false);
-    setThirdSequenceYellowCorners3Locked(false);
-  }, [activeSlide?.id, fixSequence.length]);
-
-  // Trigger a tick animation (can be used mid-sequence and at completion)
-  const triggerFixTick = useCallback(() => {
-    setFixShowTick(true);
-    setFixTickProgress(false);
-    setFixTickLine(false);
-    setFixTickAnimKey((k) => k + 1);
-    setTimeout(() => setFixTickProgress(true), 100);
-    setTimeout(() => setFixTickLine(true), 300);
-  }, []);
-
-  // Derived flag: when Fix sequence finished for this slide, lock face moves but keep orbit enabled
-  const fixCompleted = fixSequence.length > 0 && fixIndex >= fixSequence.length;
-
-  // (Removed camera direction tween to avoid double transitions)
-
-  // When changing slides, animate the cube back to its original orientation (like timer flows)
-  const prevSlideRef = useRef<number>(-1); // Initialize to -1 so initial mount is not skipped
-  const isInitialMountRef = useRef(true); // Track if this is the very first mount
-  useEffect(() => {
-    // Skip if slide hasn't actually changed (but allow initial mount when prevSlideRef is -1)
-    if (prevSlideRef.current === currentSlide && prevSlideRef.current !== -1)
-      return;
-    const isInitialMount = isInitialMountRef.current;
-    isInitialMountRef.current = false;
-    prevSlideRef.current = currentSlide;
-
-    const slide = slides[currentSlide];
-    const cameraConfig = getSlideCameraConfig(slide?.id, lessonId);
-
-    // Set camera config on orbit controls immediately, even if cube ref isn't ready yet
-    // This ensures the config is available when the cube becomes ready
-    if (orbitControlsRef.current) {
-      const c: any = orbitControlsRef.current;
-      c.__resetOpts = cameraConfig;
-    }
-
-    // If cube ref isn't ready yet, retry using requestAnimationFrame
-    if (!cubeViewRef.current) {
-      let retryCount = 0;
-      const maxRetries = 10; // Try up to 10 times (~160ms at 60fps)
-      const tryReset = () => {
-        if (cubeViewRef.current && orbitControlsRef.current) {
-          const c: any = orbitControlsRef.current;
-          c.__resetOpts = cameraConfig;
-          // Use instant mode for initial mount
-          cubeViewRef.current.resetToInitialPosition(
-            orbitControlsRef,
-            cubeRef,
-            undefined,
-            isInitialMount
-          );
-        } else if (retryCount < maxRetries) {
-          retryCount++;
-          requestAnimationFrame(tryReset);
-        }
-      };
-      requestAnimationFrame(tryReset);
-      return;
-    }
-
-    // For initial mount, set rotation instantly without animation
-    if (isInitialMount) {
-      cubeViewRef.current.resetToInitialPosition(
-        orbitControlsRef,
-        cubeRef,
-        () => {
-          // Re-evaluate input rules for the new slide after reset completes
-          const controls: any = orbitControlsRef.current;
-          setInputDisabled(false);
-          if (controls) {
-            controls.enabled = true;
-            controls.noRotate = false;
-            if (typeof controls.staticMoving === "boolean")
-              controls.staticMoving = false;
-            if (typeof controls.dynamicDampingFactor === "number")
-              controls.dynamicDampingFactor = 0.35;
-            if (typeof controls.rotateSpeed === "number")
-              controls.rotateSpeed = 1.2;
-            setOrbitControlsEnabled(true);
-            if (typeof controls.update === "function") controls.update();
-          }
-          isTransitioningRef.current = false;
-        },
-        true // instant mode
-      );
-      return;
-    }
-
-    // Bump transition token so only the latest completion callback applies
-    const myTransitionId = ++transitionIdRef.current;
-    // Set transitioning flag to prevent validation during transition
-    isTransitioningRef.current = true;
-    // Temporarily disable input during the reset animation
-    setInputDisabled(true);
-    // Also lock orbit to avoid momentum fighting the transition
-    disableOrbitTemporarily();
-    // Hard-set controls to a neutral target before resetting cube to avoid post-anim snaps
-    if (orbitControlsRef.current) {
-      const c: any = orbitControlsRef.current;
-      if (!c.target) c.target = new Vector3(0, 0, 0);
-      else c.target.set(0, 0, 0);
-      if (c.update) c.update();
-      clearControlsInternal();
-      // Camera config already set above
-    }
-    cubeViewRef.current.resetToInitialPosition(
-      orbitControlsRef,
-      cubeRef,
-      () => {
-        // Ignore callbacks from stale transitions
-        if (transitionIdRef.current !== myTransitionId) return;
-        // Re-evaluate input rules for the new slide after reset completes
-        const controls: any = orbitControlsRef.current;
-        // notation-protip no longer locks input - cube should be enabled
-        setInputDisabled(false);
-        // Explicitly set final orbit state to avoid races
-        if (controls) {
-          // Always enable orbit controls (notation-protip no longer locks)
-          controls.enabled = true;
-          controls.noRotate = false;
-          if (typeof controls.staticMoving === "boolean")
-            controls.staticMoving = false;
-          if (typeof controls.dynamicDampingFactor === "number")
-            controls.dynamicDampingFactor = 0.35;
-          if (typeof controls.rotateSpeed === "number")
-            controls.rotateSpeed = 1.2;
-          setOrbitControlsEnabled(true);
-          if (typeof controls.update === "function") controls.update();
-        }
-        // End controlled transition
-        orbitPrevRef.current = null;
-        isTransitioningRef.current = false;
-      }
-    );
-  }, [
+  useSlideTransition({
     currentSlide,
-    isResetting,
     slides,
+    lessonId,
+    orbitControlsRef,
+    cubeViewRef,
+    cubeRef,
+    transitionIdRef,
+    isTransitioningRef,
+    setIsTransitioning,
+    setInputDisabled,
+    setOrbitControlsEnabled,
     disableOrbitTemporarily,
     clearControlsInternal,
-    lessonId,
-  ]);
+    orbitPrevRef,
+  });
 
-  // Device/interaction hooks that rely on handleOrbitControlsChange
   const { touchCount } = useTwoFingerSpin(
     cubeContainerRef as React.RefObject<HTMLDivElement>,
     cubeViewRef as React.RefObject<RubiksCube3DHandle>,
@@ -930,128 +305,46 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     precisionActive
   );
 
-  // Enforce slide interaction rules and lock/allow per slide
-  useEffect(() => {
-    if (!activeSlide) return;
-    // Practice slides 10, 11, 12: always enable orbit (for both white cross and white corners)
-    const isPracticeSlide10_11_12 =
-      activeSlide.id === "practice-two-edges" ||
-      activeSlide.id === "practice-three-edges" ||
-      activeSlide.id === "practice-full-cross" ||
-      activeSlide.id === "practice-white-corners" ||
-      activeSlide.id === "practice-white-corners-2" ||
-      activeSlide.id === "practice-white-corners-3" ||
-      activeSlide.id === "practice-second-layer" ||
-      activeSlide.id === "practice-second-layer-2" ||
-      activeSlide.id === "practice-second-layer-3";
+  useSlideInteractionRules({
+    activeSlide,
+    isResetting,
+    practiceCompleted,
+    setInputDisabled,
+    setOrbitControlsEnabled,
+    handleOrbitControlsChange,
+  });
 
-    // Slide 2 (find-green-white): disable face moves but allow orbit (use disableSliceDrag, not inputDisabled)
-    if (activeSlide.id === "find-green-white") {
-      setInputDisabled(false); // Don't disable input - disableSliceDrag will handle preventing moves
-      setOrbitControlsEnabled(true);
-      // Explicitly enable orbit by calling the handler
-      handleOrbitControlsChange(true);
-    } else if (isPracticeSlide10_11_12 && practiceCompleted) {
-      // Practice slide when completed: disable face moves but allow orbit
-      setInputDisabled(true);
-      setOrbitControlsEnabled(true);
-    } else if (activeSlide.id === "mechanical-approach") {
-      // White corners slide 2: disable face moves but allow orbit (same as intro)
-      setInputDisabled(true);
-      setOrbitControlsEnabled(true);
-    } else {
-      // Slide 1 (intro): allow orbit spin but no face moves
-      // Slide 3+: fully interactive per allowFaceMoves
-      // Practice slide: also disable when completed
-      const shouldDisableInput =
-        !activeSlide.allowFaceMoves ||
-        (isPracticeSlide10_11_12 && practiceCompleted);
+  useSlideSetup({
+    activeSlide,
+    cubeRef,
+    setCube3D,
+    setMoveHistory,
+    setHistoryIndex,
+    moveHistoryRef,
+    historyIndexRef,
+    setPracticeCompleted,
+    setPracticeShowTick,
+    setPracticeInitialCrossState,
+    setPracticeSetupComplete,
+    setPracticeTickProgress,
+    setPracticeTickLine,
+    isTransitioningRef,
+  });
 
-      setInputDisabled(shouldDisableInput);
-      // Always enable orbit for practice slides 10, 11, 12, otherwise enable for all other slides
-      setOrbitControlsEnabled(true);
-    }
-  }, [activeSlide, isResetting, practiceCompleted, handleOrbitControlsChange]);
-
-  // Optional per-slide setup (instant)
-  useEffect(() => {
-    // Reset setup state when slide changes
-    setPracticeSetupComplete(false);
-    // Reset yaw change tracking for slide 8 when slide changes
-    slide8YawChangedRef.current = false;
-    // Reset yaw change tracking for slide 6 when slide changes
-    slide6YawChangedRef.current = false;
-    // Reset yaw state for slide 8 of white cross when slide changes
-    slide8WhiteCrossYawStateRef.current = 0;
-    // Reset yaw change tracking for yellow-edges-solution-2
-    yellowEdges2YawChangedRef.current = false;
-    // Reset yaw change tracking for yellow-edges-solution-3
-    yellowEdges3YawChangedRef.current = false;
-    // Reset yaw change tracking for yellow-corners-solution-2
-    yellowCorners2YawChangedRef.current = false;
-    // Reset yaw change tracking for yellow-corners-solution-3
-    yellowCorners3YawChangedRef.current = false;
-
-    if (!activeSlide || !activeSlide.setup) {
-      // No setup needed, allow validation immediately
-      isTransitioningRef.current = false;
-      return;
-    }
-
-    activeSlide.setup(cubeRef.current);
-    const updated = cubejsTo3D(cubeRef.current.getCube());
-    setCube3D(updated);
-
-    // Clear history so undo/redo aligns with the new slide's baseline state
-    setMoveHistory([]);
-    setHistoryIndex(-1);
-    moveHistoryRef.current = [];
-    historyIndexRef.current = -1;
-    // Clear practice completion state when changing slides
-    setPracticeCompleted(false);
-    setPracticeShowTick(false);
-    setPracticeInitialCrossState(null);
-
-    // Mark setup complete immediately
-    setPracticeSetupComplete(true);
-    // Allow validation after setup completes (use microtask to ensure state is settled)
-    queueMicrotask(() => {
-      isTransitioningRef.current = false;
-    });
-    setPracticeTickProgress(false);
-    setPracticeTickLine(false);
-  }, [activeSlide]);
-
-  // Wrapper for orbit controls change that enables orbit for practice slides 10, 11, 12
-  // when completed, and for find-green-white (allows normal disable during animations/transitions/drags)
   const handlePracticeOrbitChange = useCallback(
     (enabled: boolean) => {
-      const isPracticeSlide10_11_12 =
-        activeSlide?.id === "practice-two-edges" ||
-        activeSlide?.id === "practice-three-edges" ||
-        activeSlide?.id === "practice-full-cross" ||
-        activeSlide?.id === "practice-white-corners" ||
-        activeSlide?.id === "practice-white-corners-2" ||
-        activeSlide?.id === "practice-white-corners-3" ||
-        activeSlide?.id === "practice-second-layer" ||
-        activeSlide?.id === "practice-second-layer-2" ||
-        activeSlide?.id === "practice-second-layer-3";
+      const isPracticeSlide10_11_12 = checkIsPracticeSlide(activeSlide?.id);
 
-      // For find-green-white: always allow orbit to be enabled
       if (activeSlide?.id === "find-green-white") {
-        // Always enable orbit for find-green-white (override any disable requests)
         if (
           !enabled &&
           !forceOrbitDisabledRef.current &&
           !isTransitioningRef.current
         ) {
-          // RubiksCube3D trying to disable - override to keep enabled
           handleOrbitControlsChange(true);
         } else if (enabled) {
-          // Pass through enable requests
           handleOrbitControlsChange(enabled);
         } else {
-          // During transitions or when force disabled, still try to enable if not transitioning
           if (!isTransitioningRef.current && !forceOrbitDisabledRef.current) {
             handleOrbitControlsChange(true);
           } else {
@@ -1059,21 +352,14 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           }
         }
       } else if (isPracticeSlide10_11_12) {
-        // For practice slides 10-12: only override disable requests when:
-        // - Slide is completed (practiceCompleted is true)
-        // - Not animating/transitioning
-        // - Request is to disable (RubiksCube3D trying to disable due to inputDisabled)
-        // Otherwise, pass through all requests to allow normal behavior (disable during drags/animations)
         if (
           !enabled &&
           practiceCompleted &&
           !forceOrbitDisabledRef.current &&
           !isTransitioningRef.current
         ) {
-          // Slide is completed and RubiksCube3D trying to disable due to inputDisabled - override to keep enabled
           handleOrbitControlsChange(true);
         } else {
-          // Normal request (during animations, drags, or when not completed) - pass through
           handleOrbitControlsChange(enabled);
         }
       } else {
@@ -1083,22 +369,10 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     [activeSlide?.id, practiceCompleted, handleOrbitControlsChange]
   );
 
-  // (moved handleOrbitControlsChange above)
-  // Trigger a move via buttons/drag
   const handleButtonMove = useCallback(
     (move: string) => {
-      // Block manual move buttons after Fix completion or practice completion
       if (fixCompleted) return;
-      const isPracticeSlide =
-        activeSlide?.id === "practice-two-edges" ||
-        activeSlide?.id === "practice-three-edges" ||
-        activeSlide?.id === "practice-full-cross" ||
-        activeSlide?.id === "practice-white-corners" ||
-        activeSlide?.id === "practice-white-corners-2" ||
-        activeSlide?.id === "practice-white-corners-3" ||
-        activeSlide?.id === "practice-second-layer" ||
-        activeSlide?.id === "practice-second-layer-2" ||
-        activeSlide?.id === "practice-second-layer-3";
+      const isPracticeSlide = checkIsPracticeSlide(activeSlide?.id);
       if (isPracticeSlide && practiceCompleted) return;
       const now = Date.now();
       if (
@@ -1116,109 +390,25 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     [isAnimating, fixCompleted, activeSlide?.id, practiceCompleted]
   );
 
-  // Undo/Redo removed on tutorial page
-
-  // Reset to the current slide's baseline state (instant, no animation)
   const resetToSlideBaseline = useCallback(async () => {
-    console.log("[RESET] Reset called, current fixIndex:", fixIndex);
-    // Prevent validation during reset
     isTransitioningRef.current = true;
-    // Disable input and orbit during transition
     setInputDisabled(true);
     disableOrbitTemporarily();
-    // IMPORTANT: Reset fixIndex FIRST to unlock the cube immediately
-    // This must happen before any other state updates to ensure fixCompleted becomes false
     setFixIndex(0);
     setFixDoublePartialDir(0);
-    console.log("[RESET] Set fixIndex to 0");
-
-    // Don't wait - update state immediately
 
     setIsResetting(true);
     isResettingRef.current = true;
-    // Cancel any in-flight or queued move to avoid races with baseline reset
     setPendingMove(null);
     setIsAnimating(false);
     isAnimatingRef.current = false;
-    // Clear Fix progress (already cleared above, but clear other related state)
-    setFixErrorPulse(false);
-    setFixShowTick(false);
-    setFixTickAnimKey((k) => k + 1);
-    setFixTickProgress(false);
-    setFixTickLine(false);
-    // Also clear first inline tick so it can re-animate after reset
-    setFixFirstTickPlayed(false);
-    setFixFirstTickProgress(false);
-    setFixFirstTickLine(false);
-    // And clear second inline tick state
-    setFixSecondTickPlayed(false);
-    setFixSecondTickProgress(false);
-    setFixSecondTickLine(false);
-    setMidStage1Played(false);
-    setMidStage1Progress(false);
-    setMidStage1Line(false);
-    setMidStage2Played(false);
-    setMidStage2Progress(false);
-    setMidStage2Line(false);
-    setMidStage3Played(false);
-    setMidStage3Progress(false);
-    setMidStage3Line(false);
-    setMidStage4Played(false);
-    setMidStage4Progress(false);
-    setMidStage4Line(false);
-    setMidStage5Played(false);
-    setMidStage5Progress(false);
-    setMidStage5Line(false);
-    setMidStage1Key(0);
-    setMidStage2Key(0);
-    setMidStage3Key(0);
-    setMidStage4Key(0);
-    setMidStage5Key(0);
-    // Reset sequence visibility for second-layer-setup-solution-4 (instant, no delay)
-    setShowSecondSequence(false);
-    setSecondSequenceLocked(false);
-    // Reset sequence visibility for yellow-cross-dot (instant, no delay)
-    setShowSecondSequenceDot(false);
-    setSecondSequenceDotLocked(false);
-    setShowSecondSequenceYellowEdges2(false);
-    setSecondSequenceYellowEdges2Locked(false);
-    // Reset yaw change tracking for slide 8
-    slide8YawChangedRef.current = false;
-    // Reset yaw change tracking for slide 6
-    slide6YawChangedRef.current = false;
-    // Reset yaw state for slide 8 of white cross
-    slide8WhiteCrossYawStateRef.current = 0;
-    // Reset yaw change tracking for yellow-edges-solution-2
-    yellowEdges2YawChangedRef.current = false;
-    // Reset yaw change tracking for yellow-edges-solution-3
-    yellowEdges3YawChangedRef.current = false;
-    // Reset sequence visibility for yellow-corners-solution-2
-    setShowSecondSequenceYellowCorners2(false);
-    setSecondSequenceYellowCorners2Locked(false);
-    // Reset yaw change tracking for yellow-corners-solution-2
-    yellowCorners2YawChangedRef.current = false;
-    // Reset sequence visibility for practice-setup-solution-5
-    setShowSecondSequencePracticeSetup5(false);
-    setSecondSequencePracticeSetup5Locked(false);
-    // Reset sequence visibility for yellow-corners-solution-3
-    setShowSecondSequenceYellowCorners3(false);
-    setSecondSequenceYellowCorners3Locked(false);
-    setShowThirdSequenceYellowCorners3(false);
-    setThirdSequenceYellowCorners3Locked(false);
-    // Reset yaw change tracking for yellow-corners-solution-3
-    yellowCorners3YawChangedRef.current = false;
-    // Clear practice slide progress
-    setPracticeCompleted(false);
-    setPracticeShowTick(false);
-    setPracticeTickProgress(false);
-    setPracticeTickLine(false);
-    setPracticeTickAnimKey((k) => k + 1);
-    setPracticeInitialCrossState(null);
-    setPracticeSetupComplete(false); // Reset setup state to trigger re-initialization
+    resetFixState();
+    resetMidStageTicks();
+    resetSlideSpecificState();
+    resetPracticeCompletion();
     await new Promise((r) => requestAnimationFrame(r));
     const slide = slides[currentSlide];
 
-    // Clear history and any pending queues
     setMoveHistory([]);
     setHistoryIndex(-1);
     moveHistoryRef.current = [];
@@ -1226,34 +416,23 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setResetQueue(null);
     resetIndexRef.current = 0;
 
-    // Reset logical cube to solved state first
-    // Note: Some setup functions call reset() internally, but we reset here first
-    // to ensure a clean slate before applying setup
     cubeRef.current.reset();
 
-    // Apply slide setup moves IMMEDIATELY (don't wait for animation)
-    // The setup function will reset again if needed, then apply setup moves
     if (slide?.setup) {
-      // Make sure cube is reset before calling setup
       cubeRef.current.reset();
-      console.log("[RESET] Cube reset, calling setup for slide:", slide.id);
       slide.setup(cubeRef.current);
-      console.log("[RESET] Setup complete");
     }
 
-    // Update visual state immediately to show the reset + setup
-    // tutorialCube3D will be automatically updated via useMemo when cube3D changes
+    // Reset logo to default position
+    cubeViewRef.current?.resetLogo();
+
     const updatedCube3D = cubejsTo3D(cubeRef.current.getCube());
-    console.log("[RESET] Updating cube3D state");
     setCube3D(updatedCube3D);
 
-    // Mark reset as complete immediately since we've updated all state synchronously
     setIsResetting(false);
     isResettingRef.current = false;
 
-    // Also navigate the camera/orbit back to the slide's initial spot (same as slide change)
     const myTransitionId = ++transitionIdRef.current;
-    // Lock orbit during transition and neutralize controls
     disableOrbitTemporarily();
     if (orbitControlsRef.current) {
       const c: any = orbitControlsRef.current;
@@ -1261,60 +440,30 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       else c.target.set(0, 0, 0);
       if (c.update) c.update();
       clearControlsInternal();
-      // Match slide-facing rules (same as slide transition)
-      // Get camera configuration for this slide
       c.__resetOpts = getSlideCameraConfig(slide?.id, lessonId);
     }
+    setIsResettingOrbit(true);
     cubeViewRef.current?.resetToInitialPosition(
       orbitControlsRef,
       cubeRef,
       () => {
         if (transitionIdRef.current !== myTransitionId) return;
-        // Animation complete - no need to apply setup again (already done above)
-        // Note: isResetting was already set to false immediately after state updates
 
-        // For practice slides, mark setup complete after a short delay
+        setIsResettingOrbit(false);
         const s = slides[currentSlide];
-        if (
-          s?.id === "practice-two-edges" ||
-          s?.id === "practice-three-edges" ||
-          s?.id === "practice-full-cross" ||
-          s?.id === "practice-white-corners" ||
-          s?.id === "practice-white-corners-2" ||
-          s?.id === "practice-white-corners-3" ||
-          s?.id === "practice-second-layer" ||
-          s?.id === "practice-second-layer-2" ||
-          s?.id === "practice-second-layer-3"
-        ) {
+        if (checkIsPracticeSlide(s?.id)) {
           setTimeout(() => {
             setPracticeSetupComplete(true);
           }, 100);
         }
 
-        // Also mark practice-setup-solution slides as complete
-        if (
-          s?.id === "practice-setup-solution" ||
-          s?.id === "practice-setup-solution-2" ||
-          s?.id === "practice-setup-solution-3" ||
-          s?.id === "practice-setup-solution-4" ||
-          s?.id === "practice-setup-solution-5" ||
-          s?.id === "practice-setup-solution-6" ||
-          s?.id === "second-layer-setup-solution" ||
-          s?.id === "second-layer-setup-solution-2" ||
-          s?.id === "second-layer-setup-solution-3" ||
-          s?.id === "second-layer-setup-solution-4" ||
-          s?.id === "yellow-cross-triangle" ||
-          s?.id === "yellow-cross-dot" ||
-          s?.id === "yellow-corners-solution-2"
-        ) {
+        if (requiresSetupDelay(s?.id)) {
           setPracticeSetupComplete(true);
         }
 
         const controls: any = orbitControlsRef.current;
-        // notation-protip no longer locks input - cube should be enabled
         setInputDisabled(false);
         if (controls) {
-          // Always enable orbit controls (notation-protip no longer locks)
           controls.enabled = true;
           controls.noRotate = false;
           if (typeof controls.staticMoving === "boolean")
@@ -1326,101 +475,66 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           setOrbitControlsEnabled(true);
           if (typeof controls.update === "function") controls.update();
         }
-        // End controlled transition
         orbitPrevRef.current = null;
-        // Ensure validation is enabled after reset completes
         isTransitioningRef.current = false;
       }
     );
   }, [slides, currentSlide, disableOrbitTemporarily, clearControlsInternal]);
 
-  // Animation lifecycle
+  const { validateMove } = useFixSequenceValidation({
+    fixSequence,
+    fixIndex,
+    fixDoublePartialDir,
+    activeSlideId: activeSlide?.id,
+    lessonId,
+    isTransitioningRef,
+    setFixIndex,
+    setFixDoublePartialDir,
+    setFixErrorPulse,
+    setFixShowTick,
+    orbitControlsRef,
+    cubeViewRef,
+    cubeRef,
+    slide8WhiteCrossYawStateRef,
+    slide6YawChangedRef,
+    slide8YawChangedRef,
+    secondLayerSetupYawChangedRef,
+    secondLayerSetup2YawChangedRef,
+    secondLayerSetup3YawChangedRef,
+    secondLayerSetup4YawChangedRef,
+    yellowEdges2YawChangedRef,
+    yellowEdges3YawChangedRef,
+    yellowEdges4YawChangedRef,
+    yellowCorners2YawChangedRef,
+    yellowCorners3YawChangedRef,
+    orientTwoCornersYawChangedRef,
+    orientThreeCornersYawChangedRef,
+    orientFourCornersYawChangedRef,
+    practiceSetupSolution9YawChangedRef,
+    animateMidlayerStage,
+    triggerFixTick,
+    resetToSlideBaseline,
+    setFixFirstTickProgress,
+    setFixFirstTickLine,
+    setFixFirstTickPlayed,
+    setFixSecondTickProgress,
+    setFixSecondTickLine,
+    setFixSecondTickPlayed,
+    fixFirstTickPlayed,
+    fixSecondTickPlayed,
+    setShowSecondSequenceYellowEdges2,
+    setSecondSequenceYellowEdges2Locked,
+  });
+
   const handleStartAnimation = useCallback(() => {
     setIsAnimating(true);
     isAnimatingRef.current = true;
-    // While a move is animating, temporarily disable orbiting (override view-only rule)
     forceOrbitDisabledRef.current = true;
     handleOrbitControlsChange(false);
   }, [handleOrbitControlsChange]);
 
   const handleMoveAnimationDone = useCallback(
     (move: CubeMove) => {
-      const runStageAnimation = (
-        played: boolean,
-        setKey: React.Dispatch<React.SetStateAction<number>>,
-        setProgress: React.Dispatch<React.SetStateAction<boolean>>,
-        setLine: React.Dispatch<React.SetStateAction<boolean>>,
-        setPlayed: React.Dispatch<React.SetStateAction<boolean>>
-      ) => {
-        if (
-          (activeSlide?.id !== "midlayer-green-white-extraction" &&
-            activeSlide?.id !== "practice-setup-solution-3" &&
-            activeSlide?.id !== "practice-setup-solution-4" &&
-            activeSlide?.id !== "practice-setup-solution-5" &&
-            activeSlide?.id !== "practice-setup-solution-6" &&
-            activeSlide?.id !== "second-layer-setup-solution" &&
-            activeSlide?.id !== "second-layer-setup-solution-2" &&
-            activeSlide?.id !== "second-layer-setup-solution-3" &&
-            activeSlide?.id !== "second-layer-setup-solution-4" &&
-            activeSlide?.id !== "yellow-cross-triangle" &&
-            activeSlide?.id !== "yellow-cross-dot" &&
-            activeSlide?.id !== "yellow-edges-solution-2" &&
-            activeSlide?.id !== "yellow-edges-solution-3" &&
-            activeSlide?.id !== "yellow-corners-solution-2" &&
-            activeSlide?.id !== "yellow-corners-solution-3") ||
-          played
-        )
-          return;
-        setKey((k) => k + 1);
-        setProgress(false);
-        setLine(false);
-        setTimeout(() => setProgress(true), 50); // circle draws
-        setTimeout(() => setLine(true), 300); // checkmark draws
-        setTimeout(() => setPlayed(true), 700); // mark done
-      };
-      const animateMidlayerStage = (stage: 1 | 2 | 3 | 4 | 5) => {
-        if (stage === 1)
-          runStageAnimation(
-            midStage1Played,
-            setMidStage1Key,
-            setMidStage1Progress,
-            setMidStage1Line,
-            setMidStage1Played
-          );
-        else if (stage === 2)
-          runStageAnimation(
-            midStage2Played,
-            setMidStage2Key,
-            setMidStage2Progress,
-            setMidStage2Line,
-            setMidStage2Played
-          );
-        else if (stage === 3)
-          runStageAnimation(
-            midStage3Played,
-            setMidStage3Key,
-            setMidStage3Progress,
-            setMidStage3Line,
-            setMidStage3Played
-          );
-        else if (stage === 4)
-          runStageAnimation(
-            midStage4Played,
-            setMidStage4Key,
-            setMidStage4Progress,
-            setMidStage4Line,
-            setMidStage4Played
-          );
-        else
-          runStageAnimation(
-            midStage5Played,
-            setMidStage5Key,
-            setMidStage5Progress,
-            setMidStage5Line,
-            setMidStage5Played
-          );
-      };
-      // If a baseline reset is in progress, ignore stale animation completions
       if (isResettingRef.current) {
         setPendingMove(null);
         setIsAnimating(false);
@@ -1437,20 +551,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         move === "z'";
 
       if (!isWholeCubeRotation) {
-        // Update logical cube
-        // Note: With flipUpsideDown, yellow is visually on top but logically still at bottom
-        // The drag system detects moves based on logical positions
-        // When user drags on yellow (visual top, logical bottom), system detects D moves
-        // This is correct - no remapping needed, just execute the detected move
         cubeRef.current.move(move);
-        // Update cube3D - tutorialCube3D will be automatically updated via useMemo
-        // This ensures they're always in sync and prevents flicker
         setCube3D(cubejsTo3D(cubeRef.current.getCube()));
 
-        // Add to history if manual (not undo/redo)
         const isManualMove =
-          (window as any).__isManualDragMove ||
-          lastMoveSourceRef.current === "manual";
+          (window as Window & { __isManualDragMove?: boolean })
+            .__isManualDragMove || lastMoveSourceRef.current === "manual";
         const isUndoRedo =
           lastMoveSourceRef.current === "undo" ||
           lastMoveSourceRef.current === "redo";
@@ -1469,19 +575,16 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         }
       }
 
-      // Record whether this came from manual interaction before the ref is cleared
       const wasManual =
-        (window as any).__isManualDragMove ||
-        lastMoveSourceRef.current === "manual";
+        (window as Window & { __isManualDragMove?: boolean })
+          .__isManualDragMove || lastMoveSourceRef.current === "manual";
 
       setPendingMove(null);
       setIsAnimating(false);
       isAnimatingRef.current = false;
-      // Re-enable orbiting after the move concludes (respects locked slides)
       forceOrbitDisabledRef.current = false;
       handleOrbitControlsChange(true);
 
-      // Advance reset queue if applicable
       if (resetQueue && resetQueue.length > 0) {
         const nextIdx = resetIndexRef.current + 1;
         if (nextIdx < resetQueue.length) {
@@ -1499,991 +602,24 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         lastMoveSourceRef.current = null;
       }
 
-      // Fix box validation: only when on an active fix slide and move was manual
-      // Skip validation if we're still transitioning between slides
-      if (fixSequence.length > 0 && wasManual && !isTransitioningRef.current) {
-        const expected = fixSequence[fixIndex];
-        if (!expected) {
-          // Already complete; ignore
-          return;
-        }
-        const exp = parseMove(expected);
-        // For practice-setup-solution, moves are already in logical form (D' R' D R)
-        // The move detected is already logical (D' when dragging on yellow), so no remapping needed
-        const mappedMove = mapMidlayerConceptual(
-          move as string,
-          activeSlide?.id,
-          fixIndex
-        );
-        const got = parseMove(mappedMove);
-
-        const resetWithError = async () => {
-          setFixErrorPulse(true);
-          setTimeout(() => setFixErrorPulse(false), 600);
-          setFixIndex(0);
-          setFixDoublePartialDir(0);
-          setFixShowTick(false);
-          // Go back to first sequence on error for second-layer-setup-solution-4 (instant, no delay)
-          if (activeSlide?.id === "second-layer-setup-solution-4") {
-            setShowSecondSequence(false);
-            setSecondSequenceLocked(false);
-          }
-          // Go back to first sequence on error for yellow-cross-dot (instant, no delay)
-          if (activeSlide?.id === "yellow-cross-dot") {
-            setShowSecondSequenceDot(false);
-            setSecondSequenceDotLocked(false);
-          }
-          // Go back to first sequence on error for yellow-edges-solution-2 (instant, no delay)
-          if (activeSlide?.id === "yellow-edges-solution-2") {
-            setShowSecondSequenceYellowEdges2(false);
-            setSecondSequenceYellowEdges2Locked(false);
-            // Reset yaw change tracking so yaw can change again after reset
-            yellowEdges2YawChangedRef.current = false;
-          }
-          // Reset yaw change tracking for yellow-edges-solution-3 on error
-          if (activeSlide?.id === "yellow-edges-solution-3") {
-            yellowEdges3YawChangedRef.current = false;
-          }
-          // Go back to first sequence on error for yellow-corners-solution-2 (instant, no delay)
-          if (activeSlide?.id === "yellow-corners-solution-2") {
-            setShowSecondSequenceYellowCorners2(false);
-            setSecondSequenceYellowCorners2Locked(false);
-            // Reset yaw change tracking so yaw can change again after reset
-            yellowCorners2YawChangedRef.current = false;
-          }
-          // Go back to first sequence on error for practice-setup-solution-5 (instant, no delay)
-          if (activeSlide?.id === "practice-setup-solution-5") {
-            setShowSecondSequencePracticeSetup5(false);
-            setSecondSequencePracticeSetup5Locked(false);
-          }
-          await resetToSlideBaseline();
-        };
-
-        // Case: double move expected
-        if (exp.mod === "2") {
-          // If we already have a partial quarter for this step
-          if (fixDoublePartialDir !== 0) {
-            // Expect exactly the same base and same direction as first partial, and not a double
-            const expectedDir = fixDoublePartialDir; // 1 for CW (no prime), -1 for CCW (prime)
-            const gotDir = got.mod === "'" ? -1 : got.mod === "2" ? 0 : 1;
-            if (
-              got.base === exp.base &&
-              gotDir !== 0 &&
-              gotDir === expectedDir
-            ) {
-              const nextIndex = fixIndex + 1;
-              setFixIndex(nextIndex);
-              if (
-                activeSlide?.id === "midlayer-green-white-extraction" &&
-                (nextIndex === 3 || nextIndex === 4 || nextIndex === 5)
-              ) {
-                animateMidlayerStage(
-                  nextIndex === 3 ? 1 : nextIndex === 4 ? 2 : 3
-                );
-              }
-              // Change yaw for slide 8 of white cross (midlayer-green-white-extraction)
-              if (
-                activeSlide?.id === "midlayer-green-white-extraction" &&
-                lessonId === "white-cross"
-              ) {
-                // After first sequence (R' D' R) completes, reach index 3: change to -45 degrees (45 degrees to the right)
-                if (
-                  nextIndex === 3 &&
-                  slide8WhiteCrossYawStateRef.current === 0
-                ) {
-                  slide8WhiteCrossYawStateRef.current = 1;
-                  if (orbitControlsRef.current && cubeViewRef.current) {
-                    const c: any = orbitControlsRef.current;
-                    c.__resetOpts = {
-                      extraYawRad: (Math.PI / 180) * -45,
-                      slideId: activeSlide.id,
-                    };
-                    cubeViewRef.current.resetToInitialPosition(
-                      orbitControlsRef,
-                      cubeRef,
-                      () => {
-                        // Yaw change complete
-                      }
-                    );
-                  }
-                }
-                // After second sequence (D') completes, reach index 4: change to 0 degrees (same as slides 6 & 7)
-                if (
-                  nextIndex === 4 &&
-                  slide8WhiteCrossYawStateRef.current === 1
-                ) {
-                  slide8WhiteCrossYawStateRef.current = 2;
-                  if (orbitControlsRef.current && cubeViewRef.current) {
-                    const c: any = orbitControlsRef.current;
-                    c.__resetOpts = {
-                      extraYawRad: 0,
-                      slideId: activeSlide.id,
-                    };
-                    cubeViewRef.current.resetToInitialPosition(
-                      orbitControlsRef,
-                      cubeRef,
-                      () => {
-                        // Yaw change complete
-                      }
-                    );
-                  }
-                }
-              }
-              // Change yaw for slide 6 (misaligned-green-white) when reaching index 1 (after first D' move at index 0)
-              if (
-                activeSlide?.id === "misaligned-green-white" &&
-                nextIndex === 1 &&
-                !slide6YawChangedRef.current
-              ) {
-                slide6YawChangedRef.current = true;
-                // Change to 0 degrees (no yaw change)
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: 0,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-              // Change yaw for slide 7 (flipped-misoriented-misaligned-green-white) when reaching index 1 (after first D' move at index 0)
-              if (
-                activeSlide?.id ===
-                  "flipped-misoriented-misaligned-green-white" &&
-                nextIndex === 1 &&
-                !slide6YawChangedRef.current
-              ) {
-                slide6YawChangedRef.current = true;
-                // Change to 0 degrees (no yaw change)
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: 0,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-3" &&
-                (nextIndex === 4 || nextIndex === 7)
-              ) {
-                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-4" &&
-                (nextIndex === 4 || nextIndex === 7)
-              ) {
-                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-5" &&
-                (nextIndex === 4 || nextIndex === 8 || nextIndex === 11)
-              ) {
-                animateMidlayerStage(
-                  nextIndex === 4 ? 1 : nextIndex === 8 ? 2 : 3
-                );
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-6" &&
-                (nextIndex === 4 || nextIndex === 5 || nextIndex === 8)
-              ) {
-                animateMidlayerStage(
-                  nextIndex === 4 ? 1 : nextIndex === 5 ? 2 : 3
-                );
-                // Change yaw when reaching index 5 (after U move)
-                if (nextIndex === 5 && !slide8YawChangedRef.current) {
-                  slide8YawChangedRef.current = true;
-                  // Change to match slides 3-7: extraYawRad: 0, extraERotationDeg: -45
-                  if (orbitControlsRef.current && cubeViewRef.current) {
-                    const c: any = orbitControlsRef.current;
-                    c.__resetOpts = {
-                      extraYawRad: 0,
-                      flipUpsideDown: true,
-                      extraERotationDeg: -45,
-                      slideId: activeSlide.id,
-                    };
-                    cubeViewRef.current.resetToInitialPosition(
-                      orbitControlsRef,
-                      cubeRef,
-                      () => {
-                        // Yaw change complete
-                      }
-                    );
-                  }
-                }
-              }
-              if (
-                activeSlide?.id === "second-layer-setup-solution" &&
-                (nextIndex === 5 || nextIndex === 8)
-              ) {
-                animateMidlayerStage(nextIndex === 5 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "second-layer-setup-solution-2" &&
-                (nextIndex === 5 || nextIndex === 8)
-              ) {
-                animateMidlayerStage(nextIndex === 5 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "second-layer-setup-solution-4" &&
-                (nextIndex === 5 || nextIndex === 8 || nextIndex === 9)
-              ) {
-                if (nextIndex === 9) {
-                  animateMidlayerStage(3);
-                  // Show second sequence after parts 1-3 complete (delay handled in useEffect)
-                  // Don't set it here - let the useEffect handle it with delay
-                } else {
-                  animateMidlayerStage(nextIndex === 5 ? 1 : 2);
-                }
-              }
-              if (
-                activeSlide?.id === "yellow-cross-dot" &&
-                (nextIndex === 6 ||
-                  nextIndex === 7 ||
-                  nextIndex === 13 ||
-                  nextIndex === 19)
-              ) {
-                animateMidlayerStage(
-                  nextIndex === 6
-                    ? 1
-                    : nextIndex === 7
-                    ? 2
-                    : nextIndex === 13
-                    ? 3
-                    : 4
-                );
-                if (nextIndex === 7) {
-                  // Show second sequence after parts 1-2 complete (delay handled in useEffect)
-                  // Don't set it here - let the useEffect handle it with delay
-                }
-              }
-              if (
-                activeSlide?.id === "yellow-edges-solution-3" &&
-                nextIndex === 1
-              ) {
-                animateMidlayerStage(1);
-                // Change yaw from +45 to +135 after first U2 move completes (90 degrees in opposite direction from slide 3)
-                if (!yellowEdges3YawChangedRef.current) {
-                  yellowEdges3YawChangedRef.current = true;
-                  if (orbitControlsRef.current && cubeViewRef.current) {
-                    const c: any = orbitControlsRef.current;
-                    c.__resetOpts = {
-                      extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
-                      flipUpsideDown: true,
-                      extraERotationDeg: -45,
-                      slideId: activeSlide.id,
-                    };
-                    cubeViewRef.current.resetToInitialPosition(
-                      orbitControlsRef,
-                      cubeRef,
-                      () => {
-                        // Yaw change complete
-                      }
-                    );
-                  }
-                }
-              }
-              setFixDoublePartialDir(0);
-              if (
-                (activeSlide?.id === "flipped-misoriented-green-white" ||
-                  activeSlide?.id === "misaligned-green-white") &&
-                fixIndex === 0 &&
-                !fixFirstTickPlayed
-              ) {
-                // Animate the small inline tick once
-                setFixFirstTickProgress(false);
-                setFixFirstTickLine(false);
-                // start circle
-                setTimeout(() => setFixFirstTickProgress(true), 50);
-                // draw check
-                setTimeout(() => setFixFirstTickLine(true), 300);
-                // mark as played after animation
-                setTimeout(() => setFixFirstTickPlayed(true), 700);
-              } else if (
-                activeSlide?.id ===
-                  "flipped-misoriented-misaligned-green-white" &&
-                fixIndex === 1 &&
-                !fixSecondTickPlayed
-              ) {
-                // Slide 7: animate second-stage small tick when F2 completes as second step
-                setFixSecondTickProgress(false);
-                setFixSecondTickLine(false);
-                setTimeout(() => setFixSecondTickProgress(true), 50);
-                setTimeout(() => setFixSecondTickLine(true), 300);
-                setTimeout(() => setFixSecondTickPlayed(true), 700);
-              }
-              if (fixIndex + 1 >= fixSequence.length) {
-                triggerFixTick();
-              }
-            } else {
-              resetWithError();
-            }
-          } else {
-            // No partial yet: accept either the full double or a single quarter in any direction
-            if (got.base === exp.base && got.mod === "2") {
-              const nextIndex = fixIndex + 1;
-              setFixIndex(nextIndex);
-              if (
-                activeSlide?.id === "midlayer-green-white-extraction" &&
-                (nextIndex === 3 || nextIndex === 4 || nextIndex === 5)
-              ) {
-                animateMidlayerStage(
-                  nextIndex === 3 ? 1 : nextIndex === 4 ? 2 : 3
-                );
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-3" &&
-                (nextIndex === 4 || nextIndex === 7)
-              ) {
-                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-4" &&
-                (nextIndex === 4 || nextIndex === 7)
-              ) {
-                animateMidlayerStage(nextIndex === 4 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "yellow-cross-triangle" &&
-                (nextIndex === 6 || nextIndex === 12)
-              ) {
-                animateMidlayerStage(nextIndex === 6 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "yellow-cross-dot" &&
-                (nextIndex === 6 ||
-                  nextIndex === 7 ||
-                  nextIndex === 13 ||
-                  nextIndex === 19)
-              ) {
-                if (nextIndex === 7) {
-                  animateMidlayerStage(2);
-                  // Show second sequence after parts 1-2 complete (delay handled in useEffect)
-                  // Don't set it here - let the useEffect handle it with delay
-                } else {
-                  animateMidlayerStage(
-                    nextIndex === 6 ? 1 : nextIndex === 13 ? 3 : 4
-                  );
-                }
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-5" &&
-                (nextIndex === 4 || nextIndex === 8 || nextIndex === 11)
-              ) {
-                if (nextIndex === 4) {
-                  animateMidlayerStage(1);
-                } else if (nextIndex === 8) {
-                  animateMidlayerStage(2);
-                } else if (nextIndex === 11) {
-                  animateMidlayerStage(3);
-                  // Lock second sequence when complete
-                  setSecondSequencePracticeSetup5Locked(true);
-                }
-              }
-              if (
-                activeSlide?.id === "practice-setup-solution-6" &&
-                (nextIndex === 4 || nextIndex === 5 || nextIndex === 8)
-              ) {
-                animateMidlayerStage(
-                  nextIndex === 4 ? 1 : nextIndex === 5 ? 2 : 3
-                );
-              }
-              if (
-                activeSlide?.id === "second-layer-setup-solution-3" &&
-                (nextIndex === 5 || nextIndex === 8)
-              ) {
-                animateMidlayerStage(nextIndex === 5 ? 1 : 2);
-              }
-              if (
-                activeSlide?.id === "second-layer-setup-solution-4" &&
-                (nextIndex === 5 || nextIndex === 8 || nextIndex === 9)
-              ) {
-                if (nextIndex === 9) {
-                  animateMidlayerStage(3);
-                  // Show second sequence after parts 1-3 complete (delay handled in useEffect)
-                  // Don't set it here - let the useEffect handle it with delay
-                } else {
-                  animateMidlayerStage(nextIndex === 5 ? 1 : 2);
-                }
-              }
-              if (
-                activeSlide?.id === "second-layer-setup-solution-4" &&
-                (nextIndex === 14 || nextIndex === 17)
-              ) {
-                animateMidlayerStage(nextIndex === 14 ? 4 : 5);
-                if (nextIndex === 17) {
-                  // Lock second sequence when complete
-                  setSecondSequenceLocked(true);
-                }
-              }
-              if (
-                activeSlide?.id === "yellow-edges-solution-3" &&
-                nextIndex === 1
-              ) {
-                animateMidlayerStage(1);
-                // Change yaw from +45 to +135 after first U2 move completes (90 degrees in opposite direction from slide 3)
-                if (!yellowEdges3YawChangedRef.current) {
-                  yellowEdges3YawChangedRef.current = true;
-                  if (orbitControlsRef.current && cubeViewRef.current) {
-                    const c: any = orbitControlsRef.current;
-                    c.__resetOpts = {
-                      extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
-                      flipUpsideDown: true,
-                      extraERotationDeg: -45,
-                      slideId: activeSlide.id,
-                    };
-                    cubeViewRef.current.resetToInitialPosition(
-                      orbitControlsRef,
-                      cubeRef,
-                      () => {
-                        // Yaw change complete
-                      }
-                    );
-                  }
-                }
-              }
-              if (
-                activeSlide?.id === "yellow-corners-solution-2" &&
-                (nextIndex === 8 || nextIndex === 16)
-              ) {
-                animateMidlayerStage(nextIndex === 8 ? 1 : 2);
-                // Change yaw from +45 to +135 after first sequence completes (90 degrees to the right)
-                if (nextIndex === 8 && !yellowCorners2YawChangedRef.current) {
-                  yellowCorners2YawChangedRef.current = true;
-                  if (orbitControlsRef.current && cubeViewRef.current) {
-                    const c: any = orbitControlsRef.current;
-                    c.__resetOpts = {
-                      extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
-                      flipUpsideDown: true,
-                      extraERotationDeg: -45,
-                      slideId: activeSlide.id,
-                    };
-                    cubeViewRef.current.resetToInitialPosition(
-                      orbitControlsRef,
-                      cubeRef,
-                      () => {
-                        // Yaw change complete
-                      }
-                    );
-                  }
-                }
-              }
-              setFixDoublePartialDir(0);
-              // For steps with two-stage UI (5 and 6), animate the small inline first tick once when the first stage completes via full double
-              if (
-                (activeSlide?.id === "flipped-misoriented-green-white" ||
-                  activeSlide?.id === "misaligned-green-white") &&
-                !fixFirstTickPlayed
-              ) {
-                setFixFirstTickProgress(false);
-                setFixFirstTickLine(false);
-                setTimeout(() => setFixFirstTickProgress(true), 50);
-                setTimeout(() => setFixFirstTickLine(true), 300);
-                setTimeout(() => setFixFirstTickPlayed(true), 700);
-              } else if (
-                activeSlide?.id ===
-                  "flipped-misoriented-misaligned-green-white" &&
-                nextIndex === 2 &&
-                !fixSecondTickPlayed
-              ) {
-                // Slide 7: second-stage tick when F2 completes as step 2 in one go
-                setFixSecondTickProgress(false);
-                setFixSecondTickLine(false);
-                setTimeout(() => setFixSecondTickProgress(true), 50);
-                setTimeout(() => setFixSecondTickLine(true), 300);
-                setTimeout(() => setFixSecondTickPlayed(true), 700);
-              }
-              if (fixIndex + 1 >= fixSequence.length) triggerFixTick();
-            } else if (
-              got.base === exp.base &&
-              (got.mod === "" || got.mod === "'")
-            ) {
-              const dir = got.mod === "'" ? -1 : 1;
-              setFixDoublePartialDir(dir);
-            } else {
-              resetWithError();
-            }
-          }
-        } else {
-          // Single quarter expected: must match exactly
-          const mappedMoveForEq = mapMidlayerConceptual(
-            move as string,
-            activeSlide?.id,
-            fixIndex
-          );
-          if (eqMove(mappedMoveForEq, expected)) {
-            const next = fixIndex + 1;
-            setFixIndex(next);
-            if (
-              activeSlide?.id === "midlayer-green-white-extraction" &&
-              (next === 3 || next === 4 || next === 5)
-            ) {
-              animateMidlayerStage(next === 3 ? 1 : next === 4 ? 2 : 3);
-            }
-            // Change yaw for slide 8 of white cross (midlayer-green-white-extraction)
-            if (
-              activeSlide?.id === "midlayer-green-white-extraction" &&
-              lessonId === "white-cross"
-            ) {
-              // After first sequence (R' D' R) completes, reach index 3: change to -45 degrees (45 degrees to the right)
-              if (next === 3 && slide8WhiteCrossYawStateRef.current === 0) {
-                slide8WhiteCrossYawStateRef.current = 1;
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: (Math.PI / 180) * -45,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-              // After second sequence (D') completes, reach index 4: change to 0 degrees (same as slides 6 & 7)
-              if (next === 4 && slide8WhiteCrossYawStateRef.current === 1) {
-                slide8WhiteCrossYawStateRef.current = 2;
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: 0,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-            }
-            // Change yaw for slide 6 (misaligned-green-white) when reaching index 1 (after first D' move at index 0)
-            if (
-              activeSlide?.id === "misaligned-green-white" &&
-              next === 1 &&
-              !slide6YawChangedRef.current
-            ) {
-              slide6YawChangedRef.current = true;
-              // Change to 0 degrees (no yaw change)
-              if (orbitControlsRef.current && cubeViewRef.current) {
-                const c: any = orbitControlsRef.current;
-                c.__resetOpts = {
-                  extraYawRad: 0,
-                  slideId: activeSlide.id,
-                };
-                cubeViewRef.current.resetToInitialPosition(
-                  orbitControlsRef,
-                  cubeRef,
-                  () => {
-                    // Yaw change complete
-                  }
-                );
-              }
-            }
-            // Change yaw for slide 7 (flipped-misoriented-misaligned-green-white) when reaching index 1 (after first D' move at index 0)
-            if (
-              activeSlide?.id ===
-                "flipped-misoriented-misaligned-green-white" &&
-              next === 1 &&
-              !slide6YawChangedRef.current
-            ) {
-              slide6YawChangedRef.current = true;
-              // Change to 0 degrees (no yaw change)
-              if (orbitControlsRef.current && cubeViewRef.current) {
-                const c: any = orbitControlsRef.current;
-                c.__resetOpts = {
-                  extraYawRad: 0,
-                  slideId: activeSlide.id,
-                };
-                cubeViewRef.current.resetToInitialPosition(
-                  orbitControlsRef,
-                  cubeRef,
-                  () => {
-                    // Yaw change complete
-                  }
-                );
-              }
-            }
-            if (
-              activeSlide?.id === "practice-setup-solution-3" &&
-              (next === 4 || next === 7)
-            ) {
-              animateMidlayerStage(next === 4 ? 1 : 2);
-            }
-            if (
-              activeSlide?.id === "practice-setup-solution-4" &&
-              (next === 4 || next === 7)
-            ) {
-              animateMidlayerStage(next === 4 ? 1 : 2);
-            }
-            if (
-              activeSlide?.id === "yellow-cross-triangle" &&
-              (next === 6 || next === 12)
-            ) {
-              animateMidlayerStage(next === 6 ? 1 : 2);
-            }
-            if (activeSlide?.id === "yellow-edges-solution-3" && next === 1) {
-              animateMidlayerStage(1);
-              // Change yaw from +45 to +135 after first U2 move completes (90 degrees in opposite direction from slide 3)
-              if (!yellowEdges3YawChangedRef.current) {
-                yellowEdges3YawChangedRef.current = true;
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
-                    flipUpsideDown: true,
-                    extraERotationDeg: -45,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-            }
-            if (
-              activeSlide?.id === "practice-setup-solution-5" &&
-              (next === 4 || next === 8 || next === 11)
-            ) {
-              if (next === 4) {
-                animateMidlayerStage(1);
-              } else if (next === 8) {
-                animateMidlayerStage(2);
-              } else if (next === 11) {
-                animateMidlayerStage(3);
-                // Lock second sequence when complete
-                setSecondSequencePracticeSetup5Locked(true);
-              }
-            }
-            if (
-              activeSlide?.id === "second-layer-setup-solution-3" &&
-              (next === 5 || next === 8)
-            ) {
-              animateMidlayerStage(next === 5 ? 1 : 2);
-            }
-            if (
-              activeSlide?.id === "second-layer-setup-solution-4" &&
-              (next === 5 || next === 8 || next === 9)
-            ) {
-              animateMidlayerStage(next === 5 ? 1 : next === 8 ? 2 : 3);
-            }
-            if (
-              activeSlide?.id === "yellow-edges-solution-2" &&
-              (next === 1 || next === 9)
-            ) {
-              animateMidlayerStage(next === 1 ? 1 : 2);
-              // Change yaw from +45 to -45 after first U move completes
-              if (next === 1 && !yellowEdges2YawChangedRef.current) {
-                yellowEdges2YawChangedRef.current = true;
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: (Math.PI / 180) * -45, // 45 degrees to the left (negative)
-                    flipUpsideDown: true,
-                    extraERotationDeg: -45,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-              if (next === 9) {
-                // Lock second sequence when complete (but we don't use progressive reveal anymore)
-                // This is kept for consistency but not actually used
-                setSecondSequenceYellowEdges2Locked(true);
-              }
-            }
-            if (activeSlide?.id === "yellow-edges-solution-3" && next === 9) {
-              // Second part completes (single moves), animate second tick
-              animateMidlayerStage(2);
-            }
-            if (
-              activeSlide?.id === "second-layer-setup-solution-4" &&
-              (next === 14 || next === 17)
-            ) {
-              animateMidlayerStage(next === 14 ? 4 : 5);
-              if (next === 17) {
-                // Lock second sequence when complete
-                setSecondSequenceLocked(true);
-              }
-            }
-            if (
-              activeSlide?.id === "yellow-cross-dot" &&
-              (next === 6 || next === 7 || next === 13 || next === 19)
-            ) {
-              animateMidlayerStage(
-                next === 6 ? 1 : next === 7 ? 2 : next === 13 ? 3 : 4
-              );
-              if (next === 19) {
-                // Lock second sequence when complete
-                setSecondSequenceDotLocked(true);
-              }
-            }
-            if (
-              activeSlide?.id === "yellow-corners-solution-2" &&
-              (next === 8 || next === 16)
-            ) {
-              animateMidlayerStage(next === 8 ? 1 : 2);
-              // Change yaw from +45 to +135 after first sequence completes (180 degrees to the right)
-              if (next === 8 && !yellowCorners2YawChangedRef.current) {
-                yellowCorners2YawChangedRef.current = true;
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
-                    flipUpsideDown: true,
-                    extraERotationDeg: -45,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-              if (next === 16) {
-                // Lock second sequence when complete
-                setSecondSequenceYellowCorners2Locked(true);
-              }
-            }
-            if (
-              activeSlide?.id === "yellow-corners-solution-3" &&
-              (next === 8 || next === 16 || next === 24)
-            ) {
-              if (next === 8) {
-                animateMidlayerStage(1);
-              } else if (next === 16) {
-                animateMidlayerStage(2);
-              } else if (next === 24) {
-                animateMidlayerStage(3);
-              }
-              // Change yaw from +45 to +225 after first sequence completes (180 degrees to the right)
-              if (next === 8 && !yellowCorners3YawChangedRef.current) {
-                yellowCorners3YawChangedRef.current = true;
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: (Math.PI / 180) * 225, // 225 degrees to the right (positive)
-                    flipUpsideDown: true,
-                    extraERotationDeg: -45,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-              if (next === 16) {
-                // Lock second sequence when complete
-                setSecondSequenceYellowCorners3Locked(true);
-              }
-              if (next === 24) {
-                // Lock third sequence when complete
-                setThirdSequenceYellowCorners3Locked(true);
-              }
-            }
-            if (
-              activeSlide?.id === "practice-setup-solution-6" &&
-              (next === 4 || next === 5 || next === 8)
-            ) {
-              animateMidlayerStage(next === 4 ? 1 : next === 5 ? 2 : 3);
-              // Change yaw when reaching index 5 (after U move)
-              if (next === 5 && !slide8YawChangedRef.current) {
-                slide8YawChangedRef.current = true;
-                // Change to match slides 3-7: extraYawRad: 0, extraERotationDeg: -45
-                if (orbitControlsRef.current && cubeViewRef.current) {
-                  const c: any = orbitControlsRef.current;
-                  c.__resetOpts = {
-                    extraYawRad: 0,
-                    flipUpsideDown: true,
-                    extraERotationDeg: -45,
-                    slideId: activeSlide.id,
-                  };
-                  cubeViewRef.current.resetToInitialPosition(
-                    orbitControlsRef,
-                    cubeRef,
-                    () => {
-                      // Yaw change complete
-                    }
-                  );
-                }
-              }
-            }
-            if (
-              activeSlide?.id === "second-layer-setup-solution" &&
-              (next === 5 || next === 8)
-            ) {
-              animateMidlayerStage(next === 5 ? 1 : 2);
-            }
-            if (
-              activeSlide?.id === "second-layer-setup-solution-2" &&
-              (next === 5 || next === 8)
-            ) {
-              animateMidlayerStage(next === 5 ? 1 : 2);
-            }
-            setFixDoublePartialDir(0);
-            if (
-              (activeSlide?.id === "flipped-misoriented-green-white" ||
-                activeSlide?.id === "misaligned-green-white" ||
-                activeSlide?.id ===
-                  "flipped-misoriented-misaligned-green-white") &&
-              next === 1 && // after completing first stage (D')
-              !fixFirstTickPlayed
-            ) {
-              setFixFirstTickProgress(false);
-              setFixFirstTickLine(false);
-              setTimeout(() => setFixFirstTickProgress(true), 50);
-              setTimeout(() => setFixFirstTickLine(true), 300);
-              setTimeout(() => setFixFirstTickPlayed(true), 700);
-            }
-            if (next >= fixSequence.length) triggerFixTick();
-          } else {
-            resetWithError();
-          }
-        }
+      if (fixSequence.length > 0 && wasManual) {
+        validateMove(move, wasManual);
       }
     },
-    [
-      resetQueue,
-      fixSequence,
-      fixIndex,
-      fixDoublePartialDir,
-      resetToSlideBaseline,
-      activeSlide?.id,
-      activeSlide,
-      lessonId,
-      triggerFixTick,
-      midStage1Played,
-      midStage2Played,
-      midStage3Played,
-      handleOrbitControlsChange,
-    ]
+    [resetQueue, fixSequence, validateMove, handleOrbitControlsChange]
   );
 
-  // Midlayer staged tick effect removed; handled inline in move handler
+  const hasInteractedGloballyRef = useRef(false);
 
-  // Helper: is cube solved
-  const isSolved = useCallback(() => cubeRef.current.isSolved(), [cube3D]);
-
-  // Helper: check if white cross is solved (proper detection)
-  const isWhiteCrossSolved = useCallback(() => {
-    return checkWhiteCrossSolved(cube3D);
-  }, [cube3D]);
-
-  // Helper: check if white corners are solved (proper detection)
-  const isWhiteCornersSolved = useCallback(() => {
-    return checkWhiteCornersSolved(cube3D);
-  }, [cube3D]);
-
-  // Helper: check if second layer is solved (proper detection)
-  const isSecondLayerSolved = useCallback(() => {
-    return checkSecondLayerSolved(cube3D);
-  }, [cube3D]);
-
-  // Monitor practice slide completion
   useEffect(() => {
-    const isPracticeSlide =
-      activeSlide?.id === "practice-two-edges" ||
-      activeSlide?.id === "practice-three-edges" ||
-      activeSlide?.id === "practice-full-cross" ||
-      activeSlide?.id === "practice-white-corners" ||
-      activeSlide?.id === "practice-white-corners-2" ||
-      activeSlide?.id === "practice-white-corners-3" ||
-      activeSlide?.id === "practice-second-layer" ||
-      activeSlide?.id === "practice-second-layer-2" ||
-      activeSlide?.id === "practice-second-layer-3";
-    if (!isPracticeSlide) return;
-    if (!practiceSetupComplete) return; // Wait for setup to complete
+    hasInteractedGloballyRef.current = false;
+  }, [currentSlide]);
 
-    const isWhiteCornersPractice =
-      activeSlide?.id === "practice-white-corners" ||
-      activeSlide?.id === "practice-white-corners-2" ||
-      activeSlide?.id === "practice-white-corners-3";
-    const isSecondLayerPractice =
-      activeSlide?.id === "practice-second-layer" ||
-      activeSlide?.id === "practice-second-layer-2" ||
-      activeSlide?.id === "practice-second-layer-3";
-
-    const crossSolved = isWhiteCrossSolved();
-    const cornersSolved = isWhiteCornersSolved();
-    const secondLayerSolved = isSecondLayerSolved();
-
-    const isSolved = isWhiteCornersPractice
-      ? crossSolved && cornersSolved
-      : isSecondLayerPractice
-      ? secondLayerSolved
-      : crossSolved;
-
-    // Record the initial state after setup
-    if (practiceInitialCrossState === null) {
-      setPracticeInitialCrossState(isSolved);
-      return; // Don't process completion on initial state
-    }
-
-    // Only mark as completed if:
-    // 1. Both cross and corners are solved (for practice-white-corners) or just cross (for others) AND
-    // 2. Either it wasn't initially solved, OR the user has made moves (indicating active solving)
-    if (isSolved && !practiceCompleted) {
-      if (!practiceInitialCrossState || moveHistory.length > 0) {
-        setPracticeCompleted(true);
-        setPracticeShowTick(true);
-        setPracticeTickAnimKey((k) => k + 1);
-
-        // Animate the tick
-        setPracticeTickProgress(false);
-        setPracticeTickLine(false);
-        setTimeout(() => setPracticeTickProgress(true), 50);
-        setTimeout(() => setPracticeTickLine(true), 300);
-      }
-    }
-  }, [
-    activeSlide?.id,
-    cube3D,
-    isWhiteCrossSolved,
-    isWhiteCornersSolved,
-    isSecondLayerSolved,
-    practiceCompleted,
-    practiceSetupComplete,
-    practiceInitialCrossState,
-    moveHistory.length,
-  ]);
-
-  // Removed old findGreenWhiteEdgeIndex; now we highlight all four white edges instead
-  // Helper functions moved to utils/tutorialHelpers.ts
+  const sequencePortalPosition = useSequencePortalPosition({
+    fixSequenceLength: fixSequence.length,
+    activeSlideId: activeSlide?.id,
+    cubeContainerRef,
+  });
 
   return (
     <div
@@ -2505,2183 +641,109 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         backgroundBlendMode: "normal",
       }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-white border-b">
-        <Button onClick={onBack} className="text-blue-600 hover:text-blue-800">
-          ← Back to Lessons
-        </Button>
-        <h1 className="text-xl font-bold text-gray-800">{title}</h1>
-        <Button
-          onClick={() => setShowLessonContent(!showLessonContent)}
-          className="text-blue-600 hover:text-blue-800 md:hidden"
-        >
-          {showLessonContent ? "Hide" : "Help"}
-        </Button>
-        <div className="w-20 hidden md:block"></div>{" "}
-        {/* Spacer for center alignment */}
-      </div>
+      <TutorialHeader title={title} onBack={onBack} />
 
-      {/* Main content */}
       <div
         className={`flex flex-1 min-h-0 ${
-          activeSlide?.id === "recap-mental-model" ||
-          activeSlide?.id === "recap-white-corners" ||
-          activeSlide?.id === "second-layer-recap" ||
-          activeSlide?.id === "yellow-cross-states"
+          checkIsRecapSlide(activeSlide?.id)
             ? "h-[100dvh] overflow-hidden"
             : "overflow-hidden"
         }`}
       >
-        {/* Lesson content sidebar - responsive (hidden on recap slide) */}
-        {activeSlide?.id !== "recap-mental-model" &&
-          activeSlide?.id !== "recap-white-corners" &&
-          activeSlide?.id !== "second-layer-recap" && (
-            <div
-              className={`${
-                showLessonContent ? "block" : "hidden"
-              } md:block w-full md:w-80 bg-gray-50 border-r overflow-y-auto ${
-                showLessonContent ? "absolute md:relative z-10 h-full" : ""
-              }`}
-            >
-              <LessonContent lessonId={lessonId} />
-            </div>
-          )}
-
-        {/* Viewer area: always render the cube, recap overlay on top when needed */}
-        <div className="flex-1 relative min-h-0">
-          <div className="relative w-full h-full">
-            {/* Background cube - always rendered */}
-            <div
-              ref={cubeContainerRef}
-              className="relative w-full h-full bg-black/20 backdrop-blur-sm border border-white/20"
-            >
-              <div
-                className="absolute -top-1 w-full h-full"
-                ref={overlayContainerRef}
-              >
-                <Canvas
-                  ref={canvasRef}
-                  camera={{
-                    position: [4, 4, 4],
-                    fov: 60,
-                  }}
-                  className="w-full h-full"
-                  style={{ background: "transparent", touchAction: "none" }}
-                  dpr={canvasDpr}
-                  gl={{
-                    antialias: true,
-                    powerPreference: "high-performance",
-                    alpha: true,
-                    stencil: false,
-                    depth: true,
-                    preserveDrawingBuffer: false,
-                  }}
-                  onCreated={(state) => {
-                    attachSetDpr(state.setDpr);
-                    state.gl.localClippingEnabled = true;
-                    const canvas = state.gl.domElement as HTMLCanvasElement;
-                    const onLost = (ev: Event) => ev.preventDefault();
-                    const onRestored = () => {
-                      try {
-                        state.gl.resetState();
-                      } catch {}
-                    };
-                    canvas.addEventListener(
-                      "webglcontextlost",
-                      onLost as any,
-                      false
-                    );
-                    canvas.addEventListener(
-                      "webglcontextrestored",
-                      onRestored as any,
-                      false
-                    );
-                  }}
-                  onPointerDownCapture={(e) => {
-                    if (isTouchDevice) setInteractiveDpr();
-                    const isPracticeSlide =
-                      activeSlide?.id === "practice-two-edges" ||
-                      activeSlide?.id === "practice-three-edges" ||
-                      activeSlide?.id === "practice-full-cross" ||
-                      activeSlide?.id === "practice-white-corners" ||
-                      activeSlide?.id === "practice-white-corners-2" ||
-                      activeSlide?.id === "practice-white-corners-3" ||
-                      activeSlide?.id === "practice-second-layer" ||
-                      activeSlide?.id === "practice-second-layer-2" ||
-                      activeSlide?.id === "practice-second-layer-3";
-                    const isRecapSlide =
-                      activeSlide?.id === "recap-mental-model" ||
-                      activeSlide?.id === "recap-white-corners" ||
-                      activeSlide?.id === "second-layer-recap" ||
-                      activeSlide?.id === "yellow-cross-states";
-                    const dragAllowed =
-                      !!activeSlide?.allowFaceMoves &&
-                      !(isPracticeSlide && practiceCompleted) &&
-                      !fixCompleted &&
-                      !isRecapSlide;
-                    if (dragAllowed) {
-                      cubeViewRef.current?.handlePointerDown(e);
-                    }
-                  }}
-                  onPointerMoveCapture={() => {
-                    if (isTouchDevice) setInteractiveDpr();
-                  }}
-                  onPointerUpCapture={() => {
-                    if (isTouchDevice) setInteractiveDpr();
-                    cubeViewRef.current?.handlePointerUp?.();
-                  }}
-                >
-                  <PerformanceMonitor
-                    onDecline={onDecline}
-                    onIncline={onIncline}
-                  />
-                  <spotLight
-                    position={[-30, 20, 60]}
-                    intensity={0.3}
-                    castShadow
-                  />
-                  <ambientLight
-                    intensity={
-                      activeSlide?.id === "recap-mental-model" ||
-                      activeSlide?.id === "recap-white-corners" ||
-                      activeSlide?.id === "second-layer-recap" ||
-                      activeSlide?.id === "yellow-cross-states"
-                        ? 0.95
-                        : 1.1
-                    }
-                    color={CUBE_COLORS.WHITE}
-                  />
-                  <TrackballControls
-                    ref={orbitControlsRef}
-                    enabled={orbitControlsEnabled}
-                    noRotate={(() => {
-                      const isRecapSlide =
-                        activeSlide?.id === "recap-mental-model" ||
-                        activeSlide?.id === "recap-white-corners" ||
-                        activeSlide?.id === "second-layer-recap" ||
-                        activeSlide?.id === "yellow-cross-states";
-                      return isRecapSlide ? true : !orbitControlsEnabled;
-                    })()}
-                    noZoom={true}
-                    noPan={true}
-                    staticMoving={false}
-                    dynamicDampingFactor={0.35}
-                    rotateSpeed={1.2}
-                    zoomSpeed={1.2}
-                    panSpeed={4.0}
-                    minDistance={3}
-                    maxDistance={15}
-                  />
-                  <RubiksCube3D
-                    ref={cubeViewRef}
-                    cubeState={tutorialCube3D}
-                    touchCount={touchCount}
-                    pendingMove={pendingMove}
-                    onMoveAnimationDone={handleMoveAnimationDone}
-                    onStartAnimation={handleStartAnimation}
-                    isAnimating={isAnimating}
-                    onOrbitControlsChange={handlePracticeOrbitChange}
-                    onDragMove={handleButtonMove}
-                    isTimerMode={false}
-                    moveSource={lastMoveSourceRef.current}
-                    queueFast={queueFast}
-                    queueFastMs={queueFastMs}
-                    inputDisabled={(() => {
-                      // Recap slides: always disabled
-                      if (
-                        activeSlide?.id === "recap-mental-model" ||
-                        activeSlide?.id === "recap-white-corners" ||
-                        activeSlide?.id === "second-layer-recap" ||
-                        activeSlide?.id === "yellow-cross-states"
-                      ) {
-                        return true;
-                      }
-                      // Practice slides when completed: disable moves
-                      const isPracticeSlide =
-                        activeSlide?.id === "practice-two-edges" ||
-                        activeSlide?.id === "practice-three-edges" ||
-                        activeSlide?.id === "practice-full-cross" ||
-                        activeSlide?.id === "practice-white-corners" ||
-                        activeSlide?.id === "practice-white-corners-2" ||
-                        activeSlide?.id === "practice-white-corners-3" ||
-                        activeSlide?.id === "practice-second-layer" ||
-                        activeSlide?.id === "practice-second-layer-2" ||
-                        activeSlide?.id === "practice-second-layer-3";
-                      if (isPracticeSlide && practiceCompleted) {
-                        return true;
-                      }
-                      // Otherwise use the state value
-                      return inputDisabled || isTransitioningRef.current;
-                    })()}
-                    disableSliceDrag={
-                      activeSlide?.id === "recap-mental-model" ||
-                      activeSlide?.id === "recap-white-corners" ||
-                      activeSlide?.id === "second-layer-recap" ||
-                      activeSlide?.id === "yellow-cross-states"
-                        ? true
-                        : activeSlide?.id === "intro" ||
-                          activeSlide?.id === "mechanical-approach" ||
-                          activeSlide?.id === "find-green-white" ||
-                          fixCompleted ||
-                          ((activeSlide?.id === "practice-two-edges" ||
-                            activeSlide?.id === "practice-three-edges" ||
-                            activeSlide?.id === "practice-full-cross" ||
-                            activeSlide?.id === "practice-white-corners" ||
-                            activeSlide?.id === "practice-white-corners-2" ||
-                            activeSlide?.id === "practice-white-corners-3" ||
-                            activeSlide?.id === "practice-second-layer" ||
-                            activeSlide?.id === "practice-second-layer-2" ||
-                            activeSlide?.id === "practice-second-layer-3") &&
-                            practiceCompleted)
-                    }
-                    preventSliceMoves={
-                      activeSlide?.id === "recap-mental-model" ||
-                      activeSlide?.id === "recap-white-corners" ||
-                      activeSlide?.id === "second-layer-recap" ||
-                      activeSlide?.id === "yellow-cross-states"
-                        ? true
-                        : !activeSlide?.allowFaceMoves ||
-                          activeSlide?.id === "mechanical-approach" ||
-                          ((activeSlide?.id === "practice-two-edges" ||
-                            activeSlide?.id === "practice-three-edges" ||
-                            activeSlide?.id === "practice-full-cross" ||
-                            activeSlide?.id === "practice-white-corners" ||
-                            activeSlide?.id === "practice-white-corners-2" ||
-                            activeSlide?.id === "practice-white-corners-3" ||
-                            activeSlide?.id === "practice-second-layer" ||
-                            activeSlide?.id === "practice-second-layer-2" ||
-                            activeSlide?.id === "practice-second-layer-3") &&
-                            practiceCompleted)
-                    }
-                    highlightIntensity={(() => {
-                      const ids = new Set([
-                        "flip-green-white",
-                        "flip-green-white-f2",
-                        "misaligned-green-white",
-                        "flipped-misoriented-green-white",
-                        "flipped-misoriented-misaligned-green-white",
-                        "midlayer-green-white-extraction",
-                        "practice-two-edges",
-                      ]);
-                      return activeSlide?.id && ids.has(activeSlide.id) ? 1 : 0;
-                    })()}
-                    highlightPositions={(() => {
-                      // For white corners mechanical-approach: mark white/green/red corner (to keep it undimmed)
-                      if (
-                        activeSlide?.id === "mechanical-approach" &&
-                        lessonId === "white-corners"
-                      ) {
-                        const pos = findWhiteGreenRedCorner(tutorialCube3D);
-                        return pos ? [pos] : [];
-                      }
-                      // For second layer mechanical-approach: mark red/green edge (to keep it undimmed)
-                      if (
-                        activeSlide?.id === "mechanical-approach" &&
-                        lessonId === "second-layer"
-                      ) {
-                        const pos = findRedGreenSecondLayerEdge(tutorialCube3D);
-                        return pos ? [pos] : [];
-                      }
-                      // For white cross find-green-white: mark green/white edge (to keep it undimmed)
-                      if (
-                        activeSlide?.id === "find-green-white" &&
-                        lessonId === "white-cross"
-                      ) {
-                        const pos = findGreenWhiteEdge(tutorialCube3D);
-                        return pos ? [pos] : [];
-                      }
-                      return undefined;
-                    })()}
-                    dullOthersIntensity={(() => {
-                      // Dim visible (non-highlighted) pieces for mechanical-approach slides
-                      // The target piece will remain undimmed because it's in highlightPositions
-                      if (
-                        activeSlide?.id === "mechanical-approach" &&
-                        (lessonId === "white-corners" ||
-                          lessonId === "second-layer")
-                      ) {
-                        return 0.75; // Increased from 0.5 to 0.75 for darker dimming
-                      }
-                      // Dim visible (non-highlighted) pieces for find-green-white slide in white cross
-                      // The target piece will remain undimmed because it's in highlightPositions
-                      if (
-                        activeSlide?.id === "find-green-white" &&
-                        lessonId === "white-cross"
-                      ) {
-                        return 0.75; // Same dimming intensity as mechanical-approach slides
-                      }
-                      return 0;
-                    })()}
-                    pieceChildren={combinedPieceChildren}
-                  />
-                </Canvas>
-              </div>
-            </div>
-
-            {/* Status indicator for practice slides */}
-            {(activeSlide?.id === "practice-two-edges" ||
-              activeSlide?.id === "practice-three-edges" ||
-              activeSlide?.id === "practice-full-cross" ||
-              activeSlide?.id === "practice-white-corners" ||
-              activeSlide?.id === "practice-white-corners-2" ||
-              activeSlide?.id === "practice-white-corners-3" ||
-              activeSlide?.id === "practice-second-layer" ||
-              activeSlide?.id === "practice-second-layer-2" ||
-              activeSlide?.id === "practice-second-layer-3") && (
-              <PracticeStatusIndicator
-                isSolved={practiceCompleted}
-                showTick={practiceShowTick}
-                tickAnimKey={practiceTickAnimKey}
-                tickProgress={practiceTickProgress}
-                tickLine={practiceTickLine}
-              />
-            )}
-
-            {/* Scrollable recap overlay - positioned absolutely on top when needed */}
-            {(activeSlide?.id === "recap-mental-model" ||
-              activeSlide?.id === "recap-white-corners" ||
-              activeSlide?.id === "second-layer-recap") && (
-              <div className="absolute inset-0 z-30 overflow-y-auto">
-                <div className="max-w-3xl mx-auto p-5 md:p-8 pb-[calc(env(safe-area-inset-bottom,0px)+96px)] md:pb-[calc(env(safe-area-inset-bottom,0px)+112px)] text-gray-800 bg-white/95 backdrop-blur">
-                  {activeSlide?.id === "recap-mental-model" ? (
-                    <>
-                      <div className="mb-2">
-                        <span className="block text-lg md:text-xl font-bold uppercase tracking-wide text-blue-600 mb-2">
-                          QUICK RECAP – Green/White Edge
-                        </span>
-                        <p className="text-sm md:text-base text-gray-700 mb-4">
-                          You may have already noticed that some cases in
-                          previous slides can be solved in fewer moves, but
-                          shortcuts aren’t the focus here. The key idea is
-                          simple: remove from incorrect middle/top layer (if
-                          necessary), align the edge with green, place it
-                          between the green and white center pieces, and then
-                          fix its orientation if needed. We use this method
-                          because it’s easier to remember and helps keep the
-                          other correctly placed white edge pieces in position.
-                        </p>
-                      </div>
-
-                      <p className="text-sm md:text-base font-semibold mb-2">
-                        Steps:
-                      </p>
-                      <ul className="list-decimal pl-6 space-y-2 text-sm md:text-base leading-relaxed">
-                        <li>
-                          <strong>Extract (if stuck):</strong> If the
-                          green/white edge is trapped in the middle layer or
-                          sitting in the top layer but not above the green
-                          center, first free it. Use <code>R' D' R</code> to
-                          pull it out of the middle layer into the top layer. If
-                          it’s already on the right face of the top layer but
-                          over the wrong center, do
-                          <code> R2</code> (optionally followed by a{" "}
-                          <code>U</code>/<code>U'</code> turn) so you can
-                          realign it in front.
-                        </li>
-                        <li>
-                          <strong>Align:</strong> Rotate <code>D</code> until
-                          the green/white edge is under the green center.
-                        </li>
-                        <li>
-                          <strong>Place:</strong> Do <code>F2</code> to move it
-                          between the green and white centers.
-                        </li>
-                        <li>
-                          <strong>Flip (if needed):</strong> If white isn’t
-                          facing the white center, repeat <code>F U’ R U</code>{" "}
-                          until it is.
-                        </li>
-                      </ul>
-
-                      <p className="mt-4 text-sm md:text-base text-gray-700">
-                        <strong>Why it works:</strong> The quick extraction puts
-                        the edge into a predictable top-layer position so every
-                        case funnels into the same simple flow. Aligning under
-                        green standardizes setup. <code>F2</code> solves upside-
-                        down edges immediately. <code>F U' R U</code> then flips
-                        any sideways edge without disturbing solved white pieces
-                        because the working slot is reused and restored each
-                        time.
-                      </p>
-                    </>
-                  ) : activeSlide?.id === "recap-white-corners" ? (
-                    <>
-                      <div className="mb-2">
-                        <span className="block text-lg md:text-xl font-bold uppercase tracking-wide text-blue-600 mb-2">
-                          QUICK RECAP – White Corners
-                        </span>
-                        <p className="text-sm md:text-base text-gray-700 mb-4">
-                          Now that you've learned the algorithms for solving
-                          white corners, let's summarize what we've covered.
-                          Working from white on the bottom, we use the yellow
-                          layer to find corner pieces and insert them correctly.
-                          The key is recognizing different scenarios and
-                          applying the right algorithm for each case.
-                        </p>
-                      </div>
-
-                      <p className="text-sm md:text-base font-semibold mb-2">
-                        Algorithms and their purposes:
-                      </p>
-                      <ul className="list-disc pl-6 space-y-3 text-sm md:text-base leading-relaxed mb-4">
-                        <li>
-                          <strong>
-                            <code>R U R'</code> (Slide 3):
-                          </strong>{" "}
-                          Inserts a corner piece that's in the top layer with
-                          the white sticker facing right. Used when the corner
-                          is matched with the red and green centers, with red
-                          facing front.
-                        </li>
-                        <li>
-                          <strong>
-                            <code>L' U' L</code> (Slide 4):
-                          </strong>{" "}
-                          Inserts a corner piece that's in the top layer with
-                          the white sticker facing up. Used when the corner is
-                          matched with the green and red centers, with green
-                          facing front.
-                        </li>
-                        <li>
-                          <strong>
-                            <code>R U2 R' U'</code> (Slide 5, Part 1):
-                          </strong>{" "}
-                          Flips a corner piece when the white sticker is facing
-                          up. This brings it into a position where it can be
-                          inserted using the basic insertion algorithm.
-                        </li>
-                        <li>
-                          <strong>
-                            <code>R U R' U'</code> (Slide 4, Slide 6, Slide 7):
-                          </strong>{" "}
-                          Removes a corner piece from the bottom layer and
-                          brings it to the top layer. When repeated twice, it
-                          solves a corner that's in the correct position but
-                          incorrectly oriented.
-                        </li>
-                        <li>
-                          <strong>
-                            <code>R U R'</code> (Slide 5, Part 2; Slide 6, Part
-                            2; Slide 7, Part 3):
-                          </strong>{" "}
-                          Inserts the corner piece after it's been brought to
-                          the correct position. This is the basic insertion
-                          algorithm used after positioning.
-                        </li>
-                      </ul>
-
-                      <p className="mt-4 text-sm md:text-base text-gray-700 mb-4">
-                        <strong>Summary:</strong> The approach is systematic:
-                        find a white corner in the yellow layer, position it
-                        above its target corner using U moves, then insert it
-                        using either <code>R U R'</code> or <code>L' U' L</code>{" "}
-                        depending on the orientation. If a corner is already in
-                        place but wrong orientation, use <code>R U R' U'</code>{" "}
-                        twice to remove and reinsert it correctly. For corners
-                        with white facing up, first flip them with{" "}
-                        <code>R U2 R' U'</code>, then insert. The pattern is
-                        consistent: bring the corner to the top layer, align it,
-                        then insert it into its correct position.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="mb-2">
-                        <span className="block text-lg md:text-xl font-bold uppercase tracking-wide text-blue-600 mb-2">
-                          QUICK RECAP – Second Layer
-                        </span>
-                        <p className="text-sm md:text-base text-gray-700 mb-4">
-                          Now that you've learned the algorithms for solving the
-                          second layer, let's summarize what we've covered. The
-                          second layer involves inserting edge pieces that don't
-                          have yellow stickers into their correct positions
-                          between the white face and the yellow layer. You have
-                          two key algorithms at your disposal, each with two
-                          parts depending on which side of the target slot
-                          you're working from.
-                        </p>
-                      </div>
-
-                      <p className="text-sm md:text-base font-semibold mb-2">
-                        Algorithms and their purposes:
-                      </p>
-                      <ul className="list-disc pl-6 space-y-3 text-sm md:text-base leading-relaxed mb-4">
-                        <li>
-                          <strong>Left Insertion Algorithm:</strong>{" "}
-                          <code>U' L' U' L U</code> (on the right hand of the
-                          target corner) / <code>R U R'</code> (on the left hand
-                          of the target corner). This algorithm inserts an edge
-                          piece that needs to go into the left side of its slot.
-                          Use this when the edge piece's top color aligns with
-                          the left-hand center color of the target slot.
-                        </li>
-                        <li>
-                          <strong>Right Insertion Algorithm:</strong>{" "}
-                          <code>U R U R' U'</code> (on the left hand of the
-                          target corner) / <code>L' U' L</code> (on the right
-                          hand of the target corner). This algorithm inserts an
-                          edge piece that needs to go into the right side of its
-                          slot. Use this when the edge piece's top color aligns
-                          with the right-hand center color of the target slot.
-                        </li>
-                      </ul>
-
-                      <p className="mt-4 text-sm md:text-base text-gray-700 mb-4">
-                        <strong>Summary:</strong> The approach is systematic:
-                        find a second layer edge piece (one without yellow) in
-                        the yellow layer, align its top color with the matching
-                        center color, determine whether it needs to go into the
-                        left or right side of its slot, then use the appropriate
-                        insertion algorithm. These algorithms are versatile -
-                        you can use them to both remove misplaced edge pieces
-                        from the second layer and insert new pieces into their
-                        correct positions. If a piece is already in the correct
-                        position but incorrectly oriented, use the right
-                        insertion algorithm to swap it with a yellow-faced edge,
-                        then reinsert it correctly.
-                      </p>
-                    </>
-                  )}
-                </div>
-                {/* Recap slide fixed footer via portal for robust mobile behavior */}
-                {typeof document !== "undefined"
-                  ? createPortal(
-                      <div
-                        className="fixed inset-x-0 bottom-0 w-full bg-white/95 backdrop-blur border-t shadow-inner z-[999] pointer-events-auto"
-                        style={{
-                          paddingBottom: "env(safe-area-inset-bottom, 0px)",
-                        }}
-                      >
-                        <div className="max-w-screen-2xl mx-auto px-3 md:px-6 py-3 md:py-4">
-                          <div className="flex items-center gap-2 justify-end">
-                            <Button
-                              onClick={() =>
-                                setCurrentSlide(Math.max(0, currentSlide - 1))
-                              }
-                              disabled={currentSlide === 0}
-                              className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
-                            >
-                              Prev
-                            </Button>
-                            <Button
-                              onClick={() =>
-                                setCurrentSlide(
-                                  Math.min(slides.length - 1, currentSlide + 1)
-                                )
-                              }
-                              disabled={currentSlide >= slides.length - 1}
-                              className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
-                            >
-                              Next
-                            </Button>
-                          </div>
-                        </div>
-                      </div>,
-                      document.body
-                    )
-                  : null}
-              </div>
-            )}
-
-            {/* Yellow Cross states grid overlay - 2x2 grid of cubes */}
-            {activeSlide?.id === "yellow-cross-states" && (
-              <div className="absolute inset-0 z-30 flex items-stretch justify-center p-8">
-                <div className="w-full max-w-4xl bg-white/95 backdrop-blur rounded-lg shadow-xl p-6 md:p-8 flex flex-col">
-                  <div className="grid grid-cols-2 grid-rows-2 gap-6 flex-1">
-                    {/* Top row */}
-                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
-                      <div className="text-lg font-semibold text-gray-700 mb-2">
-                        Cross
-                      </div>
-                      <div className="text-sm text-gray-500">Placeholder</div>
-                    </div>
-                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
-                      <div className="text-lg font-semibold text-gray-700 mb-2">
-                        Line
-                      </div>
-                      <div className="text-sm text-gray-500">Placeholder</div>
-                    </div>
-                    {/* Bottom row */}
-                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
-                      <div className="text-lg font-semibold text-gray-700 mb-2">
-                        Triangle
-                      </div>
-                      <div className="text-sm text-gray-500">Placeholder</div>
-                    </div>
-                    <div className="flex flex-col items-center justify-center bg-gray-100 rounded-lg border-2 border-gray-300">
-                      <div className="text-lg font-semibold text-gray-700 mb-2">
-                        Dot
-                      </div>
-                      <div className="text-sm text-gray-500">Placeholder</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Overlay controls anchored to cube view corners - only for non-recap slides */}
-            {activeSlide?.id !== "recap-mental-model" &&
-              activeSlide?.id !== "recap-white-corners" &&
-              activeSlide?.id !== "second-layer-recap" &&
-              activeSlide?.id !== "yellow-cross-states" && (
-                <div className="pointer-events-none absolute inset-0">
-                  {/* Hard lock overlay removed for find-green-white to allow orbit */}
-                  {/* Undo/Redo removed for tutorial */}
-                  {/* Reset or Re-position button - Logic: Notation=all Reset, Other lessons=slides 1&2 Re-position, rest Reset */}
-                  {(() => {
-                    // All notation slides get Reset
-                    // For other lessons: slides 1 & 2 (index 0 & 1) get Re-position, rest get Reset
-                    // Exception: yellow-edges slide 2 (yellow-edges-solution) and yellow-corners slide 2 (yellow-corners-solution) get Reset
-                    const shouldShowReset =
-                      lessonId === "notation" ||
-                      activeSlide?.id === "yellow-edges-solution" ||
-                      activeSlide?.id === "yellow-corners-solution" ||
-                      currentSlide >= 2;
-                    const shouldShowReposition = !shouldShowReset;
-
-                    return shouldShowReset ? (
-                      <div className="absolute bottom-4 left-2 md:left-4 z-30 pointer-events-auto">
-                        <button
-                          onClick={async () => {
-                            await resetToSlideBaseline();
-                          }}
-                          className="px-3 md:px-4 py-2 bg-orange-500 text-white rounded shadow hover:bg-orange-600 transition-all text-xs md:text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Reset cube to solved state"
-                          disabled={isAnimating || isResetting}
-                        >
-                          {isResetting ? (
-                            <span className="w-4 h-4 mr-2 border-2 border-gray-200 border-t-2 border-t-white rounded-full animate-spin"></span>
-                          ) : null}
-                          Reset
-                        </button>
-                      </div>
-                    ) : shouldShowReposition ? (
-                      <div className="absolute bottom-4 left-2 md:left-4 z-30 pointer-events-auto">
-                        <button
-                          onClick={() => {
-                            const c: any = orbitControlsRef.current;
-                            if (!c) return;
-                            c.__resetOpts = getSlideCameraConfig(
-                              activeSlide?.id,
-                              lessonId
-                            );
-                            cubeViewRef.current?.resetToInitialPosition(
-                              orbitControlsRef,
-                              cubeRef,
-                              undefined,
-                              false
-                            );
-                          }}
-                          className="px-3 md:px-4 py-2 bg-gray-500 text-white rounded shadow hover:bg-gray-600 transition-all text-xs md:text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Re-position cube"
-                          disabled={isAnimating}
-                        >
-                          Re-position
-                        </button>
-                      </div>
-                    ) : null;
-                  })()}
-                  {/* Spin trackpad bottom-left, above slide text bar (always visible on non-touch devices) */}
-                  {!isTouchDevice && activeSlide?.id !== "find-green-white" && (
-                    <div className="absolute left-2 md:right-3 bottom-28 md:bottom-3 z-20 pointer-events-auto">
-                      <SpinTrackpad
-                        onPointerDown={handleTrackpadPointerDown}
-                        onPointerMove={handleTrackpadPointerMove}
-                        onPointerUp={handleTrackpadPointerUp}
-                        onPointerCancel={handleTrackpadPointerUp}
-                        isTouchDevice={isTouchDevice}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-            {/* Fix box for steps 3-8 with step-by-step validation; add active highlight border like slide 8 */}
-            {fixSequence.length > 0 && (
-              <div className="absolute top-2 left-2 md:top-3 md:left-3 z-30 pointer-events-auto">
-                <div
-                  className={(() => {
-                    const activeHighlightSlides = new Set([
-                      "flip-green-white-f2",
-                      "flip-green-white",
-                      "flipped-misoriented-green-white",
-                      "misaligned-green-white",
-                      "flipped-misoriented-misaligned-green-white",
-                      "midlayer-green-white-extraction",
-                    ]);
-                    const inProgress =
-                      activeSlide &&
-                      activeHighlightSlides.has(activeSlide.id) &&
-                      fixIndex < fixSequence.length;
-                    const base =
-                      " rounded-lg h-10 px-3 py-2 text-xs md:text-sm font-semibold flex items-center gap-2 transition-colors ";
-                    if (fixErrorPulse) {
-                      return (
-                        base + "border border-red-400 bg-red-50 text-red-700"
-                      );
-                    }
-                    if (inProgress) {
-                      return base + " border-blue-500 text-blue-200"; // darker border while active
-                    }
-                    return base + " border-blue-300 text-blue-200";
-                  })()}
-                  style={{ minWidth: "140px" }}
-                >
-                  {(() => {
-                    const shouldHideFrontFace =
-                      lessonId === "white-cross" &&
-                      (activeSlide?.id === "flip-green-white-f2" ||
-                        activeSlide?.id === "flip-green-white" ||
-                        activeSlide?.id === "flipped-misoriented-green-white" ||
-                        activeSlide?.id === "misaligned-green-white" ||
-                        activeSlide?.id ===
-                          "flipped-misoriented-misaligned-green-white");
-
-                    if (
-                      activeSlide?.id === "practice-setup-solution" ||
-                      activeSlide?.id === "practice-setup-solution-2" ||
-                      activeSlide?.id === "yellow-cross-line" ||
-                      activeSlide?.id === "yellow-edges-solution" ||
-                      activeSlide?.id === "yellow-corners-solution"
-                    ) {
-                      return (
-                        <div className="flex flex-col text-left gap-1">
-                          <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                            {!shouldHideFrontFace && <>Front Face: </>}
-                            <span
-                              className="font-bold normal-case"
-                              style={{
-                                color:
-                                  activeSlide?.id ===
-                                  "practice-setup-solution-2"
-                                    ? CUBE_COLORS.GREEN
-                                    : CUBE_COLORS.RED,
-                              }}
-                            >
-                              {activeSlide?.id === "practice-setup-solution-2"
-                                ? "Green"
-                                : "Red"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                              {lessonId === "notation" ? "Try:" : "Fix:"}
-                            </span>
-                            <AlgorithmSequence
-                              moves={fixSequenceDisplay}
-                              currentIndex={fixIndex}
-                              partialDirection={fixDoublePartialDir}
-                            />
-                            {/* Animated completion tick */}
-                            {fixShowTick && (
-                              <CompletionTick
-                                animKey={fixTickAnimKey}
-                                progress={fixTickProgress}
-                                line={fixTickLine}
-                                color="green"
-                              />
-                            )}
-                          </div>
-                        </div>
-                      );
-                    } else if (
-                      activeSlide?.id === "midlayer-green-white-extraction"
-                    ) {
-                      return (
-                        <span className="text-blue-200">
-                          <div
-                            className={`flex flex-col text-left gap-2 ${
-                              activeSlide?.id ===
-                              "midlayer-green-white-extraction"
-                                ? "mb-1"
-                                : ""
-                            }`}
-                          >
-                            {!shouldHideFrontFace && (
-                              <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                                Front Face:{" "}
-                                {lessonId === "notation" && (
-                                  <span
-                                    className="font-bold normal-case"
-                                    style={{ color: CUBE_COLORS.GREEN }}
-                                  >
-                                    Green
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200 ml-0">
-                              {lessonId === "notation" ? "Try:" : "Fix:"}
-                            </div>
-                          </div>
-                        </span>
-                      );
-                    } else {
-                      return (
-                        <div className="mb-1">
-                          {!shouldHideFrontFace && (
-                            <div className="text-[9px] uppercase tracking-wide font-semibold text-blue-200 mb-2">
-                              Front Face:{" "}
-                              {lessonId === "notation" && (
-                                <span
-                                  className="font-bold normal-case"
-                                  style={{ color: CUBE_COLORS.GREEN }}
-                                >
-                                  Green
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {lessonId === "notation" ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                                Try:
-                              </span>
-                              <AlgorithmSequence
-                                moves={fixSequenceDisplay}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                              {/* Animated completion tick */}
-                              {fixShowTick && (
-                                <CompletionTick
-                                  animKey={fixTickAnimKey}
-                                  progress={fixTickProgress}
-                                  line={fixTickLine}
-                                  color="green"
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[9px] uppercase tracking-wide font-semibold text-blue-200">
-                              Fix:
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-                  })()}
-                  {activeSlide?.id !== "practice-setup-solution" &&
-                  activeSlide?.id !== "practice-setup-solution-2" &&
-                  activeSlide?.id !== "yellow-cross-line" &&
-                  activeSlide?.id !== "yellow-edges-solution" &&
-                  activeSlide?.id !== "yellow-corners-solution" ? (
-                    <div className="flex items-center gap-0">
-                      {/* Animated completion tick (not shown for step 5) */}
-                      {false &&
-                        activeSlide?.id !== "flipped-misoriented-green-white" &&
-                        activeSlide?.id !== "misaligned-green-white" && (
-                          <div className="relative w-6 h-6 ml-1">
-                            <svg
-                              key={fixTickAnimKey}
-                              className="w-6 h-6 transform -rotate-90"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="#e5e7eb"
-                                strokeWidth="2"
-                                fill="none"
-                              />
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                fill="none"
-                                className="text-green-500"
-                                style={{
-                                  strokeDasharray: "63",
-                                  strokeDashoffset: fixTickProgress ? 0 : 63,
-                                  transition:
-                                    "stroke-dashoffset 0.4s ease-in-out",
-                                }}
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <svg
-                                className="w-4 h-4 text-green-500"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={3}
-                                  d="M5 13l4 4L19 7"
-                                  style={{
-                                    strokeDasharray: "20",
-                                    strokeDashoffset: fixTickLine ? 0 : 20,
-                                    transition:
-                                      "stroke-dashoffset 0.5s ease-out",
-                                  }}
-                                />
-                              </svg>
-                            </div>
-                          </div>
-                        )}
-                      {activeSlide?.id === "flipped-misoriented-green-white" ? (
-                        <>
-                          <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
-                            {/* Group 1: F2 (first tick) */}
-                            {(() => {
-                              const idx = 0;
-                              const step = fixSequence[idx];
-                              const isDone = idx < fixIndex;
-                              const isCurrent = idx === fixIndex;
-                              const isDouble = step?.endsWith("2");
-                              const partial =
-                                isCurrent &&
-                                isDouble &&
-                                fixDoublePartialDir !== 0;
-                              return (
-                                <div className="flex items-center gap-1 rounded-[7px]">
-                                  <div
-                                    className={
-                                      "relative px-2 py-1 text-[14px] rounded-md md:text-xs leading-none select-none " +
-                                      (isDone
-                                        ? " bg-green-500 text-white"
-                                        : partial
-                                        ? " text-white border-blue-600"
-                                        : isCurrent
-                                        ? " bg-white text-blue-700 border-blue-500"
-                                        : " text-gray-600 bg-gray-300 border-gray-300")
-                                    }
-                                    style={
-                                      partial
-                                        ? {
-                                            background:
-                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                          }
-                                        : undefined
-                                    }
-                                    title={step}
-                                  >
-                                    {step}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          {fixIndex >= 1 && (
-                            <CompletionTick
-                              animKey={fixTickAnimKey}
-                              progress={fixFirstTickProgress}
-                              line={fixFirstTickLine}
-                              color="green"
-                            />
-                          )}
-
-                          <span className="mx-1 text-gray-400">/</span>
-                          {/* Group 2: F U' R U (second tick) */}
-                          <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
-                            {fixSequence.slice(1).map((step, i, arr) => {
-                              const idx = i + 1;
-                              const isDone = idx < fixIndex;
-                              const isCurrent = idx === fixIndex;
-                              const isDouble = step.endsWith("2");
-                              const partial =
-                                isCurrent &&
-                                isDouble &&
-                                fixDoublePartialDir !== 0;
-                              const isFirst = i === 0;
-                              const isLast = i === arr.length - 1;
-                              let pillClass =
-                                "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none ";
-                              if (isFirst)
-                                pillClass +=
-                                  " rounded-tl-md rounded-bl-md pl-2 ";
-                              if (isLast)
-                                pillClass +=
-                                  " rounded-tr-md rounded-br-md pr-2 ";
-                              pillClass += isDone
-                                ? " bg-green-500 text-white border-green-600"
-                                : partial
-                                ? " text-white border-blue-600"
-                                : isCurrent
-                                ? " bg-white text-blue-700 border-blue-500"
-                                : " text-gray-600 bg-gray-300 border-gray-300";
-                              return (
-                                <div
-                                  key={idx + step}
-                                  className={pillClass}
-                                  style={
-                                    partial
-                                      ? {
-                                          background:
-                                            "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                        }
-                                      : undefined
-                                  }
-                                  title={step}
-                                >
-                                  {step}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {fixCompleted && (
-                            <CompletionTick
-                              animKey={fixTickAnimKey}
-                              progress={fixTickProgress}
-                              line={fixTickLine}
-                              color="green"
-                            />
-                          )}
-                        </>
-                      ) : activeSlide?.id === "misaligned-green-white" ? (
-                        <>
-                          {/* Group 1: D' (first tick) */}
-                          {(() => {
-                            const idx = 0;
-                            const step = fixSequence[idx];
-                            const isDone = idx < fixIndex;
-                            const isCurrent = idx === fixIndex;
-                            const isDouble = step?.endsWith("2");
-                            const partial =
-                              isCurrent &&
-                              isDouble &&
-                              fixDoublePartialDir !== 0;
-                            return (
-                              <>
-                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                  <div
-                                    className={
-                                      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
-                                      (isDone
-                                        ? " bg-green-500 text-white border-green-600"
-                                        : partial
-                                        ? " text-white border-blue-600"
-                                        : isCurrent
-                                        ? " bg-white text-blue-700 border-blue-500"
-                                        : " text-gray-600 bg-gray-300 border-gray-300")
-                                    }
-                                    style={
-                                      partial
-                                        ? {
-                                            background:
-                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                          }
-                                        : undefined
-                                    }
-                                    title={step}
-                                  >
-                                    {step}
-                                  </div>
-                                </div>
-                                {fixIndex >= 1 && (
-                                  <CompletionTick
-                                    animKey={fixTickAnimKey}
-                                    progress={fixFirstTickProgress}
-                                    line={fixFirstTickLine}
-                                    color="green"
-                                  />
-                                )}
-                              </>
-                            );
-                          })()}
-                          <span className="mx-1 text-gray-400">/</span>
-                          {/* Group 2: F2 (second tick) */}
-
-                          {(() => {
-                            const idx = 1;
-                            const step = fixSequence[idx];
-                            const isDone = idx < fixIndex;
-                            const isCurrent = idx === fixIndex;
-                            const isDouble = step?.endsWith("2");
-                            const partial =
-                              isCurrent &&
-                              isDouble &&
-                              fixDoublePartialDir !== 0;
-                            return (
-                              <>
-                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                  <div
-                                    className={
-                                      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
-                                      (isDone
-                                        ? " bg-green-500 text-white border-green-600"
-                                        : partial
-                                        ? " text-white border-blue-600"
-                                        : isCurrent
-                                        ? " bg-white text-blue-700 border-blue-500"
-                                        : " text-gray-600 bg-gray-300 border-gray-300")
-                                    }
-                                    style={
-                                      partial
-                                        ? {
-                                            background:
-                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                          }
-                                        : undefined
-                                    }
-                                    title={step}
-                                  >
-                                    {step}
-                                  </div>
-                                </div>
-                                {fixCompleted && (
-                                  <CompletionTick
-                                    animKey={fixTickAnimKey}
-                                    progress={fixTickProgress}
-                                    line={fixTickLine}
-                                    color="green"
-                                  />
-                                )}
-                              </>
-                            );
-                          })()}
-                        </>
-                      ) : activeSlide?.id ===
-                        "flipped-misoriented-misaligned-green-white" ? (
-                        <>
-                          {/* Group 1: D' (first tick) */}
-                          {(() => {
-                            const idx = 0;
-                            const step = fixSequence[idx];
-                            const isDone = idx < fixIndex;
-                            const isCurrent = idx === fixIndex;
-                            const isDouble = step?.endsWith("2");
-                            const partial =
-                              isCurrent &&
-                              isDouble &&
-                              fixDoublePartialDir !== 0;
-                            return (
-                              <>
-                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                  <div
-                                    className={
-                                      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none rounded-tl-md rounded-bl-md pl-2 rounded-tr-md rounded-br-md pr-2 " +
-                                      (isDone
-                                        ? " bg-green-500 text-white border-green-600"
-                                        : partial
-                                        ? " text-white border-blue-600"
-                                        : isCurrent
-                                        ? " bg-white text-blue-700 border-blue-500"
-                                        : " text-gray-600 bg-gray-300 border-gray-300")
-                                    }
-                                    style={
-                                      partial
-                                        ? {
-                                            background:
-                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                          }
-                                        : undefined
-                                    }
-                                    title={step}
-                                  >
-                                    {step}
-                                  </div>
-                                </div>
-                                {fixIndex >= 1 && (
-                                  <CompletionTick
-                                    animKey={fixTickAnimKey}
-                                    progress={fixFirstTickProgress}
-                                    line={fixFirstTickLine}
-                                    color="green"
-                                  />
-                                )}
-                              </>
-                            );
-                          })()}
-                          <span className="mx-1 text-gray-400">/</span>
-                          {/* Group 2: F2 (second mid-stage tick) */}
-                          {(() => {
-                            const idx = 1;
-                            const step = fixSequence[idx];
-                            const isDone = idx < fixIndex;
-                            const isCurrent = idx === fixIndex;
-                            const isDouble = step?.endsWith("2");
-                            const partial =
-                              isCurrent &&
-                              isDouble &&
-                              fixDoublePartialDir !== 0;
-                            return (
-                              <>
-                                <div className="flex items-center gap-1 border border-green-600 rounded-[7px]">
-                                  <div
-                                    className={
-                                      "relative px-2 py-1 rounded-md text-[14px] md:text-xs leading-none select-none " +
-                                      (isDone
-                                        ? " bg-green-500 text-white"
-                                        : partial
-                                        ? " text-white border-blue-600"
-                                        : isCurrent
-                                        ? " bg-white text-blue-700 border-blue-500"
-                                        : " text-gray-600 bg-gray-300 border-gray-300")
-                                    }
-                                    style={
-                                      partial
-                                        ? {
-                                            background:
-                                              "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                          }
-                                        : undefined
-                                    }
-                                    title={step}
-                                  >
-                                    {step}
-                                  </div>
-                                </div>
-                                {fixIndex >= 2 && (
-                                  <CompletionTick
-                                    animKey={fixTickAnimKey}
-                                    progress={fixSecondTickProgress}
-                                    line={fixSecondTickLine}
-                                    color="green"
-                                  />
-                                )}
-                              </>
-                            );
-                          })()}
-                          <span className="mx-1 text-gray-400">/</span>
-                          {/* Group 3: F' U' R U (final inline completion tick placeholder) */}
-                          <div className="flex items-center gap-0 border border-green-600 rounded-[7px]">
-                            {fixSequence.slice(2).map((step, i, arr) => {
-                              const idx = i + 2;
-                              const isDone = idx < fixIndex;
-                              const isCurrent = idx === fixIndex;
-                              const isDouble = step.endsWith("2");
-                              const partial =
-                                isCurrent &&
-                                isDouble &&
-                                fixDoublePartialDir !== 0;
-                              const isFirst = i === 0;
-                              const isLast = i === arr.length - 1;
-                              let pillClass =
-                                "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none ";
-                              if (isFirst)
-                                pillClass +=
-                                  " rounded-tl-md rounded-bl-md pl-2 ";
-                              if (isLast)
-                                pillClass +=
-                                  " rounded-tr-md rounded-br-md pr-2 ";
-                              pillClass += isDone
-                                ? " bg-green-500 text-white border-green-600"
-                                : partial
-                                ? " text-white border-blue-600"
-                                : isCurrent
-                                ? " bg-white text-blue-700 border-blue-500"
-                                : " text-gray-600 bg-gray-300 border-gray-300";
-                              return (
-                                <div
-                                  key={idx + step}
-                                  className={pillClass}
-                                  style={
-                                    partial
-                                      ? {
-                                          background:
-                                            "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
-                                        }
-                                      : undefined
-                                  }
-                                  title={step}
-                                >
-                                  {step}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {fixCompleted && (
-                            <CompletionTick
-                              animKey={fixTickAnimKey}
-                              progress={fixTickProgress}
-                              line={fixTickLine}
-                              color="green"
-                            />
-                          )}
-                        </>
-                      ) : activeSlide?.id === "practice-setup-solution-3" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["R", "U2", "R'", "U'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 4,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["R", "U", "R'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 4,
-                              boundaryIndex: 7,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id === "practice-setup-solution-4" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["R", "U", "R'", "U'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 4,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["R", "U", "R'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 4,
-                              boundaryIndex: 7,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id === "yellow-cross-dot" ? (
-                        <div
-                          className="relative overflow-hidden"
-                          style={{ height: "80px" }}
-                        >
-                          <div
-                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
-                              showSecondSequenceDot || secondSequenceDotLocked
-                                ? "-translate-y-[80px]"
-                                : "translate-y-0"
-                            }`}
-                          >
-                            {/* First sequence (parts 1-2) */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: ["F", "R", "U", "R'", "U'", "F'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 0,
-                                    boundaryIndex: 6,
-                                    tickAnimKey: midStage1Key,
-                                    tickProgress: midStage1Progress,
-                                    tickLine: midStage1Line,
-                                  },
-                                  {
-                                    moves: ["U2"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 6,
-                                    boundaryIndex: 7,
-                                    tickAnimKey: midStage2Key,
-                                    tickProgress: midStage2Progress,
-                                    tickLine: midStage2Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                            {/* Second sequence (parts 3-4) */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: ["F", "R", "U", "R'", "U'", "F'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 7,
-                                    boundaryIndex: 13,
-                                    tickAnimKey: midStage3Key,
-                                    tickProgress: midStage3Progress,
-                                    tickLine: midStage3Line,
-                                  },
-                                  {
-                                    moves: ["F", "R", "U", "R'", "U'", "F'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 13,
-                                    boundaryIndex: 19,
-                                    tickAnimKey: midStage4Key,
-                                    tickProgress: midStage4Progress,
-                                    tickLine: midStage4Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ) : activeSlide?.id === "yellow-cross-triangle" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["F", "R", "U", "R'", "U'", "F'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 6,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["F", "R", "U", "R'", "U'", "F'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 6,
-                              boundaryIndex: 12,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id === "yellow-edges-solution-2" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["U"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 1,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: [
-                                "R",
-                                "U",
-                                "R'",
-                                "U",
-                                "R",
-                                "U2",
-                                "R'",
-                                "U",
-                              ],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 1,
-                              boundaryIndex: 9,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id === "yellow-corners-solution-2" ? (
-                        <div
-                          className="relative overflow-hidden"
-                          style={{ height: "80px" }}
-                        >
-                          <div
-                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
-                              showSecondSequenceYellowCorners2 ||
-                              secondSequenceYellowCorners2Locked
-                                ? "-translate-y-[80px]"
-                                : "translate-y-0"
-                            }`}
-                          >
-                            {/* First sequence */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: [
-                                      "U",
-                                      "R",
-                                      "U'",
-                                      "L'",
-                                      "U",
-                                      "R'",
-                                      "U'",
-                                      "L",
-                                    ],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 0,
-                                    boundaryIndex: 8,
-                                    tickAnimKey: midStage1Key,
-                                    tickProgress: midStage1Progress,
-                                    tickLine: midStage1Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                            {/* Second sequence */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: [
-                                      "U",
-                                      "R",
-                                      "U'",
-                                      "L'",
-                                      "U",
-                                      "R'",
-                                      "U'",
-                                      "L",
-                                    ],
-                                    colorName: "Blue",
-                                    colorValue: CUBE_COLORS.BLUE,
-                                    startIndex: 8,
-                                    boundaryIndex: 16,
-                                    tickAnimKey: midStage2Key,
-                                    tickProgress: midStage2Progress,
-                                    tickLine: midStage2Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ) : activeSlide?.id === "yellow-corners-solution-3" ? (
-                        <div
-                          className="relative overflow-hidden"
-                          style={{ height: "80px" }}
-                        >
-                          <div
-                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
-                              showThirdSequenceYellowCorners3 ||
-                              thirdSequenceYellowCorners3Locked
-                                ? "-translate-y-[160px]"
-                                : showSecondSequenceYellowCorners3 ||
-                                  secondSequenceYellowCorners3Locked
-                                ? "-translate-y-[80px]"
-                                : "translate-y-0"
-                            }`}
-                          >
-                            {/* First sequence */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: [
-                                      "U",
-                                      "R",
-                                      "U'",
-                                      "L'",
-                                      "U",
-                                      "R'",
-                                      "U'",
-                                      "L",
-                                    ],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 0,
-                                    boundaryIndex: 8,
-                                    tickAnimKey: midStage1Key,
-                                    tickProgress: midStage1Progress,
-                                    tickLine: midStage1Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                            {/* Second sequence */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: [
-                                      "U",
-                                      "R",
-                                      "U'",
-                                      "L'",
-                                      "U",
-                                      "R'",
-                                      "U'",
-                                      "L",
-                                    ],
-                                    colorName: "Orange",
-                                    colorValue: CUBE_COLORS.ORANGE,
-                                    startIndex: 8,
-                                    boundaryIndex: 16,
-                                    tickAnimKey: midStage2Key,
-                                    tickProgress: midStage2Progress,
-                                    tickLine: midStage2Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                            {/* Third sequence */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: [
-                                      "U",
-                                      "R",
-                                      "U'",
-                                      "L'",
-                                      "U",
-                                      "R'",
-                                      "U'",
-                                      "L",
-                                    ],
-                                    colorName: "Orange",
-                                    colorValue: CUBE_COLORS.ORANGE,
-                                    startIndex: 16,
-                                    boundaryIndex: 24,
-                                    tickAnimKey: midStage3Key,
-                                    tickProgress: midStage3Progress,
-                                    tickLine: midStage3Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ) : activeSlide?.id === "yellow-edges-solution-3" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["U2"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 1,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: [
-                                "R",
-                                "U",
-                                "R'",
-                                "U",
-                                "R",
-                                "U2",
-                                "R'",
-                                "U",
-                              ],
-                              colorName: "Blue",
-                              colorValue: CUBE_COLORS.BLUE,
-                              startIndex: 1,
-                              boundaryIndex: 9,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id === "practice-setup-solution-5" ? (
-                        <div
-                          className="relative overflow-hidden"
-                          style={{ height: "80px" }}
-                        >
-                          <div
-                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
-                              showSecondSequencePracticeSetup5 ||
-                              secondSequencePracticeSetup5Locked
-                                ? "-translate-y-[80px]"
-                                : "translate-y-0"
-                            }`}
-                          >
-                            {/* First sequence (part 1) */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: ["R", "U", "R'", "U'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 0,
-                                    boundaryIndex: 4,
-                                    tickAnimKey: midStage1Key,
-                                    tickProgress: midStage1Progress,
-                                    tickLine: midStage1Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                            {/* Second sequence (parts 2-3) */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: ["R", "U2", "R'", "U'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 4,
-                                    boundaryIndex: 8,
-                                    tickAnimKey: midStage2Key,
-                                    tickProgress: midStage2Progress,
-                                    tickLine: midStage2Line,
-                                  },
-                                  {
-                                    moves: ["R", "U", "R'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 8,
-                                    boundaryIndex: 11,
-                                    tickAnimKey: midStage3Key,
-                                    tickProgress: midStage3Progress,
-                                    tickLine: midStage3Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ) : activeSlide?.id ===
-                        "midlayer-green-white-extraction" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["R'", "D'", "R"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 3,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                              borderColor: CUBE_COLORS.GREEN,
-                            },
-                            {
-                              moves: ["D'"],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 3,
-                              boundaryIndex: 4,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                              borderColor: CUBE_COLORS.GREEN,
-                            },
-                            {
-                              moves: ["F2"],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 4,
-                              boundaryIndex: 5,
-                              tickAnimKey: midStage3Key,
-                              tickProgress: midStage3Progress,
-                              tickLine: midStage3Line,
-                              borderColor: CUBE_COLORS.GREEN,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id === "practice-setup-solution-6" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["R", "U", "R'", "U'"],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 0,
-                              boundaryIndex: 4,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["U"],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 4,
-                              boundaryIndex: 5,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                            {
-                              moves: ["R", "U", "R'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 5,
-                              boundaryIndex: 8,
-                              tickAnimKey: midStage3Key,
-                              tickProgress: midStage3Progress,
-                              tickLine: midStage3Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id === "second-layer-setup-solution" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["U'", "L'", "U'", "L", "U"],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 0,
-                              boundaryIndex: 5,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["R", "U", "R'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 5,
-                              boundaryIndex: 8,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id ===
-                        "second-layer-setup-solution-2" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["U", "R", "U", "R'", "U'"],
-                              colorName: "Red",
-                              colorValue: CUBE_COLORS.RED,
-                              startIndex: 0,
-                              boundaryIndex: 5,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["L'", "U'", "L"],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 5,
-                              boundaryIndex: 8,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id ===
-                        "second-layer-setup-solution-3" ? (
-                        <MultiPartSequence
-                          parts={[
-                            {
-                              moves: ["U", "R", "U", "R'", "U'"],
-                              colorName: "Green",
-                              colorValue: CUBE_COLORS.GREEN,
-                              startIndex: 0,
-                              boundaryIndex: 5,
-                              tickAnimKey: midStage1Key,
-                              tickProgress: midStage1Progress,
-                              tickLine: midStage1Line,
-                            },
-                            {
-                              moves: ["L'", "U'", "L"],
-                              colorName: "Orange",
-                              colorValue: CUBE_COLORS.ORANGE,
-                              startIndex: 5,
-                              boundaryIndex: 8,
-                              tickAnimKey: midStage2Key,
-                              tickProgress: midStage2Progress,
-                              tickLine: midStage2Line,
-                            },
-                          ]}
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                        />
-                      ) : activeSlide?.id ===
-                        "second-layer-setup-solution-4" ? (
-                        <div
-                          className="relative overflow-hidden"
-                          style={{ height: "80px" }}
-                        >
-                          <div
-                            className={`transition-transform duration-500 ease-in-out flex flex-col ${
-                              showSecondSequence || secondSequenceLocked
-                                ? "-translate-y-[80px]"
-                                : "translate-y-0"
-                            }`}
-                          >
-                            {/* First sequence (parts 1-3) */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: ["U", "R", "U", "R'", "U'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 0,
-                                    boundaryIndex: 5,
-                                    tickAnimKey: midStage1Key,
-                                    tickProgress: midStage1Progress,
-                                    tickLine: midStage1Line,
-                                  },
-                                  {
-                                    moves: ["L'", "U'", "L"],
-                                    colorName: "Green",
-                                    colorValue: CUBE_COLORS.GREEN,
-                                    startIndex: 5,
-                                    boundaryIndex: 8,
-                                    tickAnimKey: midStage2Key,
-                                    tickProgress: midStage2Progress,
-                                    tickLine: midStage2Line,
-                                  },
-                                  {
-                                    moves: ["U2"],
-                                    colorName: "Green",
-                                    colorValue: CUBE_COLORS.GREEN,
-                                    startIndex: 8,
-                                    boundaryIndex: 9,
-                                    tickAnimKey: midStage3Key,
-                                    tickProgress: midStage3Progress,
-                                    tickLine: midStage3Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                            {/* Second sequence (parts 4-5) */}
-                            <div
-                              style={{ height: "80px", flexShrink: 0 }}
-                              className="pt-4"
-                            >
-                              <MultiPartSequence
-                                parts={[
-                                  {
-                                    moves: ["U", "R", "U", "R'", "U'"],
-                                    colorName: "Red",
-                                    colorValue: CUBE_COLORS.RED,
-                                    startIndex: 9,
-                                    boundaryIndex: 14,
-                                    tickAnimKey: midStage4Key,
-                                    tickProgress: midStage4Progress,
-                                    tickLine: midStage4Line,
-                                  },
-                                  {
-                                    moves: ["L'", "U'", "L"],
-                                    colorName: "Green",
-                                    colorValue: CUBE_COLORS.GREEN,
-                                    startIndex: 14,
-                                    boundaryIndex: 17,
-                                    tickAnimKey: midStage5Key,
-                                    tickProgress: midStage5Progress,
-                                    tickLine: midStage5Line,
-                                  },
-                                ]}
-                                currentIndex={fixIndex}
-                                partialDirection={fixDoublePartialDir}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ) : lessonId === "notation" ? null : (
-                        // Default rendering for other slides (but not Notation, as it's handled above)
-                        <AlgorithmSequence
-                          moves={
-                            activeSlide?.id === "practice-setup-solution" ||
-                            activeSlide?.id === "practice-setup-solution-2" ||
-                            activeSlide?.id === "practice-setup-solution-3" ||
-                            activeSlide?.id === "yellow-cross-line" ||
-                            activeSlide?.id === "yellow-edges-solution"
-                              ? fixSequenceDisplay
-                              : fixSequence
-                          }
-                          currentIndex={fixIndex}
-                          partialDirection={fixDoublePartialDir}
-                          borderColor={
-                            activeSlide?.id ===
-                            "midlayer-green-white-extraction"
-                              ? CUBE_COLORS.GREEN
-                              : "border-green-600"
-                          }
-                        />
-                      )}
-                      {/* Animated completion tick */}
-                      {fixShowTick &&
-                        lessonId !== "notation" &&
-                        ![
-                          "flipped-misoriented-green-white",
-                          "misaligned-green-white",
-                          "flipped-misoriented-misaligned-green-white",
-                          "midlayer-green-white-extraction",
-                          "practice-setup-solution-3",
-                          "practice-setup-solution-4",
-                          "practice-setup-solution-5",
-                          "practice-setup-solution-6",
-                          "second-layer-setup-solution",
-                          "second-layer-setup-solution-2",
-                          "second-layer-setup-solution-3",
-                          "second-layer-setup-solution-4",
-                          "yellow-cross-triangle",
-                          "yellow-cross-dot",
-                          "yellow-edges-solution-2",
-                          "yellow-edges-solution-3",
-                          "yellow-corners-solution-2",
-                          "yellow-corners-solution-3",
-                        ].includes(activeSlide?.id || "") && (
-                          <CompletionTick
-                            animKey={fixTickAnimKey}
-                            progress={fixTickProgress}
-                            line={fixTickLine}
-                            color="green"
-                          />
-                        )}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            )}
-
-            {/* Notation uses the same Fix UI; label changes to Try when lessonId==='notation' */}
-
-            {/* Recap overlay removed in favor of full-page recap panel */}
-            {/* Practice Moves panel (hidden on slides 1 & 2) */}
-            {(!activeSlide ||
-              (activeSlide.allowFaceMoves && currentSlide >= 100)) && (
-              <div className="absolute bottom-4 left-2 right-2 md:left-4 md:right-4">
-                <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 md:p-4 shadow-lg">
-                  <div className="text-sm text-gray-600 mb-2">
-                    Practice Moves:
-                  </div>
-                  <div className="grid grid-cols-4 md:grid-cols-6 gap-1 md:gap-2">
-                    {[
-                      "F",
-                      "F'",
-                      "R",
-                      "R'",
-                      "U",
-                      "U'",
-                      "L",
-                      "L'",
-                      "B",
-                      "B'",
-                      "D",
-                      "D'",
-                    ].map((move) => (
-                      <button
-                        key={move}
-                        onClick={() => handleButtonMove(move)}
-                        disabled={isAnimating || inputDisabled}
-                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm"
-                      >
-                        {move}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Reset modal removed; instant reset is used */}
-          </div>
-        </div>
+        <TutorialCubeView
+          cubeContainerRef={cubeContainerRef}
+          overlayContainerRef={overlayContainerRef}
+          canvasRef={canvasRef}
+          cubeViewRef={cubeViewRef}
+          orbitControlsRef={orbitControlsRef}
+          orbitControlsEnabled={orbitControlsEnabled}
+          canvasDpr={canvasDpr}
+          attachSetDpr={attachSetDpr}
+          setInteractiveDpr={setInteractiveDpr}
+          onDecline={onDecline}
+          onIncline={onIncline}
+          isTouchDevice={isTouchDevice}
+          hasInteractedGloballyRef={hasInteractedGloballyRef}
+          tutorialCube3D={tutorialCube3D}
+          touchCount={touchCount}
+          pendingMove={pendingMove}
+          isAnimating={isAnimating}
+          handleMoveAnimationDone={handleMoveAnimationDone}
+          handleStartAnimation={handleStartAnimation}
+          handlePracticeOrbitChange={handlePracticeOrbitChange}
+          handleButtonMove={handleButtonMove}
+          lastMoveSourceRef={lastMoveSourceRef}
+          queueFast={queueFast}
+          queueFastMs={queueFastMs}
+          activeSlideId={activeSlide?.id}
+          activeSlideAllowFaceMoves={activeSlide?.allowFaceMoves}
+          activeSlideAllowSliceMoves={activeSlide?.allowSliceMoves}
+          lessonId={lessonId}
+          practiceCompleted={practiceCompleted}
+          fixCompleted={fixCompleted}
+          inputDisabled={inputDisabled}
+          combinedPieceChildren={combinedPieceChildren}
+          practiceShowTick={practiceShowTick}
+          practiceTickAnimKey={practiceTickAnimKey}
+          practiceTickProgress={practiceTickProgress}
+          practiceTickLine={practiceTickLine}
+          currentSlide={currentSlide}
+          slidesLength={slides.length}
+          setCurrentSlide={setCurrentSlide}
+          isResetting={isResetting}
+          isResettingOrbit={isResettingOrbit}
+          isTransitioning={isTransitioning}
+          resetToSlideBaseline={resetToSlideBaseline}
+          cubeRef={cubeRef}
+          handleTrackpadPointerDown={handleTrackpadPointerDown}
+          handleTrackpadPointerMove={handleTrackpadPointerMove}
+          handleTrackpadPointerUp={handleTrackpadPointerUp}
+          fixIndex={fixIndex}
+          fixDoublePartialDir={fixDoublePartialDir}
+          fixSequence={fixSequence}
+          fixSequenceDisplay={fixSequenceDisplay}
+          fixErrorPulse={fixErrorPulse}
+          hasActiveHighlightBorder={hasActiveHighlightBorder}
+          fixSequenceLength={fixSequence.length}
+          sequencePortalPosition={sequencePortalPosition}
+          midStage1Key={midStage1Key}
+          midStage1Progress={midStage1Progress}
+          midStage1Line={midStage1Line}
+          midStage2Key={midStage2Key}
+          midStage2Progress={midStage2Progress}
+          midStage2Line={midStage2Line}
+          midStage3Key={midStage3Key}
+          midStage3Progress={midStage3Progress}
+          midStage3Line={midStage3Line}
+          midStage4Key={midStage4Key}
+          midStage4Progress={midStage4Progress}
+          midStage4Line={midStage4Line}
+          midStage5Key={midStage5Key}
+          midStage5Progress={midStage5Progress}
+          midStage5Line={midStage5Line}
+          midStage6Key={midStage6Key}
+          midStage6Progress={midStage6Progress}
+          midStage6Line={midStage6Line}
+          midStage7Key={midStage7Key}
+          midStage7Progress={midStage7Progress}
+          midStage7Line={midStage7Line}
+        />
+        <SlideSidePanel
+          activeSlide={activeSlide}
+          currentSlide={currentSlide}
+          totalSlides={slides.length}
+        />
       </div>
-      {/* Full-width slide text bar at the very bottom (hidden on recap slides) */}
-      {activeSlide &&
-        activeSlide.id !== "recap-mental-model" &&
-        activeSlide.id !== "recap-white-corners" && (
-          <div className="sticky bottom-0 w-full bg-white/95 backdrop-blur border-t shadow-inner z-40">
-            <div
-              className="max-w-screen-2xl mx-auto px-3 md:px-6 py-3 md:py-4"
-              style={{ minHeight: "8em" }}
-            >
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                <div className="text-gray-800">
-                  <div className="font-semibold mb-1">
-                    {currentSlide + 1} / {slides.length}: {activeSlide.title}
-                  </div>
-                  {activeSlide.id !== "recap-mental-model" &&
-                    activeSlide.id !== "recap-white-corners" && (
-                      <TypewriterText
-                        text={activeSlide.description}
-                        keyProp={currentSlide}
-                      />
-                    )}
-                </div>
-                <div className="flex items-center gap-2 justify-end">
-                  <Button
-                    onClick={() =>
-                      setCurrentSlide(Math.max(0, currentSlide - 1))
-                    }
-                    disabled={currentSlide === 0}
-                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
-                  >
-                    Prev
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      setCurrentSlide(
-                        Math.min(slides.length - 1, currentSlide + 1)
-                      )
-                    }
-                    disabled={currentSlide >= slides.length - 1}
-                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:hover:text-gray-400"
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      <SlideFooter
+        activeSlide={activeSlide}
+        currentSlide={currentSlide}
+        totalSlides={slides.length}
+        onPrev={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+        onNext={() =>
+          setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))
+        }
+        onBack={onBack}
+      />
     </div>
   );
 };

@@ -12,29 +12,21 @@ export interface SlideCameraConfig {
   slideId: string;
 }
 
-/**
- * Get camera configuration for a given slide ID
- * This centralizes the camera settings logic to avoid duplication
- */
 export const getSlideCameraConfig = (
   slideId: string | undefined,
   lessonId?: string
 ): SlideCameraConfig => {
   const slideIdForLogging = slideId || "unknown";
 
-  if (
-    slideId === "intro" ||
-    slideId === "misaligned-green-white" ||
-    slideId === "flipped-misoriented-misaligned-green-white"
-  ) {
-    // Explicit -45deg yaw to standardize the facing on the faces slide
-    // Exception: yellow-cross, yellow-edges, yellow-corners, and second-layer intro should show yellow on top
-    if (
-      lessonId === "yellow-cross" ||
-      lessonId === "yellow-edges" ||
-      lessonId === "yellow-corners" ||
-      lessonId === "second-layer"
-    ) {
+  if (slideId === "intro") {
+    const yellowTopLessons = [
+      "yellow-cross",
+      "yellow-edges",
+      "yellow-corners",
+      "orient-yellow-corners",
+      "second-layer",
+    ];
+    if (lessonId && yellowTopLessons.includes(lessonId)) {
       return {
         extraYawRad: 0,
         flipUpsideDown: true,
@@ -54,100 +46,98 @@ export const getSlideCameraConfig = (
     slideId === "flip-green-white-f2" ||
     slideId === "flipped-misoriented-green-white"
   ) {
-    // Face more toward green (left along cube Y): stronger negative yaw
     return { extraYawRad: 0, slideId: slideIdForLogging };
   }
 
-  // All Notation slides: use same yaw as notation-intro (default, which is 0)
   if (
     lessonId === "notation" &&
     (slideId === "notation-intro" ||
+      slideId === "notation-orientation" ||
       slideId === "notation-faces" ||
-      slideId === "notation-turns" ||
-      slideId === "notation-example" ||
-      slideId === "notation-example-2" ||
-      slideId === "notation-example-3" ||
-      slideId === "notation-10-step" ||
-      slideId === "notation-protip")
+      slideId === "notation-clockwise-f" ||
+      slideId === "notation-prime-f" ||
+      slideId === "notation-clockwise-r" ||
+      slideId === "notation-prime-r" ||
+      slideId === "notation-clockwise-l" ||
+      slideId === "notation-prime-l" ||
+      slideId === "notation-clockwise-u" ||
+      slideId === "notation-prime-u" ||
+      slideId === "notation-clockwise-d" ||
+      slideId === "notation-prime-d" ||
+      slideId === "notation-clockwise-b" ||
+      slideId === "notation-prime-b" ||
+      slideId === "notation-double" ||
+      slideId === "notation-double-l" ||
+      slideId === "notation-double-d" ||
+      slideId === "notation-sequences" ||
+      slideId === "notation-sequences-longer" ||
+      slideId === "notation-reminder")
   ) {
     return { extraYawRad: 0, slideId: slideIdForLogging };
   }
 
   if (slideId === "practice-setup-solution") {
-    // Apply visual flip to show yellow on top visually (180° around Z axis)
-    // Also apply 45 degrees around Y axis (E direction)
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
-      extraERotationDeg: -45,
+      extraERotationDeg: -60,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    slideId === "misaligned-green-white" ||
+    slideId === "flipped-misoriented-misaligned-green-white"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: false,
+      extraERotationDeg: -60,
+      extraPitchDeg: -10,
       slideId: slideIdForLogging,
     };
   }
 
   if (slideId === "practice-setup-solution-2") {
-    // Yellow top/green front orientation - flip upside down
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
-      extraERotationDeg: -45,
+      extraERotationDeg: -30,
+      extraPitchDeg: -10,
       slideId: slideIdForLogging,
     };
   }
 
   if (slideId === "mechanical-approach") {
-    // Slide 2 for both white corners and second layer: flip upside down (yellow on top)
     const config: SlideCameraConfig = {
       extraYawRad: 0,
       flipUpsideDown: true,
       extraERotationDeg: -45,
       slideId: slideIdForLogging,
     };
-    // Add vertical pitch based on lesson
     if (lessonId === "white-corners") {
-      config.extraPitchDeg = -65; // 65 degrees up for white corners (negative to push up)
+      config.extraPitchDeg = -65;
     } else if (lessonId === "second-layer") {
-      config.extraPitchDeg = -25; // 25 degrees up for second layer (negative to push up)
+      config.extraPitchDeg = -20;
     }
     return config;
   }
 
   if (slideId === "practice-setup-solution-6") {
-    // Yellow top/green front orientation - flip upside down
-    // Start with yaw further to the right (extraYawRad: -45)
-    // After U move (fixIndex 5), will change to match slides 3-7 (extraYawRad: 0, extraERotationDeg: -45)
     return {
-      extraYawRad: (Math.PI / 180) * -45,
+      extraYawRad: (Math.PI / 180) * -30,
       flipUpsideDown: true,
+      extraPitchDeg: -10,
       slideId: slideIdForLogging,
     };
   }
 
-  if (
-    slideId === "practice-setup-solution-3" ||
-    slideId === "practice-setup-solution-4" ||
-    slideId === "second-layer-setup-solution" ||
-    slideId === "second-layer-setup-solution-2" ||
-    slideId === "second-layer-setup-solution-4"
-  ) {
-    // Yellow top/red front orientation - flip upside down
-    // Setup moves handle the red front orientation logically
-    // Also apply 45 degrees around Y axis (E direction)
+  if (slideId === "practice-setup-solution-9") {
     return {
-      extraYawRad: 0,
+      extraYawRad: (Math.PI / 180) * -240, // Initial yaw -240
       flipUpsideDown: true,
-      extraERotationDeg: -45,
-      slideId: slideIdForLogging,
-    };
-  }
-
-  if (slideId === "second-layer-setup-solution-3") {
-    // Yellow top/red front orientation - flip upside down
-    // Yaw 90 degrees to the right (-90 degrees)
-    // Also apply 45 degrees around Y axis (E direction)
-    return {
-      extraYawRad: (Math.PI / 180) * -90,
-      flipUpsideDown: true,
-      extraERotationDeg: -45,
+      extraPitchDeg: -10,
       slideId: slideIdForLogging,
     };
   }
@@ -156,23 +146,39 @@ export const getSlideCameraConfig = (
     slideId === "practice-setup-solution-3" ||
     slideId === "practice-setup-solution-4" ||
     slideId === "practice-setup-solution-5" ||
-    slideId === "second-layer-setup-solution" ||
-    slideId === "second-layer-setup-solution-2"
+    slideId === "second-layer-setup-solution-2" ||
+    slideId === "second-layer-setup-solution-4"
   ) {
-    // Yellow top/red front orientation - flip upside down
-    // Setup moves handle the red front orientation logically
-    // Also apply 45 degrees around Y axis (E direction)
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
-      extraERotationDeg: -45,
+      extraERotationDeg: -60,
+      extraPitchDeg: -10,
       slideId: slideIdForLogging,
     };
   }
 
-  if (slideId === "recap-mental-model") {
-    // White Cross recap: show white side up (default orientation)
-    // Other lessons: also default orientation
+  if (slideId === "second-layer-setup-solution") {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -30,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (slideId === "second-layer-setup-solution-3") {
+    return {
+      extraYawRad: (Math.PI / 180) * -90,
+      flipUpsideDown: true,
+      extraERotationDeg: -60,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (slideId === "recap-white-cross") {
     return {
       extraYawRad: 0,
       slideId: slideIdForLogging,
@@ -180,7 +186,6 @@ export const getSlideCameraConfig = (
   }
 
   if (slideId === "recap-white-corners") {
-    // Recap slide: maintain same orientation as other white corners slides (flip upside down)
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -190,7 +195,6 @@ export const getSlideCameraConfig = (
   }
 
   if (slideId === "second-layer-recap") {
-    // Recap slide: maintain same orientation as other second layer slides (flip upside down)
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -208,30 +212,24 @@ export const getSlideCameraConfig = (
     slideId === "yellow-edges-solution" ||
     slideId === "yellow-edges-solution-2" ||
     slideId === "yellow-edges-solution-3" ||
+    slideId === "yellow-edges-solution-4" ||
     slideId === "yellow-corners-solution" ||
     slideId === "yellow-corners-solution-2" ||
     slideId === "yellow-corners-solution-3" ||
     (slideId === "intro" && lessonId === "yellow-corners")
   ) {
-    // Yellow cross/edges slides: yellow side up
-    // For line, triangle, dot, yellow-edges-solution, yellow-edges-solution-2, and yellow-edges-solution-3 slides, add yaw
     const extraYaw =
       slideId === "yellow-cross-line" ||
       slideId === "yellow-cross-triangle" ||
-      slideId === "yellow-cross-dot"
-        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive)
-        : slideId === "yellow-edges-solution"
-        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive)
-        : slideId === "yellow-edges-solution-2"
-        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to -45 after first move
-        : slideId === "yellow-edges-solution-3"
-        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to +135 after first move
-        : slideId === "yellow-corners-solution"
-        ? (Math.PI / 180) * 45 // 45 degrees to the left (positive)
-        : slideId === "yellow-corners-solution-2"
-        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to +135 after first sequence
-        : slideId === "yellow-corners-solution-3"
-        ? (Math.PI / 180) * 45 // 45 degrees to the right (positive) - will change to +225 after first sequence
+      slideId === "yellow-cross-dot" ||
+      slideId === "yellow-edges-solution" ||
+      slideId === "yellow-edges-solution-2" ||
+      slideId === "yellow-edges-solution-3" ||
+      slideId === "yellow-edges-solution-4" ||
+      slideId === "yellow-corners-solution" ||
+      slideId === "yellow-corners-solution-2" ||
+      slideId === "yellow-corners-solution-3"
+        ? (Math.PI / 180) * 45
         : 0;
     return {
       extraYawRad: extraYaw,
@@ -246,8 +244,6 @@ export const getSlideCameraConfig = (
     slideId === "practice-white-corners-2" ||
     slideId === "practice-white-corners-3"
   ) {
-    // White corners practice slides: flip upside down (yellow top)
-    // Yaw matches initial slide transition (0)
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -261,8 +257,6 @@ export const getSlideCameraConfig = (
     slideId === "practice-three-edges" ||
     slideId === "practice-full-cross"
   ) {
-    // White cross practice slides: normal orientation (white on top)
-    // Yaw adjusted 45 degrees to the right (negative) to correct left offset
     return {
       extraYawRad: (Math.PI / 180) * -45,
       slideId: slideIdForLogging,
@@ -274,7 +268,6 @@ export const getSlideCameraConfig = (
     slideId === "practice-second-layer-2" ||
     slideId === "practice-second-layer-3"
   ) {
-    // Second layer practice slide: flip upside down (yellow on top) to match other second layer slides
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -287,15 +280,53 @@ export const getSlideCameraConfig = (
     slideId === "midlayer-green-white-extraction" &&
     lessonId === "white-cross"
   ) {
-    // Slide 8 of white cross: start with yaw 135 degrees to the right (-135 degrees)
-    // This will be changed after first sequence (R' D' R) completes to -45 degrees
     return {
-      extraYawRad: (Math.PI / 180) * -135,
+      extraYawRad: (Math.PI / 180) * -90,
+      extraERotationDeg: -30,
+      extraPitchDeg: -10,
       slideId: slideIdForLogging,
     };
   }
 
-  // Default: just set slide ID for logging
+  if (
+    slideId === "orient-two-corners" &&
+    lessonId === "orient-yellow-corners"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: false,
+      extraERotationDeg: -30,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    slideId === "orient-three-corners" &&
+    lessonId === "orient-yellow-corners"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: false,
+      extraERotationDeg: -30,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    slideId === "orient-four-corners" &&
+    lessonId === "orient-yellow-corners"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: false,
+      extraERotationDeg: -30,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
   return { slideId: slideIdForLogging };
 };
 

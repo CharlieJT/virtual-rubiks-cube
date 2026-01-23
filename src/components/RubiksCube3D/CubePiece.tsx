@@ -39,10 +39,12 @@ const CubePiece = React.memo(
     roundedBoxGeometry,
     sharedLogoTexture,
     logoReady,
+    hideLogo = false,
   }: CubePieceProps & {
     roundedBoxGeometry: THREE.BufferGeometry;
     sharedLogoTexture: THREE.Texture | null;
     logoReady: boolean;
+    hideLogo?: boolean;
     isHighlighted?: boolean;
     pulse?: boolean;
     pulseSpeed?: number;
@@ -338,6 +340,7 @@ const CubePiece = React.memo(
               }
             })();
             const showLogo =
+              !hideLogo &&
               isCenterSticker &&
               sharedLogoTexture &&
               logoReady &&

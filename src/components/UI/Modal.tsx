@@ -16,6 +16,7 @@ interface ModalProps {
   centerTitle?: boolean;
   titlePadding?: string;
   theme?: "default" | "red" | "orange";
+  fullHeight?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -30,31 +31,30 @@ const Modal: React.FC<ModalProps> = ({
   disablePointerEvents = false,
   centerTitle = false,
   titlePadding,
-  theme = "default",
+  theme: _theme = "default", // Reserved for future theme implementation
+  fullHeight = false,
 }) => {
   const [visible, setVisible] = useState(false);
   const [entered, setEntered] = useState(false);
 
-  // Theme configurations
-  const themeConfig = {
-    default: {
-      border: "border-cyan-400",
-      closeButton: "text-cyan-500 hover:text-blue-700",
-      titleGradient: "from-cyan-400 via-blue-500 to-indigo-500",
-    },
-    red: {
-      border: "border-red-500",
-      closeButton: "text-red-500 hover:text-red-700",
-      titleGradient: "from-red-400 via-red-500 to-red-600",
-    },
-    orange: {
-      border: "border-orange-500",
-      closeButton: "text-orange-500 hover:text-orange-700",
-      titleGradient: "from-orange-400 via-orange-500 to-orange-600",
-    },
-  };
-
-  const currentTheme = themeConfig[theme];
+  // Theme configurations (kept for future use)
+  // const themeConfig = {
+  //   default: {
+  //     border: "border-cyan-400",
+  //     closeButton: "text-cyan-500 hover:text-blue-700",
+  //     titleGradient: "from-cyan-400 via-blue-500 to-indigo-500",
+  //   },
+  //   red: {
+  //     border: "border-red-500",
+  //     closeButton: "text-red-500 hover:text-red-700",
+  //     titleGradient: "from-red-400 via-red-500 to-red-600",
+  //   },
+  //   orange: {
+  //     border: "border-orange-500",
+  //     closeButton: "text-orange-500 hover:text-orange-700",
+  //     titleGradient: "from-orange-400 via-orange-500 to-orange-600",
+  //   },
+  // };
 
   useEffect(() => {
     if (isOpen) {
@@ -108,33 +108,54 @@ const Modal: React.FC<ModalProps> = ({
         withTransition={true}
         disableClick={disableBackdropClick || disablePointerEvents}
       />
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none p-4">
         <div
-          className={`bg-white border-4 mx-4 ${
-            currentTheme.border
-          } rounded-2xl min-w-[320px] max-w-[400px] shadow-lg relative flex flex-col transition-all duration-200 ${
+          className={`bg-white/95 backdrop-blur-2xl border border-gray-200/50 rounded-3xl min-w-[320px] max-w-[95vw] md:max-w-[900px] shadow-2xl relative flex flex-col transition-all duration-300 ${
             disablePointerEvents ? "pointer-events-none" : "pointer-events-auto"
           } ${
-            entered ? "opacity-100 scale-100" : "opacity-0 scale-0 "
+            entered
+              ? "opacity-100 scale-100 translate-y-0"
+              : "opacity-0 scale-95 translate-y-4"
           } ${className}`}
-          style={{ maxHeight: "74vh", overflow: "hidden" }}
+          style={{
+            maxHeight: fullHeight ? "90vh" : "80vh",
+            height: fullHeight ? "90vh" : undefined,
+            overflow: "hidden",
+            boxShadow:
+              "0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+          }}
         >
           {showCloseButton && (
             <Button
               onClick={onClose}
-              className={`absolute top-3 right-3 text-4xl font-bold ${currentTheme.closeButton} transition-colors cursor-pointer`}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-full transition-all duration-200 z-10"
               aria-label="Close"
             >
-              &times;
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
             </Button>
           )}
           {/* Header */}
           {title && (
-            <div className={titlePadding || `pl-6 pr-10 pt-5 ${""} shrink-0`}>
+            <div
+              className={
+                titlePadding ||
+                `pl-8 pr-12 pt-8 pb-2 ${""} shrink-0 border-b border-gray-100`
+              }
+            >
               <h3
-                className={`text-2xl font-bold bg-gradient-to-r ${
-                  currentTheme.titleGradient
-                } bg-clip-text text-transparent ${
+                className={`text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight ${
                   centerTitle ? "text-center" : ""
                 }`}
               >
@@ -143,21 +164,26 @@ const Modal: React.FC<ModalProps> = ({
             </div>
           )}
           {/* Body (scrollable) */}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <div
-              className="px-5 pb-4 modal-scroll overflow-y-auto h-full"
+              className="px-8 md:px-10 py-8 md:py-10 modal-scroll overflow-y-auto h-full"
               style={{
                 WebkitOverflowScrolling: "touch",
                 touchAction: "pan-y",
                 overscrollBehavior: "contain",
                 scrollbarGutter: "stable",
+                maxHeight: "100%",
               }}
             >
               {children}
             </div>
           </div>
           {/* Footer */}
-          {footer && <div className="px-5 pb-5 pt-3 shrink-0">{footer}</div>}
+          {footer && (
+            <div className="px-8 pb-8 pt-4 shrink-0 border-t border-gray-100">
+              {footer}
+            </div>
+          )}
         </div>
       </div>
     </div>,

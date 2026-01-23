@@ -1,9 +1,15 @@
+import React from "react";
+
 interface TutorialIndexProps {
   onSelectLesson: (lessonId: string) => void;
-  onBack: () => void;
+  initialSection?: SectionLevel | null;
+  initialLessonId?: string;
 }
 
+type SectionLevel = "beginner" | "intermediate" | "advanced";
+
 type LessonType =
+  | "rubiks-cube-introduction"
   | "notation"
   | "white-cross"
   | "white-corners"
@@ -11,114 +17,537 @@ type LessonType =
   | "yellow-cross"
   | "yellow-edges"
   | "yellow-corners"
-  | "orient-yellow-corners";
+  | "orient-yellow-corners"
+  | "f2l-beginner"
+  | "2-look-oll"
+  | "2-look-pll"
+  | "full-oll"
+  | "full-pll"
+  | "white-cross-comprehensive"
+  | "f2l-advanced";
 
 interface Lesson {
   id: LessonType;
   title: string;
   description: string;
   icon: string;
+  comingSoon?: boolean;
 }
 
-const lessons: Lesson[] = [
+interface LessonSection {
+  title: string;
+  description: string;
+  level: SectionLevel;
+  lessons: Lesson[];
+  icon: string;
+  color: {
+    gradient: string;
+    badge: string;
+    border: string;
+  };
+}
+
+const lessonSections: LessonSection[] = [
   {
-    id: "notation",
-    title: "1. Notation",
-    description: "Learn the basic cube notation and move symbols",
-    icon: "📝",
+    title: "Beginner",
+    description: "Learn the fundamentals and solve your first cube",
+    level: "beginner",
+    icon: "🌱",
+    color: {
+      gradient: "from-blue-75 to-blue-100/50 border-blue-300/50",
+      badge: "bg-blue-100 text-blue-700 border-blue-300",
+      border: "border-blue-300/50",
+    },
+    lessons: [
+      {
+        id: "rubiks-cube-introduction",
+        title: "Rubik's Cube Introduction",
+        description: "A basic introduction to the cube and how it works",
+        icon: "/assets/complete-cube-white-top-image.png",
+      },
+      {
+        id: "notation",
+        title: "Notation & Moves",
+        description: "Learn how to read and follow moves",
+        icon: "/assets/notation-image.png",
+      },
+      {
+        id: "white-cross",
+        title: "White Cross",
+        description: "Form a white cross on the bottom face",
+        icon: "/assets/white-cross-image.png",
+      },
+      {
+        id: "white-corners",
+        title: "White Corners",
+        description: "Complete the white face by placing corner pieces",
+        icon: "/assets/white-corners-image.png",
+      },
+      {
+        id: "second-layer",
+        title: "Second Layer",
+        description: "Solve the middle layer edge pieces",
+        icon: "/assets/second-layer-image.png",
+      },
+      {
+        id: "yellow-cross",
+        title: "Yellow Cross",
+        description: "Form a yellow cross on the top face",
+        icon: "/assets/yellow-cross-image.png",
+      },
+      {
+        id: "yellow-edges",
+        title: "Yellow Edges",
+        description: "Position the yellow cross edges correctly",
+        icon: "/assets/yellow-edges-image.png",
+      },
+      {
+        id: "yellow-corners",
+        title: "Yellow Corners",
+        description: "Position the yellow corner pieces",
+        icon: "/assets/yellow-corners-image.png",
+      },
+      {
+        id: "orient-yellow-corners",
+        title: "Orient Yellow Corners",
+        description: "Complete the cube by orienting yellow corners",
+        icon: "/assets/complete-cube-yellow-top-image.png",
+      },
+    ],
   },
   {
-    id: "white-cross",
-    title: "2. White Cross",
-    description: "Form a white cross on the bottom face",
-    icon: "✚",
+    title: "Intermediate",
+    description: "Speed up your solves with advanced techniques",
+    level: "intermediate",
+    icon: "⚡",
+    color: {
+      gradient: "from-purple-75 to-purple-100/50 border-purple-300/50",
+      badge: "bg-purple-100 text-purple-700 border-purple-300",
+      border: "border-purple-300/50",
+    },
+    lessons: [
+      {
+        id: "white-cross-comprehensive",
+        title: "White Cross (Comprehensive)",
+        description: "Master efficient cross solving with advanced techniques",
+        icon: "/assets/white-cross-image.png",
+        comingSoon: true,
+      },
+      {
+        id: "f2l-beginner",
+        title: "F2L (First Two Layers)",
+        description: "Learn to solve the first two layers simultaneously",
+        icon: "/assets/second-layer-image.png",
+        comingSoon: true,
+      },
+      {
+        id: "2-look-oll",
+        title: "2-Look OLL",
+        description: "Orient the last layer in two steps",
+        icon: "/assets/oll-image.png",
+        comingSoon: true,
+      },
+      {
+        id: "2-look-pll",
+        title: "2-Look PLL",
+        description: "Permute the last layer in two steps",
+        icon: "/assets/complete-cube-yellow-top-image.png",
+        comingSoon: true,
+      },
+    ],
   },
   {
-    id: "white-corners",
-    title: "3. White Corners",
-    description: "Complete the white face by placing corner pieces",
-    icon: "🔲",
-  },
-  {
-    id: "second-layer",
-    title: "4. Second Layer",
-    description: "Solve the middle layer edge pieces",
-    icon: "🟦",
-  },
-  {
-    id: "yellow-cross",
-    title: "5. Yellow Cross",
-    description: "Form a yellow cross on the top face",
-    icon: "✚",
-  },
-  {
-    id: "yellow-edges",
-    title: "6. Yellow Edges",
-    description: "Position the yellow cross edges correctly",
-    icon: "🔄",
-  },
-  {
-    id: "yellow-corners",
-    title: "7. Yellow Corners",
-    description: "Position the yellow corner pieces",
-    icon: "📐",
-  },
-  {
-    id: "orient-yellow-corners",
-    title: "8. Orient Yellow Corners",
-    description: "Complete the cube by orienting yellow corners",
-    icon: "🎯",
+    title: "Advanced",
+    description: "Master speedcubing with full algorithm sets",
+    level: "advanced",
+    icon: "🏆",
+    color: {
+      gradient: "from-amber-75 to-amber-100/50 border-amber-300/50",
+      badge: "bg-amber-100 text-amber-700 border-amber-300",
+      border: "border-amber-300/50",
+    },
+    lessons: [
+      {
+        id: "f2l-advanced",
+        title: "Advanced F2L",
+        description:
+          "Master F2L with look-ahead and recognizing your next pair while solving",
+        icon: "/assets/second-layer-image.png",
+        comingSoon: true,
+      },
+      {
+        id: "full-oll",
+        title: "Full OLL",
+        description:
+          "Learn all 57 OLL cases for one-step last layer orientation",
+        icon: "/assets/oll-image.png",
+        comingSoon: true,
+      },
+      {
+        id: "full-pll",
+        title: "Full PLL",
+        description:
+          "Master all 21 PLL cases for one-step last layer permutation",
+        icon: "/assets/complete-cube-yellow-top-image.png",
+        comingSoon: true,
+      },
+    ],
   },
 ];
 
 export default function TutorialIndex({
   onSelectLesson,
-  onBack,
+  initialSection = null,
+  initialLessonId,
 }: TutorialIndexProps) {
-  return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-900">Learn to Solve</h2>
-          <button
-            onClick={onBack}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-          >
-            ✕
-          </button>
+  // Determine section from lesson ID if provided
+  const getSectionForLesson = (lessonId: string): SectionLevel | null => {
+    for (const section of lessonSections) {
+      if (section.lessons.some((lesson) => lesson.id === lessonId)) {
+        return section.level;
+      }
+    }
+    return null;
+  };
+
+  const [selectedSection, setSelectedSection] =
+    React.useState<SectionLevel | null>(
+      initialSection ||
+        (initialLessonId ? getSectionForLesson(initialLessonId) : null)
+    );
+  const [isTransitioning, setIsTransitioning] = React.useState(false);
+  const overviewScrollPositionRef = React.useRef<number>(0);
+  const sectionScrollPositionsRef = React.useRef<Record<SectionLevel, number>>({
+    beginner: 0,
+    intermediate: 0,
+    advanced: 0,
+  });
+
+  const getScrollContainer = (): HTMLElement | null => {
+    return document.querySelector(".modal-scroll") as HTMLElement | null;
+  };
+
+  const handleSectionClick = (level: SectionLevel) => {
+    // Save current scroll position before transitioning
+    const scrollContainer = getScrollContainer();
+    if (scrollContainer) {
+      if (selectedSection) {
+        // Save scroll position for the current section view
+        sectionScrollPositionsRef.current[selectedSection] =
+          scrollContainer.scrollTop;
+      } else {
+        // Save scroll position for overview
+        overviewScrollPositionRef.current = scrollContainer.scrollTop;
+      }
+    }
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setSelectedSection(level);
+      setIsTransitioning(false);
+      // Restore or scroll to top when entering section view
+      setTimeout(() => {
+        const scrollContainer = getScrollContainer();
+        if (scrollContainer) {
+          scrollContainer.scrollTop =
+            sectionScrollPositionsRef.current[level] || 0;
+        }
+      }, 50);
+    }, 150);
+  };
+
+  const handleBack = () => {
+    // Save current section scroll position
+    if (selectedSection) {
+      const scrollContainer = getScrollContainer();
+      if (scrollContainer) {
+        sectionScrollPositionsRef.current[selectedSection] =
+          scrollContainer.scrollTop;
+      }
+    }
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setSelectedSection(null);
+      setIsTransitioning(false);
+      // Restore scroll position when going back to overview
+      setTimeout(() => {
+        const scrollContainer = getScrollContainer();
+        if (scrollContainer) {
+          scrollContainer.scrollTop = overviewScrollPositionRef.current;
+        }
+      }, 50);
+    }, 150);
+  };
+
+  // Handle initial section selection and scroll restoration
+  React.useEffect(() => {
+    if (initialLessonId && !initialSection) {
+      const section = getSectionForLesson(initialLessonId);
+      if (section) {
+        setSelectedSection(section);
+        // Scroll to top of section when coming from a lesson
+        setTimeout(() => {
+          const scrollContainer = getScrollContainer();
+          if (scrollContainer) {
+            scrollContainer.scrollTop = 0;
+          }
+        }, 100);
+      }
+    } else if (!initialLessonId && !initialSection) {
+      // Reset scroll position when modal opens fresh (no initial section/lesson)
+      const scrollContainer = getScrollContainer();
+      if (scrollContainer) {
+        scrollContainer.scrollTop = 0;
+        overviewScrollPositionRef.current = 0;
+        sectionScrollPositionsRef.current = {
+          beginner: 0,
+          intermediate: 0,
+          advanced: 0,
+        };
+      }
+    }
+  }, [initialLessonId, initialSection]);
+
+  const currentSection = selectedSection
+    ? lessonSections.find((s) => s.level === selectedSection)
+    : null;
+
+  // Section Overview View
+  if (!selectedSection) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8">
+          <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight mb-1.5">
+            Learn to Solve
+          </h2>
+          <p className="text-sm md:text-base text-gray-600 leading-relaxed">
+            Master the Rubik's cube with our step-by-step tutorial system.
+            Progress from beginner to advanced techniques.
+          </p>
         </div>
-        <p className="text-gray-600">
-          Master the Rubik's cube with our step-by-step tutorial system. Each
-          lesson builds on the previous one.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        {lessons.map((lesson) => (
-          <div
-            key={lesson.id}
-            onClick={() => onSelectLesson(lesson.id)}
-            className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all cursor-pointer bg-white"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-2xl">{lesson.icon}</span>
-              <h3 className="text-lg font-semibold text-gray-900">
-                {lesson.title}
-              </h3>
+        <div
+          className={`grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 transition-opacity duration-300 ${
+            isTransitioning ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          {lessonSections.map((section) => (
+            <div
+              key={section.level}
+              onClick={() => handleSectionClick(section.level)}
+              className="group relative p-6 md:p-7 bg-white/80 backdrop-blur-xl border border-gray-200/50 rounded-2xl hover:border-gray-300/50 hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
+              style={{
+                transform: "translateY(0)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <div
+                className={`absolute inset-0 bg-gradient-to-br ${section.color.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+              ></div>
+              <div className="relative flex flex-col items-center text-center gap-3">
+                <div
+                  className={`w-12 h-12 rounded-xl ${section.color.badge} flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300`}
+                >
+                  {section.icon}
+                </div>
+                <div>
+                  <h3 className="text-lg md:text-xl font-semibold text-gray-900 tracking-tight mb-1.5">
+                    {section.title}
+                  </h3>
+                  <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
+                    {section.description}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-gray-500 mt-1">
+                  <span>{section.lessons.length} Lessons</span>
+                  <svg
+                    className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-all duration-300 group-hover:translate-x-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </div>
+              </div>
             </div>
-            <p className="text-gray-600 text-sm">{lesson.description}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-        <h3 className="font-semibold text-blue-900 mb-2">💡 Getting Started</h3>
-        <p className="text-blue-800 text-sm">
-          New to cubing? Start with <strong>Notation</strong> to learn the basic
-          moves, then proceed through the lessons in order. Each tutorial
-          includes interactive examples and guided practice.
-        </p>
+        <div className="mt-10 p-6 md:p-7 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl border border-gray-200/50 backdrop-blur-sm">
+          <div className="flex items-start gap-2.5">
+            <div className="flex-shrink-0 w-6 h-6 rounded-lg bg-gray-200/50 flex items-center justify-center text-sm">
+              💡
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1.5 text-sm">
+                Getting Started
+              </h3>
+              <p className="text-xs text-gray-700 leading-relaxed">
+                New to cubing? Start with the{" "}
+                <strong className="font-semibold text-gray-900">
+                  Beginner
+                </strong>{" "}
+                section and work through each lesson in order. Each tutorial
+                includes interactive examples and guided practice to help you
+                master the cube.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Lessons View for Selected Section
+  if (currentSection) {
+    return (
+      <div
+        className={`max-w-6xl mx-auto transition-opacity duration-300 ${
+          isTransitioning ? "opacity-0" : "opacity-100"
+        }`}
+      >
+        {/* Back Button */}
+        <button
+          onClick={handleBack}
+          className="mb-6 flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors duration-200 group"
+        >
+          <svg
+            className="w-3.5 h-3.5 transition-transform duration-200 group-hover:-translate-x-1"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          <span>Back to Sections</span>
+        </button>
+
+        {/* Section Heading */}
+        <div className="mb-6">
+          <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight mb-2">
+            {currentSection.title}
+          </h2>
+          <p className="text-sm md:text-base text-gray-600 leading-relaxed">
+            {currentSection.description}
+          </p>
+        </div>
+
+        {/* Lessons Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">
+          {currentSection.lessons.map((lesson) => (
+            <div
+              key={lesson.id}
+              onClick={() => !lesson.comingSoon && onSelectLesson(lesson.id)}
+              className={`group relative p-6 md:p-7 bg-white/80 backdrop-blur-xl border ${
+                currentSection.color.border
+              } rounded-2xl transition-all duration-300 overflow-hidden ${
+                lesson.comingSoon
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:border-gray-300/50 hover:shadow-xl cursor-pointer"
+              }`}
+              style={{
+                transform: "translateY(0)",
+              }}
+              onMouseEnter={(e) => {
+                if (!lesson.comingSoon) {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              {lesson.comingSoon && (
+                <div className="absolute top-3 right-3 z-10">
+                  <span className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100/80 rounded-md backdrop-blur-sm">
+                    Coming Soon
+                  </span>
+                </div>
+              )}
+              <div
+                className={`absolute inset-0 bg-gradient-to-br ${currentSection.color.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+              ></div>
+              <div
+                className={`relative flex items-start gap-3 ${
+                  lesson.comingSoon ? "pt-3" : ""
+                }`}
+              >
+                <div
+                  className={`flex-shrink-0 w-14 h-14 rounded-xl ${
+                    currentSection.color.badge
+                  } flex items-center justify-center text-xl group-hover:scale-110 transition-transform duration-300 ${
+                    lesson.icon.startsWith("/assets/") ||
+                    lesson.icon.endsWith(".png") ||
+                    lesson.icon.endsWith(".jpg") ||
+                    lesson.icon.endsWith(".svg")
+                      ? "p-1.5"
+                      : ""
+                  }`}
+                >
+                  {lesson.icon.startsWith("/assets/") ||
+                  lesson.icon.endsWith(".png") ||
+                  lesson.icon.endsWith(".jpg") ||
+                  lesson.icon.endsWith(".svg") ? (
+                    <img
+                      src={lesson.icon}
+                      alt={lesson.title}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    lesson.icon
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4
+                    className={`text-sm md:text-base font-semibold text-gray-900 tracking-tight mb-1 ${
+                      lesson.comingSoon ? "pr-2" : ""
+                    }`}
+                  >
+                    {lesson.title}
+                  </h4>
+                  <p className="text-xs text-gray-600 leading-relaxed lg:hidden">
+                    {lesson.description}
+                  </p>
+                </div>
+                {!lesson.comingSoon && (
+                  <svg
+                    className="w-4 h-4 text-gray-400 group-hover:text-gray-600 flex-shrink-0 transition-all duration-300 group-hover:translate-x-1 mt-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                )}
+              </div>
+              <p className="text-xs pt-2 text-gray-600 leading-relaxed hidden lg:block">
+                {lesson.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
