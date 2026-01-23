@@ -1,10 +1,6 @@
 import { useMemo } from "react";
 import type { CubeState } from "@/types/cube";
-import {
-  isPracticeSlide as checkIsPracticeSlide,
-  isRecapSlide as checkIsRecapSlide,
-  isHighlightIntensitySlide,
-} from "@/consts/tutorialSlideConfig";
+import { isHighlightIntensitySlide } from "@/consts/tutorialSlideConfig";
 import {
   findWhiteGreenRedCorner,
   findRedGreenSecondLayerEdge,

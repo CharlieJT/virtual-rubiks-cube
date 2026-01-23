@@ -1,5 +1,3 @@
-import { ANIMATED_SEQUENCE_SLIDES } from "./tutorialSlideConfig";
-
 export const HANDLED_IN_CONDITIONAL_CHAIN = [
   "practice-setup-solution",
   "practice-setup-solution-2",
@@ -38,7 +36,7 @@ export const ACTIVE_HIGHLIGHT_BORDER_SLIDES = [
 ] as const;
 
 export const isHandledInConditionalChain = (
-  slideId: string | undefined
+  _slideId: string | undefined
 ): boolean => {
   return true;
 };

@@ -1,8 +1,5 @@
 import { useEffect } from "react";
-import {
-  isPracticeSlide as checkIsPracticeSlide,
-  isRecapSlide as checkIsRecapSlide,
-} from "@/consts/tutorialSlideConfig";
+import { isPracticeSlide as checkIsPracticeSlide } from "@/consts/tutorialSlideConfig";
 import type { Slide } from "@components/tutorials/slideDefinitions";
 
 interface UseSlideInteractionRulesParams {
