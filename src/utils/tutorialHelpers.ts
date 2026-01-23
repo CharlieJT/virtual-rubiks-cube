@@ -327,6 +327,31 @@ export const getSlideCameraConfig = (
     };
   }
 
+  if (
+    slideId === "practice-last-three-steps" &&
+    lessonId === "orient-yellow-corners"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -45,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    slideId === "practice-full-cube" &&
+    lessonId === "orient-yellow-corners"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: false,
+      extraERotationDeg: -30,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
   return { slideId: slideIdForLogging };
 };
 
@@ -953,6 +978,34 @@ export const isSecondLayerSolved = (cube3D: CubeState[][][]) => {
     }
   }
 
+  return true;
+};
+
+/**
+ * Check if the entire cube is solved (all six faces show a single colour each).
+ */
+export const isCubeFullySolved = (cube3D: CubeState[][][]) => {
+  if (!cube3D) return false;
+
+  const faceLayouts: Array<{
+    face: keyof CubeState["colors"];
+    positions: Array<[number, number, number]>;
+  }> = [
+    { face: "front", positions: [[0, 0, 2], [1, 0, 2], [2, 0, 2], [0, 1, 2], [1, 1, 2], [2, 1, 2], [0, 2, 2], [1, 2, 2], [2, 2, 2]] },
+    { face: "back", positions: [[0, 0, 0], [1, 0, 0], [2, 0, 0], [0, 1, 0], [1, 1, 0], [2, 1, 0], [0, 2, 0], [1, 2, 0], [2, 2, 0]] },
+    { face: "left", positions: [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 0], [0, 1, 1], [0, 1, 2], [0, 2, 0], [0, 2, 1], [0, 2, 2]] },
+    { face: "right", positions: [[2, 0, 0], [2, 0, 1], [2, 0, 2], [2, 1, 0], [2, 1, 1], [2, 1, 2], [2, 2, 0], [2, 2, 1], [2, 2, 2]] },
+    { face: "top", positions: [[0, 2, 0], [1, 2, 0], [2, 2, 0], [0, 2, 1], [1, 2, 1], [2, 2, 1], [0, 2, 2], [1, 2, 2], [2, 2, 2]] },
+    { face: "bottom", positions: [[0, 0, 0], [1, 0, 0], [2, 0, 0], [0, 0, 1], [1, 0, 1], [2, 0, 1], [0, 0, 2], [1, 0, 2], [2, 0, 2]] },
+  ];
+
+  for (const { face, positions } of faceLayouts) {
+    const [cx, cy, cz] = positions[4]; // center of this face
+    const expected = cube3D[cx][cy][cz].colors[face];
+    for (const [x, y, z] of positions) {
+      if (cube3D[x][y][z].colors[face] !== expected) return false;
+    }
+  }
   return true;
 };
 

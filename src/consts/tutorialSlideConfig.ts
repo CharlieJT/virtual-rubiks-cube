@@ -9,6 +9,8 @@ export const PRACTICE_SLIDES = [
   "practice-second-layer-2",
   "practice-second-layer-3",
   "bonus-halfway-solve",
+  "practice-last-three-steps",
+  "practice-full-cube",
 ] as const;
 
 export const PRACTICE_WHITE_CORNERS_SLIDES = [
@@ -33,6 +35,7 @@ export const RECAP_SLIDES = [
   "yellow-cross-completion",
   "yellow-edges-completion",
   "yellow-corners-completion",
+  "orient-yellow-corners-final",
 ] as const;
 
 export const MULTI_STAGE_SLIDES = [
@@ -138,6 +141,8 @@ export const SLIDES_WITH_SETUP_DELAY = [
   "practice-second-layer",
   "practice-second-layer-2",
   "practice-second-layer-3",
+  "practice-last-three-steps",
+  "practice-full-cube",
   "practice-setup-solution",
   "practice-setup-solution-2",
   "practice-setup-solution-3",

@@ -7,7 +7,7 @@ export function getOrientYellowCornersSlides(): Slide[] {
       id: "intro",
       title: "What we're aiming to achieve",
       description:
-        "Congratulations! You've made it to the final lesson. This is where you'll complete the cube by orienting the yellow corners. All pieces are already in their correct positions - now we just need to rotate the corner pieces so that yellow faces up on each one. You should only be able to orbit the cube to see the complete cube from different angles.",
+        "We're finally at the final step which is <b><i>Orient Yellow Corners</i></b>. This is the last step in solving the cube. All pieces are already in their correct positions, now we just need to rotate the corner pieces so that yellow faces up on each one. The only moves we'll be using are the <b><i>Righty Algorithm</i></b> (R U R' U') and the <b><i>D move</i></b> and it's just repeating the righty algorithm until the yellow face is pointing down on that corner piece & then doing a <b><i>D move</i></b> to move onto the next piece.\n\nClick <b><i>Next</i></b> to move on to the next slide to see what we need to do to orient the corners.",
       allowFaceMoves: false,
       setup: (cube: CubeJSWrapper) => {
         cube.reset();
@@ -17,7 +17,7 @@ export function getOrientYellowCornersSlides(): Slide[] {
       id: "orient-two-corners",
       title: "Orienting two corners",
       description:
-        "We'll focus on re-orienting two pieces to understand the mental model. This process involves doing the Righty Algorithm (R U R' U') repeatedly until the yellow face is pointing down on that corner piece. When it is, that corner piece will be correctly oriented, and we do a D move to move onto the next corner. Because we only have two pieces to fix in this example, we only need to do this twice. Understanding this pattern is crucial for mastering corner orientation.",
+        "For the final step, we'll be doing this with <b><i>white on top</i></b>. In this example, we have two corner pieces that need to be oriented correctly in the bottom layer.\n\nWe hold the cube so that the target corner piece is in the bottom right at the front here (in thie case, the Yellow/Green/Red corner piece). What we then need to do is we keep repeating the <b><i>Righty Algorithm</i></b> (R U R' U') until the yellow face is pointing down (so we do the righty algorithm, check, righty again, check... until the corner piece has the yellow face pointing down) & then when it's pointing down, we do a <b><i>D move</i></b> to move onto the next piece.\n\n<b><i>We DON'T orient the cube after each corner fix</i></b>, if you do that, it will mess up the cube and one of the most common reasons why people mess this up, so it's crucial you understand that.\n\nIt's important you follow along & not do the algorithm with the cube but to understand exactly what we're doing here & then practice it yourself until it sticks.\n\nClick <b><i>Next</i></b> to move on to the next to see another example.",
       allowFaceMoves: true,
       setup: (cube: CubeJSWrapper) => {
         cube.reset();
@@ -55,7 +55,7 @@ export function getOrientYellowCornersSlides(): Slide[] {
       id: "orient-three-corners",
       title: "Orienting three corners",
       description:
-        "Now we'll focus on re-orienting three pieces to complete this step. This follows on from what we learned in the previous step - we repeat the same process: do the Righty Algorithm (R U R' U') until the yellow face points down, then do a D move to move to the next corner. Practice this pattern to build your understanding of the mental model.",
+        "Here is another example, this time we have <b><i>three corner pieces</i></b> that need to be oriented correctly in the bottom layer. It's the same mental model here, so do the righty algorithm until the yellow face is pointing down & then do a <b><i>D move</i></b> to move onto the next piece and when all of the yellow faces are pointing down, we just correct the D layer and the cube will be solved.\n\nTry this out for yourself and make sure you try this out several times to really understand what we're doing here.\n\nClick <b><i>Next</i></b> to move on to the next slide to see another example.",
       allowFaceMoves: true,
       setup: (cube: CubeJSWrapper) => {
         cube.reset();
@@ -118,7 +118,7 @@ export function getOrientYellowCornersSlides(): Slide[] {
       id: "orient-four-corners",
       title: "Orienting four corners",
       description:
-        "Now we'll focus on re-orienting four pieces to complete this step. This follows on from what we learned in the previous steps - we repeat the same process: do the Righty Algorithm (R U R' U') until the yellow face points down, then do a D move to move to the next corner. Continue practicing this pattern to reinforce your understanding of the mental model.",
+        "Now this is the last example, this time we have <b><i>four corner pieces</i></b> that need to be oriented correctly in the bottom layer. It's the same mental model here, so do the righty algorithm until the yellow face is pointing down & then do a <b><i>D move</i></b> to move onto the next piece and when all of the yellow faces are pointing down, we just correct the D layer and the cube will be solved.\n\nTry this out for yourself and make sure you try this out several times to really understand what we're doing here.\n\nClick <b><i>Next</i></b> to move on to the next slide to see another example.",
       allowFaceMoves: true,
       setup: (cube: CubeJSWrapper) => {
         cube.reset();
@@ -177,6 +177,76 @@ export function getOrientYellowCornersSlides(): Slide[] {
           "D",
         ]);
       },
+    },
+    {
+      id: "practice-last-three-steps",
+      title: "Bonus 1: Solve the last half on your own",
+      description:
+        "Time to put the <b><i>last three steps</i></b> into practice: <b><i>Yellow Cross</i></b>, <b><i>Yellow Corners</i></b> (positioning), and <b><i>Orient Yellow Corners</i></b>. The cube is set up so that the first two layers are already solved—your job is to finish the rest. Stay focused and work through each step carefully. If you lose your way, use <b><i>Reset</i></b> to return to this starting position and try again.\n\n<b><i>Quick refresher:</i></b>\n\n• <b>Yellow Cross</b> – Use <b><i>F R U R' U' F'</i></b> for Line, Triangle, or Dot; repeat until you have a yellow cross.\n• <b>Yellow Corners (position)</b> – Use the <b><i>Niklas</i></b> algorithm <b><i>U R U' L' U R' U' L</i></b> to cycle corners into place. Put one correct corner in the front-left (or do the algorithm once if none are correct), then repeat until all four are in the right spots.\n• <b>Orient Yellow Corners</b> – With <b><i>white on top</i></b>, hold the cube so the target corner is in the bottom-right at the front. Repeat <b><i>Righty (R U R' U')</i></b> until yellow faces down, then do a <b><i>D</i></b> move and move on to the next corner. Don’t re-orient the cube between corners.\n\nWhen the cube is fully solved, you’ll see <b><i>Solved</i></b> in the top-left. Good luck!",
+      allowFaceMoves: true,
+      setup: (cube: CubeJSWrapper) => {
+        cube.reset();
+        cube.applyMoves([
+          "B",
+          "R",
+          "D",
+          "R'",
+          "D'",
+          "B'",
+          "F",
+          "D",
+          "L",
+          "D'",
+          "L'",
+          "F'",
+        ]);
+      },
+    },
+    {
+      id: "practice-full-cube",
+      title: "Bonus 2: Solve the entire cube",
+      description:
+        "Let’s see if you can bring everything together and <b><i>solve the whole cube</i></b>. This scramble starts from a solved cube, your goal is to solve it from top to bottom using every step you’ve learned. Pay close attention to each stage and, if needed, revisit earlier slides to refresh your memory.\n\n<b><i>Recap of the seven steps:</i></b>\n\n1. <b>White Cross</b> – Get all four white edges around the white center.\n2. <b>White Corners</b> – Insert the white corners to complete the first layer.\n3. <b>Second Layer</b> – Insert the four middle-layer edges (no white or yellow).\n4. <b>Yellow Cross</b> – Form the yellow cross on top with <b><i>F R U R' U' F'</i></b>.\n5. <b>Yellow Corners (position)</b> – Use <b><i>Niklas</i></b> to get all yellow corners in the right places.\n6. <b>Orient Yellow Corners</b> – Righty + D until every yellow corner faces the right way, then align the D layer.\n\n<b><i>Algorithms you’ll need:</i></b>\n\n• <b>Righty</b> – <b><i>R U R' U'</i></b>\n• <b>Lefty</b> – <b><i>L' U' L U</i></b>\n• <b>Yellow cross</b> – <b><i>F R U R' U' F'</i></b>\n• <b>Niklas</b> (yellow corners position) – <b><i>U R U' L' U R' U' L</i></b>\n• <b>Orient yellow corners</b> – Righty <b><i>(R U R' U')</i></b> repeated, then <b><i>D</i></b> to advance; don’t re-orient between corners.\n\nIf you get stuck, use <b><i>Reset</i></b> and try again. Take your time, you’ve got this.",
+      allowFaceMoves: true,
+      setup: (cube: CubeJSWrapper) => {
+        cube.reset();
+        // Fixed solvable scramble (approx. 20 moves)
+        cube.applyMoves([
+          "R",
+          "U2",
+          "F",
+          "D'",
+          "L2",
+          "B",
+          "U",
+          "R'",
+          "D2",
+          "F2",
+          "L'",
+          "B2",
+          "U'",
+          "R2",
+          "D",
+          "F'",
+          "L2",
+          "U2",
+          "B'",
+          "D2",
+          "R'",
+          "F2",
+        ]);
+      },
+    },
+    {
+      id: "orient-yellow-corners-final",
+      title: "Congratulations!",
+      description:
+        "<b>Congratulations!</b> You’ve made it to the end. You now know how to <b><i>solve the whole Rubik’s cube</i></b>, from the first move to the last. That’s a real achievement.\n\n<b><i>What you’ve learned:</i></b>\n\nYou’ve learned notation, the seven steps of the beginner method, and the key algorithms that tie it all together.\n\n<b><i>Breakdown of the lessons:</i></b>\n\n• <b>Notation</b> – How to read and perform moves (R, L, U, D, F, B and prime/double).\n• <b>White Cross</b> – Four white edges around the white center, then matched to their side centers.\n• <b>White Corners</b> – Inserting the white corners with the <b><i>Righty</i></b> and <b><i>Lefty</i></b> algorithms.\n• <b>Second Layer</b> – Four middle-layer edges using insert left and insert right.\n• <b>Yellow Cross</b> – The cross on top using <b><i>F R U R' U' F'</i></b> for line, triangle, and dot cases.\n• <b>Yellow Edges</b> – Positioning the yellow cross edges with <b><i>Sune</i></b>.\n• <b>Yellow Corners (position)</b> – Placing the corners with the <b><i>Niklas</i></b> algorithm.\n• <b>Orient Yellow Corners</b> – Righty and D moves until every yellow corner faces the right way.\n\n<b><i>Breakdown of the algorithms:</i></b>\n\n• <b>Righty</b> – <b><i>R U R' U'</i></b> (white corners & orient yellow corners)\n• <b>Lefty</b> – <b><i>L' U' L U</i></b> (white corners & second layer)\n• <b>Yellow cross</b> – <b><i>F R U R' U' F'</i></b> (line, triangle, dot cases)\n• <b>Sune</b> – <b><i>R U R' U R U2 R'</i></b> (position yellow edges)\n• <b>Niklas</b> – <b><i>U R U' L' U R' U' L</i></b> (position yellow corners)\n• <b>Orient yellow corners</b> – Repeat <b><i>R U R' U'</i></b> until yellow faces down, then <b><i>D</i></b>; don’t re-orient between corners.\n\n<b><i>Practice makes progress:</i></b>\n\nStick with it. At first, each step might feel slow, that’s normal. With practice, your recognition and execution will improve, and the whole solve will feel much easier. Revisit any lesson or use the practice slides whenever you need a refresher.\n\n<b><i>Ready for more?</i></b>\n\nWhen you’re confident with these beginner lessons, you can move on to the <b><i>Intermediate</i></b> lessons. There we combine several steps into one, use fewer moves, and learn more algorithms so you can solve faster and more efficiently.\n\nThanks for learning with us, happy cubing!",
+      allowFaceMoves: false,
+      setup: (cube: CubeJSWrapper) => {
+        cube.reset();
+      },
+      showConfetti: true,
     },
   ];
 }

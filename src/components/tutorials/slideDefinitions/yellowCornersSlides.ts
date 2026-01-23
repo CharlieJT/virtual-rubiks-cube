@@ -70,10 +70,7 @@ export function getYellowCornersSlides(): Slide[] {
           "D",
         ]);
       },
-      filter: (piece: CubeState) => {
-        // Show all pieces - no filtering
-        return true;
-      },
+      filter: () => true,
     },
     {
       id: "yellow-corners-solution",
@@ -147,10 +144,7 @@ export function getYellowCornersSlides(): Slide[] {
           "D'",
         ]);
       },
-      filter: (piece: CubeState) => {
-        // Show all pieces - no filtering
-        return true;
-      },
+      filter: () => true,
     },
     {
       id: "yellow-corners-solution-2",
@@ -192,10 +186,7 @@ export function getYellowCornersSlides(): Slide[] {
           "R'",
         ]);
       },
-      filter: (piece: CubeState) => {
-        // Show all pieces - no filtering
-        return true;
-      },
+      filter: () => true,
     },
     {
       id: "yellow-corners-solution-3",
@@ -238,10 +229,7 @@ export function getYellowCornersSlides(): Slide[] {
           "F'",
         ]);
       },
-      filter: (piece: CubeState) => {
-        // Show all pieces - no filtering
-        return true;
-      },
+      filter: () => true,
     },
     {
       id: "yellow-corners-completion",

@@ -17,6 +17,7 @@ import {
   isWhiteCrossSolved as checkWhiteCrossSolved,
   isWhiteCornersSolved as checkWhiteCornersSolved,
   isSecondLayerSolved as checkSecondLayerSolved,
+  isCubeFullySolved as checkCubeFullySolved,
   getSlideCameraConfig,
 } from "@/utils/tutorialHelpers";
 import {
@@ -44,6 +45,7 @@ import { makeCentersGrey } from "@/utils/makeCentersGrey";
 import TutorialCubeView from "@components/tutorials/TutorialCubeView";
 import SlideFooter from "@components/tutorials/SlideFooter";
 import SlideSidePanel from "@components/tutorials/SlideSidePanel";
+import ConfettiOverlay from "@components/tutorials/ConfettiOverlay";
 import TutorialHeader from "@components/tutorials/TutorialHeader";
 
 interface TutorialPageProps {
@@ -208,6 +210,10 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     return checkSecondLayerSolved(cube3D);
   }, [cube3D]);
 
+  const isCubeFullySolved = useCallback(() => {
+    return checkCubeFullySolved(cube3D);
+  }, [cube3D]);
+
   const practiceCompletion = usePracticeSlideCompletion({
     activeSlideId: activeSlide?.id,
     cube3D,
@@ -215,6 +221,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     isWhiteCrossSolved,
     isWhiteCornersSolved,
     isSecondLayerSolved,
+    isCubeFullySolved,
   });
   const {
     practiceCompleted,
@@ -644,12 +651,15 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       <TutorialHeader title={title} onBack={onBack} />
 
       <div
-        className={`flex flex-1 min-h-0 ${
+        className={`relative flex flex-1 min-h-0 ${
           checkIsRecapSlide(activeSlide?.id)
             ? "h-[100dvh] overflow-hidden"
             : "overflow-hidden"
         }`}
       >
+        {activeSlide?.showConfetti && (
+          <ConfettiOverlay active={!!activeSlide.showConfetti} />
+        )}
         <TutorialCubeView
           cubeContainerRef={cubeContainerRef}
           overlayContainerRef={overlayContainerRef}

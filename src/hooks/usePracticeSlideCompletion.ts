@@ -13,6 +13,7 @@ interface UsePracticeSlideCompletionProps {
   isWhiteCrossSolved: () => boolean;
   isWhiteCornersSolved: () => boolean;
   isSecondLayerSolved: () => boolean;
+  isCubeFullySolved?: () => boolean;
 }
 
 export const usePracticeSlideCompletion = ({
@@ -22,6 +23,7 @@ export const usePracticeSlideCompletion = ({
   isWhiteCrossSolved,
   isWhiteCornersSolved,
   isSecondLayerSolved,
+  isCubeFullySolved,
 }: UsePracticeSlideCompletionProps) => {
   const [practiceCompleted, setPracticeCompleted] = useState(false);
   const [practiceShowTick, setPracticeShowTick] = useState(false);
@@ -40,18 +42,25 @@ export const usePracticeSlideCompletion = ({
     const isWhiteCornersPractice = isPracticeWhiteCornersSlide(activeSlideId);
     const isSecondLayerPractice = isPracticeSecondLayerSlide(activeSlideId);
     const isBonusHalfwaySolve = activeSlideId === "bonus-halfway-solve";
+    const isLastThreeSteps = activeSlideId === "practice-last-three-steps";
+    const isFullCube = activeSlideId === "practice-full-cube";
 
     const crossSolved = isWhiteCrossSolved();
     const cornersSolved = isWhiteCornersSolved();
     const secondLayerSolved = isSecondLayerSolved();
+    const fullSolved =
+      isCubeFullySolved != null ? isCubeFullySolved() : false;
 
-    const isSolved = isBonusHalfwaySolve
-      ? crossSolved && cornersSolved && secondLayerSolved
-      : isWhiteCornersPractice
-      ? crossSolved && cornersSolved
-      : isSecondLayerPractice
-      ? secondLayerSolved
-      : crossSolved;
+    const isSolved =
+      isLastThreeSteps || isFullCube
+        ? fullSolved
+        : isBonusHalfwaySolve
+        ? crossSolved && cornersSolved && secondLayerSolved
+        : isWhiteCornersPractice
+        ? crossSolved && cornersSolved
+        : isSecondLayerPractice
+        ? secondLayerSolved
+        : crossSolved;
 
     if (practiceInitialCrossState === null) {
       setPracticeInitialCrossState(isSolved);
@@ -75,6 +84,7 @@ export const usePracticeSlideCompletion = ({
     isWhiteCrossSolved,
     isWhiteCornersSolved,
     isSecondLayerSolved,
+    isCubeFullySolved,
     practiceCompleted,
     practiceSetupComplete,
     practiceInitialCrossState,

@@ -9,6 +9,7 @@ export type Slide = {
   allowSliceMoves?: boolean;
   setup?: (cube: CubeJSWrapper) => void;
   filter?: (piece: CubeState) => boolean;
+  showConfetti?: boolean;
 };
 
 export function getNotationSlides(): Slide[] {

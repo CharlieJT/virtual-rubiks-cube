@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { isRecapSlide } from "@/consts/tutorialSlideConfig";
 import TypewriterText from "@components/tutorials/TypewriterText";
 import SlideNavigationButtons from "@components/tutorials/SlideNavigationButtons";
+import ConfettiOverlay from "@components/tutorials/ConfettiOverlay";
 import type { Slide } from "@components/tutorials/slideDefinitions";
 
 interface SlideFooterProps {
@@ -47,7 +48,8 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
       activeSlide.id === "second-layer-completion" ||
       activeSlide.id === "yellow-cross-completion" ||
       activeSlide.id === "yellow-edges-completion" ||
-      activeSlide.id === "yellow-corners-completion";
+      activeSlide.id === "yellow-corners-completion" ||
+      activeSlide.id === "orient-yellow-corners-final";
 
     return (
       <div
@@ -56,8 +58,13 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
         }`}
         style={{ height: "100vh", width: "100vw" }}
       >
+        {activeSlide.showConfetti && (
+          <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+            <ConfettiOverlay active={!!activeSlide.showConfetti} />
+          </div>
+        )}
         <div
-          className="h-full flex flex-col overflow-hidden"
+          className="relative z-0 h-full flex flex-col overflow-hidden"
           style={{ height: "100vh" }}
         >
           <div className="flex-1 overflow-y-auto min-h-0">

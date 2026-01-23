@@ -36,7 +36,13 @@ interface GhostPieceProps {
     | "D"
     | "D'"
     | "B"
-    | "B'";
+    | "B'"
+    | "F2"
+    | "R2"
+    | "L2"
+    | "U2"
+    | "D2"
+    | "B2";
 }
 
 const GhostPiece: React.FC<GhostPieceProps> = ({

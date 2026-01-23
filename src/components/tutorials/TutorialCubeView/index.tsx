@@ -143,8 +143,6 @@ const TutorialCubeView = ({
   practiceTickProgress,
   practiceTickLine,
   currentSlide,
-  slidesLength,
-  setCurrentSlide,
   isResetting,
   isResettingOrbit,
   isTransitioning,
