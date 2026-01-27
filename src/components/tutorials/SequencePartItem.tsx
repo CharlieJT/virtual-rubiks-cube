@@ -30,6 +30,7 @@ interface SequencePartItemProps {
   disablePointerEvents: boolean;
   tickLineState: boolean;
   measureRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+  fixErrorPulse?: boolean;
 }
 
 const SequencePartItem: React.FC<SequencePartItemProps> = ({
@@ -55,6 +56,7 @@ const SequencePartItem: React.FC<SequencePartItemProps> = ({
   disablePointerEvents,
   tickLineState,
   measureRefs,
+  fixErrorPulse = false,
 }) => {
   const borderStyles = getBorderStyles(
     part.borderColor,
@@ -62,6 +64,16 @@ const SequencePartItem: React.FC<SequencePartItemProps> = ({
     isCompleted,
     isCollapsing
   );
+  
+  // Override border color to red when there's an error on the active part
+  const errorBorderStyle = fixErrorPulse && isActive
+    ? { borderColor: "#dc2626" }
+    : borderStyles.borderStyle;
+  
+  const errorBorderClass = fixErrorPulse && isActive
+    ? "border-2 border-red-600"
+    : borderStyles.borderClass;
+  
   const isCircle = isCompleted && showTick;
 
   const { containerWidth, containerHeight, borderRadius, circleSize, dotSize } =
@@ -112,7 +124,7 @@ const SequencePartItem: React.FC<SequencePartItemProps> = ({
         }}
       >
         <div
-          className={`flex items-center justify-center overflow-hidden ${borderStyles.borderClass}`}
+          className={`flex items-center justify-center overflow-hidden ${errorBorderClass}`}
           style={{
             width:
               typeof containerWidth === "number"
@@ -130,11 +142,12 @@ const SequencePartItem: React.FC<SequencePartItemProps> = ({
             borderRadius: borderRadius,
             transition: disableTransitions
               ? "none"
-              : "width 300ms ease-in-out, height 300ms ease-in-out, border-radius 300ms ease-in-out, opacity 300ms ease-in-out",
-            ...borderStyles.borderStyle,
-            ...(borderStyles.borderClass
+              : "width 300ms ease-in-out, height 300ms ease-in-out, border-radius 300ms ease-in-out, opacity 300ms ease-in-out, background-color 200ms ease-in-out, border-color 200ms ease-in-out",
+            ...errorBorderStyle,
+            ...(errorBorderClass
               ? { opacity: borderOpacityForRender }
               : {}),
+            backgroundColor: fixErrorPulse && isActive ? "#fecaca" : "transparent",
             position: "relative",
             pointerEvents: disablePointerEvents ? "none" : "auto",
           }}
@@ -153,6 +166,7 @@ const SequencePartItem: React.FC<SequencePartItemProps> = ({
               partialDirection={partialDirection}
               startIndex={part.startIndex}
               hideBorder={true}
+              fixErrorPulse={fixErrorPulse && isActive}
             />
           </div>
           {(isFuture || isExpandingFromFuture || isCollapsingToPending) && (

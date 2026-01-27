@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CubeMove } from "@/types/cube";
 import { AnimationHelper, type AnimatedCubie } from "@utils/animationHelper";
@@ -213,6 +213,10 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
   (
     {
       cubeState,
+      previousCube3D,
+      baselineCube3D,
+      stickerGreyMap,
+      colorFadeProgress = 0,
       pendingMove,
       onMoveAnimationDone,
       onStartAnimation,
@@ -239,9 +243,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       hideBackFace = false,
       hideTopFace = false,
       hideBottomFace = false,
+      errorFlash = false,
     }: RubiksCube3DProps,
     ref
   ) => {
+    const { camera } = useThree();
     const groupRef = useRef<THREE.Group>(null);
     const commitGuardRef = useRef<{ move: string; t: number } | null>(null);
     const startGuardRef = useRef<string | null>(null);
@@ -249,6 +255,8 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const raycastTargetsRef = useRef<THREE.Mesh[]>([]);
     const currentTweenRef = useRef<any>(null);
     const meshesReadyRef = useRef(false);
+    const shakeTimeRef = useRef(0);
+    const previousErrorFlashRef = useRef(false);
 
     const { whiteLogoAngle, applyMoveToWhiteLogoAngle, resetLogo } =
       useWhiteLogo(cubeState);
@@ -366,7 +374,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
         processPointerDown(e, pos, intersectionPoint, onOrbitControlsChange);
       },
-      [inputDisabled, disableSliceDrag, onOrbitControlsChange, processPointerDown]
+      [
+        inputDisabled,
+        disableSliceDrag,
+        onOrbitControlsChange,
+        processPointerDown,
+      ]
     );
 
     useEffect(() => {
@@ -458,13 +471,52 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       isTimerMode,
     ]);
 
-    useFrame(() => {
+    useFrame((_, delta) => {
       AnimationHelper.update();
 
       if (!disableSliceDrag) {
         updateDragRotation();
         updateSnappingAnimation();
       }
+
+      // Shake animation when errorFlash is active
+      if (errorFlash) {
+        // Reset shake time when errorFlash first becomes true
+        if (!previousErrorFlashRef.current) {
+          shakeTimeRef.current = 0;
+        }
+
+        shakeTimeRef.current += delta;
+
+        // Quick sharp shake for 0.6 seconds (left to right on screen)
+        if (shakeTimeRef.current < 0.6 && groupRef.current) {
+          const shakeIntensity = 0;
+          const shakeSpeed = 50; // High frequency for sharp shake
+          const decay = 1 - shakeTimeRef.current / 0.6; // Decay over time
+
+          // Get camera's right vector (screen-space horizontal direction)
+          const cameraRight = new THREE.Vector3();
+          cameraRight.setFromMatrixColumn(camera.matrixWorld, 0); // Get right vector from camera world matrix
+          cameraRight.normalize();
+
+          // Shake along camera's right vector (screen left-to-right)
+          const shakeAmount =
+            shakeIntensity *
+            decay *
+            Math.sin(shakeTimeRef.current * shakeSpeed);
+          const shakeVector = cameraRight.multiplyScalar(shakeAmount);
+
+          groupRef.current.position.copy(shakeVector);
+        } else if (groupRef.current) {
+          // Reset position when shake is done
+          groupRef.current.position.set(0, 0, 0);
+        }
+      } else if (groupRef.current && previousErrorFlashRef.current) {
+        // Reset position when errorFlash becomes false
+        groupRef.current.position.set(0, 0, 0);
+      }
+
+      previousErrorFlashRef.current = errorFlash;
     });
 
     // Create a Set for O(1) highlight lookups instead of O(n) array.some()
@@ -472,9 +524,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       if (!highlightPositions || highlightPositions.length === 0) {
         return new Set<string>();
       }
-      return new Set(
-        highlightPositions.map(([x, y, z]) => `${x},${y},${z}`)
-      );
+      return new Set(highlightPositions.map(([x, y, z]) => `${x},${y},${z}`));
     }, [highlightPositions]);
 
     // Memoize the entire cube rendering to avoid recreating all 27 pieces on every render
@@ -514,6 +564,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
             const cornerStyles = styleEntry?.cornerBuilder || [];
             // O(1) lookup instead of O(n) array.some()
             const isHighlighted = highlightSet.has(cubieKey);
+            
+            // Get previous colors if available
+            const previousColors = previousCube3D?.[x]?.[y]?.[z]?.colors || null;
+            const baselineColors = baselineCube3D?.[x]?.[y]?.[z]?.colors || null;
+            
             nodes.push(
               <CubePiece
                 key={cubieKey}
@@ -524,6 +579,10 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 ]}
                 gridIndex={[x, y, z]}
                 colors={cubie.colors}
+                previousColors={previousColors}
+                baselineColors={baselineColors}
+                stickerGreyMap={stickerGreyMap}
+                colorFadeProgress={colorFadeProgress}
                 roundedBoxGeometry={roundedBoxGeometry}
                 sharedLogoTexture={tiptonsTexture}
                 logoReady={logoReady}
@@ -531,11 +590,8 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 touchCount={touchCount}
                 cornerStyles={cornerStyles}
                 isHighlighted={isHighlighted}
-                highlightIntensity={
-                  isHighlighted
-                    ? highlightIntensity ?? 0
-                    : dullOthersIntensity ?? 0
-                }
+                highlightIntensity={0} // Target piece stays normal brightness
+                dullOthersIntensity={!isHighlighted ? (dullOthersIntensity ?? 0) : 0}
                 trackingStateRef={trackingStateRef}
                 onPointerDown={(e, pos, intersectionPoint) => {
                   handlePointerDown(e, pos, intersectionPoint);
@@ -597,6 +653,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       hideBackFace,
       hideTopFace,
       hideBottomFace,
+      errorFlash,
       highlightSet,
       highlightIntensity,
       dullOthersIntensity,

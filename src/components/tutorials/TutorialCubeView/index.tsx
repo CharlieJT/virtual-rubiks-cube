@@ -37,6 +37,10 @@ interface TutorialCubeViewProps {
   isTouchDevice: boolean;
   hasInteractedGloballyRef: React.MutableRefObject<boolean>;
   tutorialCube3D: CubeState[][][];
+  previousCube3D?: CubeState[][][] | null;
+  baselineCube3D?: CubeState[][][] | null;
+  stickerGreyMap?: Map<string, boolean>;
+  colorFadeProgress?: number;
   touchCount: number;
   pendingMove: CubeMove | null;
   isAnimating: boolean;
@@ -120,6 +124,10 @@ const TutorialCubeView = ({
   isTouchDevice,
   hasInteractedGloballyRef,
   tutorialCube3D,
+  previousCube3D,
+  baselineCube3D,
+  stickerGreyMap,
+  colorFadeProgress = 0,
   touchCount,
   pendingMove,
   isAnimating,
@@ -185,9 +193,7 @@ const TutorialCubeView = ({
   const isPracticeSlide = checkIsPracticeSlide(activeSlideId);
   const showYellowCrossStates = activeSlideId === "yellow-cross-states";
   const showBeginnersMethodGrid = activeSlideId === "beginners-method-overview";
-  const hideLogo =
-    lessonId === "rubiks-cube-introduction" &&
-    (activeSlideId === "edge-pieces" || activeSlideId === "corner-pieces");
+  const hideLogo = true; // Hide logo in tutorial lessons - show plain white centers
 
   const {
     handlePointerDown: baseHandlePointerDown,
@@ -351,6 +357,10 @@ const TutorialCubeView = ({
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={tutorialCube3D}
+                previousCube3D={previousCube3D}
+                baselineCube3D={baselineCube3D}
+                stickerGreyMap={stickerGreyMap}
+                colorFadeProgress={colorFadeProgress}
                 touchCount={touchCount}
                 pendingMove={pendingMove}
                 onMoveAnimationDone={handleMoveAnimationDone}
@@ -373,6 +383,7 @@ const TutorialCubeView = ({
                 dullOthersIntensity={dullOthersIntensity}
                 pieceChildren={combinedPieceChildren}
                 hideLogo={hideLogo}
+                errorFlash={fixErrorPulse}
                 hideRightFace={
                   (activeSlideId === "notation-clockwise-r" ||
                     activeSlideId === "notation-prime-r" ||

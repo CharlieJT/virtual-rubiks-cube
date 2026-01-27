@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { RefObject, MutableRefObject } from "react";
+import { flushSync } from "react-dom";
 import {
   parseMove,
   eqMove,
@@ -42,7 +43,8 @@ interface UseFixSequenceValidationProps {
   practiceSetupSolution9YawChangedRef: MutableRefObject<number>;
   animateMidlayerStage: (stage: 1 | 2 | 3 | 4 | 5) => void;
   triggerFixTick: () => void;
-  resetToSlideBaseline: () => Promise<void>;
+  resetToSlideBaseline: (skipFixIndexReset?: boolean, previousState?: any) => Promise<void>;
+  showErrorFade: (wrongMove: CubeMove | null, fixSequence: string[], fixIndex: number) => void;
   setFixFirstTickProgress: (progress: boolean) => void;
   setFixFirstTickLine: (line: boolean) => void;
   setFixFirstTickPlayed: (played: boolean) => void;
@@ -88,6 +90,7 @@ export const useFixSequenceValidation = ({
   animateMidlayerStage,
   triggerFixTick,
   resetToSlideBaseline,
+  showErrorFade,
   setFixFirstTickProgress,
   setFixFirstTickLine,
   setFixFirstTickPlayed,
@@ -123,9 +126,11 @@ export const useFixSequenceValidation = ({
       const got = parseMove(mappedMove);
 
       const resetWithError = async () => {
-        setFixErrorPulse(true);
-        setTimeout(() => setFixErrorPulse(false), 600);
-        setFixIndex(0);
+        // Store the wrong move index so we can show error on it
+        const wrongMoveIndex = fixIndex;
+        // Get the wrong move that was attempted (the move parameter passed to validateMove)
+        const wrongMoveAttempted = move;
+        // Reset cube state and orbit immediately
         setFixDoublePartialDir(0);
         setFixShowTick(false);
         if (activeSlideId === "yellow-edges-solution-2") {
@@ -142,7 +147,21 @@ export const useFixSequenceValidation = ({
         if (activeSlideId === "yellow-corners-solution-2") {
           yellowCorners2YawChangedRef.current = false;
         }
-        await resetToSlideBaseline();
+        // Set error pulse BEFORE reset so it's visible during reset
+        setFixErrorPulse(true);
+        // Show error fade (grey fade on mismatched stickers) WITHOUT resetting the cube
+        // Pass the wrong move, fixSequence, and fixIndex so showErrorFade can compute the correct baseline
+        showErrorFade(wrongMoveAttempted, fixSequence, fixIndex);
+        // Restore fixIndex and error pulse
+        flushSync(() => {
+          setFixIndex(wrongMoveIndex);
+          setFixErrorPulse(true);
+        });
+        // After flash duration, reset fixIndex and turn off error flash
+        setTimeout(() => {
+          setFixIndex(0);
+          setFixErrorPulse(false);
+        }, 350);
       };
 
       const handleMoveSuccess = (nextIndex: number) => {
@@ -348,22 +367,29 @@ export const useFixSequenceValidation = ({
 
       if (exp.mod === "2") {
         if (fixDoublePartialDir !== 0) {
+          // We're in the middle of a double move - check if this move completes it
           const expectedDir = fixDoublePartialDir;
           const gotDir = got.mod === "'" ? -1 : got.mod === "2" ? 0 : 1;
           if (got.base === exp.base && gotDir !== 0 && gotDir === expectedDir) {
+            // Complete the double move - increment fixIndex by 1
             const nextIndex = fixIndex + 1;
             handleMoveSuccess(nextIndex);
           } else {
             resetWithError();
           }
         } else {
+          // No partial move yet - check if this is a complete double move or first part
           if (got.base === exp.base && got.mod === "2") {
+            // Complete double move done in one go (e.g., user did F2 when F2 was expected)
+            // This is ONE move in the sequence, so increment fixIndex by 1
             const nextIndex = fixIndex + 1;
             handleMoveSuccess(nextIndex);
           } else if (
             got.base === exp.base &&
             (got.mod === "" || got.mod === "'")
           ) {
+            // First part of a double move (e.g., user did F when F2 was expected)
+            // Set fixDoublePartialDir and wait for second part - don't increment fixIndex yet
             const dir = got.mod === "'" ? -1 : 1;
             setFixDoublePartialDir(dir);
           } else {

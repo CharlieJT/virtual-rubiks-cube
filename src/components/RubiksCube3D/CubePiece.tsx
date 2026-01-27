@@ -21,6 +21,10 @@ const CubePiece = React.memo(
   ({
     position,
     colors,
+    previousColors,
+    baselineColors,
+    stickerGreyMap,
+    colorFadeProgress = 0,
     gridIndex,
     onPointerDown,
     onMeshReady,
@@ -35,6 +39,7 @@ const CubePiece = React.memo(
     pulseSpeed = 1.2,
     pulseMin = 0.18,
     pulseMax = 0.28,
+    dullOthersIntensity = 0,
     // Shared resources passed from parent to avoid per-cubie allocations
     roundedBoxGeometry,
     sharedLogoTexture,
@@ -50,6 +55,7 @@ const CubePiece = React.memo(
     pulseSpeed?: number;
     pulseMin?: number;
     pulseMax?: number;
+    dullOthersIntensity?: number;
   }) => {
     // Track per-face materials and base colors for animation
     const stickerMatsRef = useRef<Record<string, THREE.MeshPhongMaterial>>({});
@@ -57,31 +63,109 @@ const CubePiece = React.memo(
     const tRef = useRef(0);
 
     useFrame((_, delta) => {
-      if (!pulse || !isHighlighted) return;
-      // Update time using cycles per second -> radians per second = 2πf
-      const omega = 2 * Math.PI * (pulseSpeed || 1.2);
-      tRef.current += delta * omega;
-      const s = Math.sin(tRef.current); // [-1,1]
-      const brightenAmt = Math.max(0, s) * (pulseMax || 0.25); // 0..pulseMax
-      const dullAmt = Math.max(0, -s) * (pulseMin || 0.18); // 0..pulseMin
-      const grey = new THREE.Color("#808080");
-      const white = new THREE.Color(0xffffff);
+      // Update sticker colors for pulse animation, color fade, or dulling
       for (const face in stickerMatsRef.current) {
         const mat = stickerMatsRef.current[face];
         const base = baseColorsRef.current[face];
         if (!mat || !base) continue;
-        // Start from base, apply brighten then dull blend
-        const c = base.clone();
-        if (brightenAmt > 0) c.lerp(white, Math.min(0.85, brightenAmt));
-        if (dullAmt > 0) c.lerp(grey, Math.min(0.85, dullAmt));
-        mat.color.copy(c);
-        // Subtle emissive pulse too
-        const emissiveBase = base.clone();
-        const emissiveColor = emissiveBase.multiplyScalar(0.4);
-        mat.emissive.copy(emissiveColor);
-        mat.emissiveIntensity = 0.05 + brightenAmt * 0.25;
-        mat.shininess = 12 + brightenAmt * 16;
-        mat.needsUpdate = true;
+        
+        // Debug: check if fade should be running for M slice
+        if (gridIndex && gridIndex[0] === 1 && colorFadeProgress > 0 && colorFadeProgress < 0.05) {
+          const [x, y, z] = gridIndex;
+          const faceKey = `${x},${y},${z},${face}`;
+          const needsGreyFade = stickerGreyMap?.get(faceKey) ?? false;
+          if (needsGreyFade && !previousColors) {
+            console.log(`[CubePiece] WARNING: M slice [${x},${y},${z}] ${face} needs fade but previousColors is null!`);
+          }
+          if (needsGreyFade && !baselineColors) {
+            console.log(`[CubePiece] WARNING: M slice [${x},${y},${z}] ${face} needs fade but baselineColors is null!`);
+          }
+        }
+
+        // Handle two-phase color fade transition
+        if (previousColors && baselineColors && colorFadeProgress > 0 && gridIndex) {
+          const [x, y, z] = gridIndex;
+          const faceKey = `${x},${y},${z},${face}`;
+          const needsGreyFade = stickerGreyMap?.get(faceKey) ?? false;
+          const grey = new THREE.Color("#808080");
+          const previousColor = new THREE.Color(previousColors[face as keyof CubeState["colors"]] || CUBE_COLORS.BLACK);
+          const baselineColor = new THREE.Color(baselineColors[face as keyof CubeState["colors"]] || CUBE_COLORS.BLACK);
+          
+          // Debug: log fade for M slice pieces (first few frames)
+          if (x === 1 && needsGreyFade && colorFadeProgress < 0.05) {
+            console.log(`[CubePiece] M slice fade: [${x},${y},${z}] ${face} needsGrey=${needsGreyFade} prev=${previousColor.getHexString()} base=${baselineColor.getHexString()} progress=${colorFadeProgress.toFixed(3)}`);
+          }
+          
+          if (colorFadeProgress <= 0.5) {
+            // Phase 1 (0 to 0.5): ONLY fade mismatched stickers to grey
+            // Stickers that match stay at their previous color
+            // At progress = 0.5, Phase 1 is complete (mismatched stickers are fully grey)
+            const phase1Progress = Math.min(1, colorFadeProgress / 0.5); // 0 to 1 within phase 1
+            
+            if (needsGreyFade) {
+              // This sticker doesn't match baseline - fade it to grey
+              // Even if colors appear the same (due to x rotation in slice moves), fade to grey
+              const lerpedColor = previousColor.clone().lerp(grey, phase1Progress);
+              mat.color.copy(lerpedColor);
+            } else {
+              // This sticker matches baseline - keep it at previous color (no change in Phase 1)
+              mat.color.copy(previousColor);
+            }
+            mat.needsUpdate = true;
+          } else {
+            // Phase 2 (>0.5 to 1.0): Fade stickers from their current state to baseline
+            // Only fade stickers that are in the grey map (mismatched) or that actually differ
+            // This prevents non-slice pieces from fading when they shouldn't
+            const phase2Progress = Math.min(1, (colorFadeProgress - 0.5) / 0.5); // 0 to 1 within phase 2
+            
+            // If in grey map, always fade (even if colors appear same due to x rotation in slice moves)
+            // Otherwise, only fade if colors actually differ
+            const colorsDiffer = previousColor.getHex() !== baselineColor.getHex();
+            if (needsGreyFade || colorsDiffer) {
+              // Determine start color based on what happened in Phase 1:
+              // - If it was faded to grey in Phase 1, start from grey (fully grey at progress 0.5)
+              // - If it matched in Phase 1, start from previous color
+              const startColor = needsGreyFade ? grey : previousColor;
+              const lerpedColor = startColor.clone().lerp(baselineColor, phase2Progress);
+              mat.color.copy(lerpedColor);
+            } else {
+              // Colors are the same and not in grey map, keep at previous color (no fade needed)
+              mat.color.copy(previousColor);
+            }
+            mat.needsUpdate = true;
+          }
+        } else if (pulse && isHighlighted) {
+          // Normal pulse animation
+          // Update time for pulse
+          const omega = 2 * Math.PI * (pulseSpeed || 1.2);
+          tRef.current += delta * omega;
+          const s = Math.sin(tRef.current);
+          const brightenAmt = Math.max(0, s) * (pulseMax || 0.25);
+          const dullAmt = Math.max(0, -s) * (pulseMin || 0.18);
+          const grey = new THREE.Color("#808080");
+          const white = new THREE.Color(0xffffff);
+          const c = base.clone();
+          if (brightenAmt > 0) c.lerp(white, Math.min(0.85, brightenAmt));
+          if (dullAmt > 0) c.lerp(grey, Math.min(0.85, dullAmt));
+          mat.color.copy(c);
+          // Subtle emissive pulse
+          const emissiveBase = base.clone();
+          const emissiveColor = emissiveBase.multiplyScalar(0.4);
+          mat.emissive.copy(emissiveColor);
+          mat.emissiveIntensity = 0.05 + brightenAmt * 0.25;
+          mat.shininess = 12 + brightenAmt * 16;
+          mat.needsUpdate = true;
+        } else if (dullOthersIntensity > 0 && !isHighlighted) {
+          // Apply dulling to non-highlighted pieces
+          const grey = new THREE.Color("#808080");
+          const dulledColor = base.clone().lerp(grey, dullOthersIntensity);
+          mat.color.copy(dulledColor);
+          mat.needsUpdate = true;
+        } else {
+          // Normal color - ensure we're back to base
+          mat.color.copy(base);
+          mat.needsUpdate = true;
+        }
       }
     });
     const meshRef = useRef<THREE.Mesh>(null);
@@ -131,6 +215,7 @@ const CubePiece = React.memo(
 
     // Base sticker size & radius (used per-sticker when building specific geometry)
     const stickerBaseSize = useMemo(() => CUBIE_SIZE * STICKER_INSET, []);
+
     const [stickerRadiusTrue, stickerRadiusFalse] = useMemo(
       () => [
         stickerBaseSize * STICKER_CORNER_RATIO,
@@ -359,7 +444,13 @@ const CubePiece = React.memo(
                         stickerMatsRef.current[f.key] = m;
                         // Capture base color used before any animation
                         try {
-                          baseColorsRef.current[f.key] = m.color.clone();
+                          // Store the base color - useFrame will handle fade interpolation
+                          if (previousColors && colorFadeProgress === 0) {
+                            // At fade start, store the old color
+                            baseColorsRef.current[f.key] = new THREE.Color(previousColors[f.key] || CUBE_COLORS.BLACK);
+                          } else {
+                            baseColorsRef.current[f.key] = m.color.clone();
+                          }
                         } catch {}
                       }
                     }}
@@ -367,25 +458,19 @@ const CubePiece = React.memo(
                     color={
                       (() => {
                         // Start from base: for logo we multiply the texture by color; for normal stickers we use the sticker color
-                        const base = showLogo
+                        let base = showLogo
                           ? new THREE.Color(0xffffff)
                           : new THREE.Color(col as any);
-                        const intensity = (hi as number) || 0;
-                        if (intensity > 0) {
-                          if (isHighlighted) {
-                            // Brighten highlighted target
-                            const factor = Math.min(0.7, 0.25 + intensity);
-                            return base
-                              .clone()
-                              .lerp(new THREE.Color(0xffffff), factor);
-                          } else {
-                            // Dull non-targets toward grey
-                            const dullFactor = Math.min(0.85, 0.2 + intensity);
-                            return base
-                              .clone()
-                              .lerp(new THREE.Color("#808080"), dullFactor);
-                          }
+
+                        // If we're fading, interpolate between old and new colors
+                        // But useFrame will handle the actual animation, so just set initial state here
+                        if (previousColors && colorFadeProgress === 0) {
+                          // At the start of fade, use the old color (state with wrong move)
+                          base = new THREE.Color(previousColors[f.key] || CUBE_COLORS.BLACK);
                         }
+                        
+                        // Color is now handled in useFrame for smooth transitions
+                        // Return base color here, useFrame will update it
                         return base;
                       })() as any
                     }

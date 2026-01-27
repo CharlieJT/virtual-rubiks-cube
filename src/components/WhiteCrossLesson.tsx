@@ -7,14 +7,14 @@ interface WhiteCrossLessonProps {
   onBack: () => void;
 }
 
-type Slide = {
-  id: string;
-  title: string;
-  description: string;
-  allowFaceMoves: boolean;
-  setup?: (cube: CubeJSWrapper) => void;
-  filter?: (piece: CubeState) => boolean;
-};
+  type Slide = {
+    id: string;
+    title: string;
+    description: string;
+    allowFaceMoves: boolean;
+    setup?: (cube: CubeJSWrapper) => void;
+    filter?: (piece: CubeState) => boolean;
+  };
 
 export default function WhiteCrossLesson({
   title,

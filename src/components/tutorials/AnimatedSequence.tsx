@@ -28,6 +28,7 @@ interface AnimatedSequenceProps {
   showFrontFaceLabel?: boolean;
   disablePointerEvents?: boolean;
   deferMeasurements?: boolean;
+  fixErrorPulse?: boolean;
 }
 
 const AnimatedSequence: React.FC<AnimatedSequenceProps> = ({
@@ -38,6 +39,7 @@ const AnimatedSequence: React.FC<AnimatedSequenceProps> = ({
   showFrontFaceLabel = false,
   disablePointerEvents = false,
   deferMeasurements = false,
+  fixErrorPulse = false,
 }) => {
   const allSequencesComplete =
     parts.length > 0 && currentIndex >= parts[parts.length - 1].boundaryIndex;
@@ -140,6 +142,7 @@ const AnimatedSequence: React.FC<AnimatedSequenceProps> = ({
               disablePointerEvents={disablePointerEvents}
               tickLineState={tickLineStates.get(partIdx) ?? false}
               measureRefs={measureRefs}
+              fixErrorPulse={fixErrorPulse && isActive}
             />
           );
         })}

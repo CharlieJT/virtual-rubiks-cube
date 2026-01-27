@@ -16,6 +16,7 @@ interface AlgorithmSequenceProps {
   borderColor?: string;
   startIndex?: number;
   hideBorder?: boolean;
+  fixErrorPulse?: boolean;
 }
 
 const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
@@ -25,6 +26,7 @@ const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
   borderColor = "border-green-500",
   startIndex = 0,
   hideBorder = false,
+  fixErrorPulse = false,
 }) => {
   const getPillState = (idx: number): MovePillState => {
     const globalIdx = startIndex + idx;
@@ -46,7 +48,7 @@ const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
 
   const getPillClassName = (state: MovePillState): string => {
     let baseClass =
-      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none ";
+      "relative px-1 py-1 text-[14px] md:text-xs leading-none select-none transition-colors duration-200 ";
 
     if (state.isFirst) {
       baseClass += " rounded-tl-md rounded-bl-md pl-2 ";
@@ -58,9 +60,17 @@ const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
     if (state.isDone) {
       baseClass += " bg-green-500 text-white border-green-500";
     } else if (state.isPartial) {
-      baseClass += " text-white border-blue-600";
+      if (fixErrorPulse) {
+        baseClass += " bg-red-500 text-white border-red-600";
+      } else {
+        baseClass += " text-white border-blue-600";
+      }
     } else if (state.isCurrent) {
-      baseClass += " bg-white text-blue-700 border-blue-500";
+      if (fixErrorPulse) {
+        baseClass += " bg-red-500 text-white border-red-600";
+      } else {
+        baseClass += " bg-white text-blue-700 border-blue-500";
+      }
     } else {
       baseClass += " text-gray-600 bg-gray-300 border-gray-300";
     }
@@ -71,7 +81,7 @@ const AlgorithmSequence: React.FC<AlgorithmSequenceProps> = ({
   const getPillStyle = (
     state: MovePillState
   ): React.CSSProperties | undefined => {
-    if (state.isPartial) {
+    if (state.isPartial && !fixErrorPulse) {
       return {
         background: "linear-gradient(90deg, #22c55e 50%, #3b82f6 50%)",
       };

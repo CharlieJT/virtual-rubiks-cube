@@ -231,3 +231,19 @@ body {
 .btn-success-pulse {
   animation: successPulse 900ms ease-in-out 1;
 }
+
+/* Red error flash animation for background */
+@keyframes errorFlash {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.error-flash-overlay {
+  animation: errorFlash 700ms ease-out;
+}

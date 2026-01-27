@@ -55,12 +55,12 @@ export const usePracticeSlideCompletion = ({
       isLastThreeSteps || isFullCube
         ? fullSolved
         : isBonusHalfwaySolve
-        ? crossSolved && cornersSolved && secondLayerSolved
-        : isWhiteCornersPractice
-        ? crossSolved && cornersSolved
-        : isSecondLayerPractice
-        ? secondLayerSolved
-        : crossSolved;
+      ? crossSolved && cornersSolved && secondLayerSolved
+      : isWhiteCornersPractice
+      ? crossSolved && cornersSolved
+      : isSecondLayerPractice
+      ? secondLayerSolved
+      : crossSolved;
 
     if (practiceInitialCrossState === null) {
       setPracticeInitialCrossState(isSolved);

@@ -68,6 +68,10 @@ export interface TrackingStateRef {
 export interface CubePieceProps {
   position: [number, number, number];
   colors: CubeState["colors"];
+  previousColors?: CubeState["colors"] | null;
+  baselineColors?: CubeState["colors"] | null;
+  stickerGreyMap?: Map<string, boolean>;
+  colorFadeProgress?: number;
   gridIndex?: [number, number, number];
   onPointerDown?: (
     e: any,
@@ -84,10 +88,16 @@ export interface CubePieceProps {
   >;
   highlightIntensity?: number;
   isHighlighted?: boolean;
+  dullOthersIntensity?: number;
+  errorFlash?: boolean;
 }
 
 export interface RubiksCube3DProps {
   cubeState: CubeState[][][];
+  previousCube3D?: CubeState[][][] | null;
+  baselineCube3D?: CubeState[][][] | null;
+  stickerGreyMap?: Map<string, boolean>;
+  colorFadeProgress?: number;
   pendingMove?: CubeMove | null;
   onMoveAnimationDone?: (move: CubeMove) => void;
   onStartAnimation?: () => void;
@@ -120,6 +130,7 @@ export interface RubiksCube3DProps {
   hideBackFace?: boolean;
   hideTopFace?: boolean;
   hideBottomFace?: boolean;
+  errorFlash?: boolean;
 }
 
 export type RubiksCube3DHandle = {

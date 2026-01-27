@@ -122,6 +122,8 @@ export const WHITE_CROSS_SLIDES_WITHOUT_FRONT_FACE = [
 ] as const;
 
 export const HIGHLIGHT_INTENSITY_SLIDES = [
+  "find-green-white", // white cross slide 2
+  "mechanical-approach", // white corners slide 2 and second layer slide 2
   "flip-green-white",
   "flip-green-white-f2",
   "misaligned-green-white",
