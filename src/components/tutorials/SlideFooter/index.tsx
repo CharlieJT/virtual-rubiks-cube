@@ -69,8 +69,8 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
         >
           <div className="flex-1 overflow-y-auto min-h-0">
             <div className="max-w-screen-2xl mx-auto px-3 md:px-8 py-3 md:py-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs font-medium text-gray-500 tracking-wider uppercase w-10">
+              <div className="flex items-center gap-2 mb-3 h-12">
+                <span className="text-xs font-medium text-gray-500 tracking-wider uppercase whitespace-nowrap">
                   {currentSlide + 1} / {totalSlides}
                 </span>
                 <span className="text-gray-300">•</span>
@@ -133,8 +133,8 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
       >
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-6">
           <div className="flex-1 text-gray-900 md:hidden">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-medium text-gray-500 tracking-wider uppercase width-10">
+            <div className="flex items-center gap-2 mb-3 h-12">
+              <span className="text-xs font-medium text-gray-500 tracking-wider uppercase whitespace-nowrap">
                 {currentSlide + 1} / {totalSlides}
               </span>
               <span className="text-gray-300">•</span>

@@ -24,9 +24,9 @@ const SlideSidePanel: React.FC<SlideSidePanelProps> = ({
   return (
     <div className="hidden md:flex md:w-80 md:flex-shrink-0 bg-white/80 backdrop-blur-xl border-l border-gray-200/50">
       <div className="flex flex-col w-full h-full overflow-hidden">
-        <div className="p-1 flex justify-center align-middle border-b border-gray-200/50 shrink-0 h-20">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-medium text-gray-500 tracking-wider uppercase">
+        <div className="p-1 flex items-center ml-6 mr-4 border-b border-gray-200/50 shrink-0 h-20">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 tracking-wider uppercase whitespace-nowrap">
               {currentSlide + 1} / {totalSlides}
             </span>
             <span className="text-gray-300">•</span>
