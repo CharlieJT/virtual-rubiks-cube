@@ -334,7 +334,7 @@ const App = () => {
           setInputDisabled(true);
           sessionPhaseRef.current = "transition";
           cubeViewRef.current.resetToInitialPosition(
-            orbitControlsRef as React.RefObject<OrbitControlsInstance>,
+            orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
             cubeRef,
             () => {
               if (enqueuedSolution) {
@@ -869,7 +869,7 @@ const App = () => {
                 inputDisabled={inputDisabled}
               />
               <TrackballControls
-                ref={orbitControlsRef as React.RefObject<OrbitControlsInstance>}
+                ref={orbitControlsRef as unknown as React.RefObject<any>}
                 enabled={orbitControlsEnabled}
                 noRotate={false}
                 noZoom={true}

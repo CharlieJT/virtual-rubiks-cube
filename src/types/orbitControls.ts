@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import { Vector3, Camera } from "three";
 
 type Vec2Setter = { set: (x: number, y: number) => void };
 type Vec3Setter = { set: (x: number, y: number, z: number) => void };
@@ -12,11 +12,8 @@ export interface OrbitControlsInstance {
   dynamicDampingFactor?: number;
   rotateSpeed?: number;
   update?: () => void;
-  target?: Vector3;
-  object?: {
-    position: Vector3;
-    quaternion: Quaternion;
-  };
+  target: Vector3;
+  object: Camera;
   movePrev?: Vec2Setter;
   moveCurr?: Vec2Setter;
   lastAxis?: Vec3Setter;

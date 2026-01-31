@@ -4,7 +4,7 @@ import type { OrbitControlsInstance } from "@/types/orbitControls";
 
 interface UseTutorialOrbitControlsProps {
   activeSlide: Slide | undefined;
-  orbitControlsRef: React.RefObject<OrbitControlsInstance>;
+  orbitControlsRef: React.RefObject<OrbitControlsInstance | null>;
   isTransitioningRef: React.RefObject<boolean>;
   forceOrbitDisabledRef: React.RefObject<boolean>;
 }

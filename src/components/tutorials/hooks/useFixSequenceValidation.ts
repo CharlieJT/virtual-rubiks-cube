@@ -23,7 +23,7 @@ interface UseFixSequenceValidationProps {
   setFixDoublePartialDir: (dir: 0 | 1 | -1) => void;
   setFixErrorPulse: (pulse: boolean) => void;
   setFixShowTick: (show: boolean) => void;
-  orbitControlsRef: RefObject<OrbitControlsInstance>;
+  orbitControlsRef: RefObject<OrbitControlsInstance | null>;
   cubeViewRef: RefObject<RubiksCube3DHandle | null>;
   cubeRef: RefObject<CubeJSWrapper>;
   slide8WhiteCrossYawStateRef: MutableRefObject<number>;
@@ -293,7 +293,7 @@ export const useFixSequenceValidation = ({
           activeSlideId,
           lessonId,
           nextIndex,
-          orbitControlsRef,
+          orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
           cubeViewRef,
           cubeRef,
           {

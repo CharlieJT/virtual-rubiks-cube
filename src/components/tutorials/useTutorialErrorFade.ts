@@ -392,7 +392,7 @@ export const useTutorialErrorFade = ({
       }
       setIsResettingOrbit(true);
       cubeViewRef.current?.resetToInitialPosition(
-        orbitControlsRef as React.RefObject<OrbitControlsInstance>,
+        orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
         cubeRef,
         () => {
           setIsResettingOrbit(false);

@@ -1,6 +1,5 @@
 import { useRef, useCallback, useMemo, useEffect } from "react";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
-import type { OrbitControlsInstance } from "@/types/orbitControls";
 import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
 import useTrackpadHandlers from "@/hooks/useTrackpadHandlers";
 import { useTutorialOrbitControls } from "@components/tutorials/hooks/useTutorialOrbitControls";
@@ -182,7 +181,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     orbitPrevRef,
   } = useTutorialOrbitControls({
     activeSlide,
-    orbitControlsRef: orbitControlsRef as React.RefObject<OrbitControlsInstance>,
+    orbitControlsRef: orbitControlsRef,
     isTransitioningRef,
     forceOrbitDisabledRef,
   });
@@ -193,7 +192,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     slides,
     currentSlide,
     cubeRef,
-    orbitControlsRef,
+    orbitControlsRef: orbitControlsRef,
     cubeViewRef,
     isTransitioningRef,
     slideSpecificState: {
@@ -280,7 +279,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setFixDoublePartialDir,
     setFixErrorPulse,
     setFixShowTick,
-    orbitControlsRef: orbitControlsRef as React.RefObject<OrbitControlsInstance>,
+    orbitControlsRef: orbitControlsRef,
     cubeViewRef,
     cubeRef,
     slide8WhiteCrossYawStateRef,
@@ -354,7 +353,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     currentSlide,
     slides,
     lessonId,
-    orbitControlsRef: orbitControlsRef as React.RefObject<OrbitControlsInstance>,
+    orbitControlsRef: orbitControlsRef,
     cubeViewRef,
     cubeRef,
     transitionIdRef,
@@ -533,7 +532,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           overlayContainerRef={overlayContainerRef}
           canvasRef={canvasRef}
           cubeViewRef={cubeViewRef}
-          orbitControlsRef={orbitControlsRef as React.RefObject<OrbitControlsInstance>}
+          orbitControlsRef={orbitControlsRef}
           orbitControlsEnabled={orbitControlsEnabled}
           canvasDpr={canvasDpr}
           attachSetDpr={attachSetDpr}

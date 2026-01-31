@@ -10,7 +10,7 @@ interface UseSlideTransitionProps {
   currentSlide: number;
   slides: Slide[];
   lessonId: string;
-  orbitControlsRef: React.RefObject<OrbitControlsInstance>;
+  orbitControlsRef: React.RefObject<OrbitControlsInstance | null>;
   cubeViewRef: React.RefObject<RubiksCube3DHandle | null>;
   cubeRef: React.RefObject<CubeJSWrapper>;
   transitionIdRef: React.RefObject<number>;

@@ -143,7 +143,7 @@ export type RubiksCube3DHandle = {
   getCurrentRotation: () => THREE.Quaternion | null;
   celebratorySpin: (onComplete?: () => void) => void;
   resetToInitialPosition: (
-    orbitControlsRef?: React.RefObject<OrbitControlsInstance>,
+    orbitControlsRef?: React.RefObject<OrbitControlsInstance | null>,
     cubeRef?: React.RefObject<CubeJSWrapper>,
     onComplete?: () => void,
     instant?: boolean

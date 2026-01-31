@@ -8,6 +8,7 @@ import type {
 } from "../components/RubiksCube3D/types";
 import type { CubeMove } from "@/types/cube";
 import type { CubeJSWrapper } from "@/utils/cubejsWrapper";
+import type { OrbitControlsInstance } from "@/types/orbitControls";
 
 const useAnimation = (
   trackingStateRef: React.RefObject<TrackingStateRef>,
@@ -313,7 +314,7 @@ export const useImperativeHandle3D = (
         animate();
       },
       resetToInitialPosition: (
-        orbitControlsRef?: React.RefObject<any>,
+        orbitControlsRef?: React.RefObject<OrbitControlsInstance | null>,
         _cubeRef?: React.RefObject<CubeJSWrapper>,
         onComplete?: () => void,
         instant?: boolean
@@ -353,7 +354,7 @@ export const useImperativeHandle3D = (
         const camUp = camera.up.clone().normalize();
 
         // Get options first to check if we need to flip
-        const extraOpts = (controls).__resetOpts || {};
+        const extraOpts = controls.__resetOpts || {} as NonNullable<OrbitControlsInstance['__resetOpts']>;
 
         // Step 1: align cube's +Y (white) to camera up, OR -Y (yellow) if flipping
         // Use EXACTLY the same computation for both cases - just use different local vector
@@ -499,7 +500,7 @@ export const useImperativeHandle3D = (
           camera.updateMatrixWorld(true);
 
           // Update controls to match the new state
-          controls.update();
+          if (controls.update) controls.update();
 
           // Animate cube rotation
           const interpolatedCubeQuaternion = currentCubeQuaternion

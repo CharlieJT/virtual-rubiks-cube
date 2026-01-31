@@ -28,7 +28,7 @@ interface TutorialCubeViewProps {
   overlayContainerRef: React.RefObject<HTMLDivElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   cubeViewRef: React.RefObject<RubiksCube3DHandle | null>;
-  orbitControlsRef: React.RefObject<OrbitControlsInstance>;
+  orbitControlsRef: React.RefObject<OrbitControlsInstance | null>;
   orbitControlsEnabled: boolean;
   canvasDpr: [number, number];
   attachSetDpr: (setDpr: (dpr: number) => void) => void;
@@ -342,7 +342,7 @@ const TutorialCubeView = ({
                 color={CUBE_COLORS.WHITE}
               />
               <TrackballControls
-                ref={orbitControlsRef as React.RefObject<OrbitControlsInstance>}
+                ref={orbitControlsRef as unknown as React.RefObject<any>}
                 enabled={orbitControlsEnabled}
                 noRotate={isRecapSlide ? true : !orbitControlsEnabled}
                 noZoom={true}
@@ -646,11 +646,11 @@ const TutorialCubeView = ({
               isResettingOrbit={isResettingOrbit}
               onReset={resetToSlideBaseline}
               onReposition={() => {
-                const c: OrbitControlsInstance = orbitControlsRef.current;
+                const c = orbitControlsRef.current;
                 if (!c) return;
                 c.__resetOpts = getSlideCameraConfig(activeSlideId, lessonId);
                 cubeViewRef.current?.resetToInitialPosition(
-                  orbitControlsRef,
+                  orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
                   cubeRef,
                   undefined,
                   false
