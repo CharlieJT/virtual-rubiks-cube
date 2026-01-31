@@ -869,7 +869,7 @@ const App = () => {
                 inputDisabled={inputDisabled}
               />
               <TrackballControls
-                ref={orbitControlsRef}
+                ref={orbitControlsRef as React.RefObject<OrbitControlsInstance>}
                 enabled={orbitControlsEnabled}
                 noRotate={false}
                 noZoom={true}
