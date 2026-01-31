@@ -7,7 +7,7 @@ import { AnimationHelper, type AnimatedCubie } from "@utils/animationHelper";
 import {
   POSITION_MOVE_MAPPING,
   type PositionMoveKey,
-} from "@/maps/positionMoveMapping";
+} from "@/config/cube/positionMoveMapping";
 import {
   DRAG_SENSITIVITY,
   LOCK_PRIMARY_PX,

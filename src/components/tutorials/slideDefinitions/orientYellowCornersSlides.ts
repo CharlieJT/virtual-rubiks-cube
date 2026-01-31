@@ -1,8 +1,7 @@
 import { CubeJSWrapper } from "@utils/cubejsWrapper";
 import type { Slide } from "./notationSlides";
 
-export function getOrientYellowCornersSlides(): Slide[] {
-  return [
+const getOrientYellowCornersSlides = (): Slide[] => [
     {
       id: "intro",
       title: "What we're aiming to achieve",
@@ -249,4 +248,5 @@ export function getOrientYellowCornersSlides(): Slide[] {
       showConfetti: true,
     },
   ];
-}
+
+export { getOrientYellowCornersSlides };

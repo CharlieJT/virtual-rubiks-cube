@@ -35,5 +35,10 @@ export interface OrbitControlsInstance {
   __resetOpts?: {
     target?: Vec3Tuple;
     position?: Vec3Tuple;
+    extraYawRad?: number;
+    flipUpsideDown?: boolean;
+    extraERotationDeg?: number;
+    extraPitchDeg?: number;
+    slideId: string;
   };
 }

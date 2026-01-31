@@ -1,6 +1,6 @@
 import CUBE_COLORS from "@/consts/cubeColours";
-import WHITE_ORIENTATION_MAP_DEG from "@/maps/whiteOrentationMapDeg";
-import type { AngleBucketDeg, FaceKey, SliceKey } from "@/types/cube";
+import WHITE_ORIENTATION_MAP_DEG from "@/config/cube/whiteOrentationMapDeg";
+import type { AngleBucketDeg, CubeState, FaceKey, SliceKey } from "@/types/cube";
 
 // Editable mapping. All entries are explicitly listed so you can refine easily.
 // Set values in DEGREES: -90, 0, 90, 180 (or any multiple of 90).
@@ -46,7 +46,7 @@ export const getWhiteLogoDeltaByBucketDeg = (
  * - E' => rotate another 90° anti-clockwise (texture-space CCW = +90°)
  * Returns degrees.
  */
-const getStandardOrientationEMoveDelta = (cubeState: any, moveStr: string) => {
+const getStandardOrientationEMoveDelta = (cubeState: CubeState[][][], moveStr: string) => {
   if (!cubeState || !moveStr) return 0;
 
   // Apply only when white center is on the top face
@@ -76,7 +76,7 @@ export const getWhiteLogoDeltaRad = (
   to: FaceKey,
   prevAngleRad: number,
   slice: SliceKey = "none",
-  cubeState?: any,
+  cubeState?: CubeState[][][],
   moveStr?: string
 ) => {
   const prevDeg = radToDeg(prevAngleRad);

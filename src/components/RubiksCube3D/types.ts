@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { CubeState, CubeMove, SwipeDirection } from "@/types/cube";
 import type { AnimatedCubie } from "@utils/animationHelper";
+import type { OrbitControlsInstance } from "@/types/orbitControls";
+import type { CubeJSWrapper } from "@/utils/cubejsWrapper";
 
 export type HandlePreciseHoverType = React.BaseSyntheticEvent<
   React.PointerEvent & {
@@ -74,16 +76,16 @@ export interface CubePieceProps {
   colorFadeProgress?: number;
   gridIndex?: [number, number, number];
   onPointerDown?: (
-    e: any,
+    e: React.PointerEvent,
     pos: [number, number, number],
     intersectionPoint: THREE.Vector3
   ) => void;
   onMeshReady?: (mesh: THREE.Mesh, x: number, y: number, z: number) => void;
-  onPointerMove?: (e: any) => void;
+  onPointerMove?: (e: React.PointerEvent) => void;
   touchCount?: number;
   cornerStyles?: string[];
   children?: React.ReactNode;
-  trackingStateRef?: React.MutableRefObject<
+  trackingStateRef?: React.RefObject<
     TrackingStateRef & { _pointerId?: number }
   >;
   highlightIntensity?: number;
@@ -141,8 +143,8 @@ export type RubiksCube3DHandle = {
   getCurrentRotation: () => THREE.Quaternion | null;
   celebratorySpin: (onComplete?: () => void) => void;
   resetToInitialPosition: (
-    orbitControlsRef?: React.RefObject<any>,
-    cubeRef?: React.RefObject<any>,
+    orbitControlsRef?: React.RefObject<OrbitControlsInstance>,
+    cubeRef?: React.RefObject<CubeJSWrapper>,
     onComplete?: () => void,
     instant?: boolean
   ) => void;

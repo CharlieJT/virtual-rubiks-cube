@@ -2,12 +2,14 @@ import { useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import CUBE_COLORS from "@/consts/cubeColours";
+import type { CubeState } from "@/types/cube";
+import type { AnimatedCubie } from "@/utils/animationHelper";
 
 const useHoverLogic = (
-  cubeState: any[][][],
+  cubeState: CubeState[][][],
   groupRef: React.RefObject<THREE.Group | null>,
   raycastTargetsRef: React.RefObject<THREE.Mesh[]>,
-  cubiesRef: React.RefObject<any[]>
+  cubiesRef: React.RefObject<AnimatedCubie[]>
 ) => {
   const { camera } = useThree();
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
@@ -15,9 +17,11 @@ const useHoverLogic = (
   const lastHoveredPieceRef = useRef<string | null>(null);
 
   const handlePreciseHover = useCallback(
-    (e: any) => {
+    (e: React.PointerEvent) => {
       if (!groupRef.current) return;
-      const rect = e.nativeEvent.target?.getBoundingClientRect();
+      const target = e.nativeEvent.target;
+      if (!target || !(target instanceof HTMLElement)) return;
+      const rect = target.getBoundingClientRect();
       const mouse = mouseRef.current;
       mouse.set(
         ((e.nativeEvent.clientX - rect.left) / rect.width) * 2 - 1,

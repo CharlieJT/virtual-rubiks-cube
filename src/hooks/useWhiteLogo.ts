@@ -6,8 +6,8 @@ import {
   getWhiteLogoDeltaByBucketDeg,
   getWhiteLogoDeltaRad,
 } from "@utils/whiteCenterOrientationMap";
-import SAME_FACE_DELTA from "@/maps/sameFaceDelta";
-import VIA_TRANSITION_DELTA from "@/maps/viaTransitionDelta";
+import SAME_FACE_DELTA from "@/config/cube/sameFaceDelta";
+import VIA_TRANSITION_DELTA from "@/config/cube/viaTransitionDelta";
 import CUBE_COLORS from "@/consts/cubeColours";
 
 const { WHITE } = CUBE_COLORS;

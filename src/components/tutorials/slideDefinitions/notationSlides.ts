@@ -12,8 +12,7 @@ export type Slide = {
   showConfetti?: boolean;
 };
 
-export function getNotationSlides(): Slide[] {
-  return [
+const getNotationSlides = (): Slide[] => [
     {
       id: "notation-intro",
       title: "The cube's language (notation)",
@@ -191,4 +190,5 @@ export function getNotationSlides(): Slide[] {
       setup: (cube: CubeJSWrapper) => cube.reset(),
     },
   ];
-}
+
+export { getNotationSlides };

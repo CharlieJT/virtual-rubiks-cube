@@ -1,10 +1,9 @@
 import type { CubeState } from "@/types/cube";
 import { CubeJSWrapper } from "@utils/cubejsWrapper";
-import { getCubieColorSet } from "@/utils/tutorialHelpers";
+import { getCubieColorSet } from "@components/tutorials/utils/tutorialHelpers";
 import type { Slide } from "./notationSlides";
 
-export function getRubiksCubeIntroduction(): Slide[] {
-  return [
+const getRubiksCubeIntroduction = (): Slide[] => [
     {
       id: "intro",
       title: "What is a Rubik's Cube?",
@@ -101,7 +100,8 @@ export function getRubiksCubeIntroduction(): Slide[] {
       title: "How we'll solve the cube",
       description:
         "To learn how to solve the cube, we'll be breaking it down into 7 steps. These steps are designed to be easy to follow and understand, and they will be taught to you in a logical order so that you can learn how to solve the cube one step at a time.\n\n<b>The steps we'll be learning are:</b>\n1. <b>White Cross</b> — Form a white cross on the bottom face\n2. <b>White Corners</b> — Complete the white face by placing corner pieces\n3. <b>Second Layer</b> — Solve the middle layer edge pieces\n4. <b>Yellow Cross</b> — Form a yellow cross on the top face\n5. <b>Yellow Edges</b> — Position the yellow cross edges correctly\n6. <b>Yellow Corners (position)</b> — Position the yellow corner pieces\n7. <b>Yellow Corners (orientation)</b> — Complete the cube by orienting yellow corners\n\nWe don't solve the cube all at once.\n\n<b>Instead, we solve:</b>\n• The bottom layer\n• Then the middle layer\n• Then the top layer\n\n<b>Think of it like a sandwich:</b>\n• Bottom bread\n• Filling\n• Top bread\n\nWe'll be learning these steps one at a time and you'll be able to see how to solve the cube step by step in the next lessons. We don't solve the cube all at once—we solve it one layer at a time.",
-      allowFaceMoves: false,
+      allowFaceMoves: true,
+      allowSliceMoves: true,
       setup: (cube: CubeJSWrapper) => {
         cube.reset();
       },
@@ -120,4 +120,5 @@ export function getRubiksCubeIntroduction(): Slide[] {
       filter: (): boolean => true,
     },
   ];
-}
+
+export { getRubiksCubeIntroduction };

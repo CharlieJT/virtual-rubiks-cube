@@ -1,11 +1,10 @@
 import type { CubeState } from "@/types/cube";
 import { CubeJSWrapper } from "@utils/cubejsWrapper";
-import { getCubieColorSet } from "@/utils/tutorialHelpers";
+import { getCubieColorSet } from "@components/tutorials/utils/tutorialHelpers";
 import CUBE_COLORS from "@/consts/cubeColours";
 import type { Slide } from "./notationSlides";
 
-export function getWhiteCornersSlides(): Slide[] {
-  return [
+const getWhiteCornersSlides = (): Slide[] => [
     {
       id: "intro",
       title: "What we're aiming to achieve",
@@ -495,4 +494,5 @@ export function getWhiteCornersSlides(): Slide[] {
       },
     },
   ];
-}
+
+export { getWhiteCornersSlides };

@@ -142,12 +142,12 @@ const useTwoFingerSpin = (
     window.addEventListener("touchend", winTouchEnd);
 
     return () => {
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-      window.removeEventListener("touchstart", winTouchStart as any);
-      window.removeEventListener("touchmove", winTouchMove as any);
-      window.removeEventListener("touchend", winTouchEnd as any);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchstart", winTouchStart);
+      window.removeEventListener("touchmove", winTouchMove);
+      window.removeEventListener("touchend", winTouchEnd);
     };
   }, [cubeContainerRef, cubeViewRef, onOrbitControlsChange, precisionActive]);
 

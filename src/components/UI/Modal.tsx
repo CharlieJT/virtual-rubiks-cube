@@ -31,30 +31,10 @@ const Modal: React.FC<ModalProps> = ({
   disablePointerEvents = false,
   centerTitle = false,
   titlePadding,
-  theme: _theme = "default", // Reserved for future theme implementation
   fullHeight = false,
 }) => {
   const [visible, setVisible] = useState(false);
   const [entered, setEntered] = useState(false);
-
-  // Theme configurations (kept for future use)
-  // const themeConfig = {
-  //   default: {
-  //     border: "border-cyan-400",
-  //     closeButton: "text-cyan-500 hover:text-blue-700",
-  //     titleGradient: "from-cyan-400 via-blue-500 to-indigo-500",
-  //   },
-  //   red: {
-  //     border: "border-red-500",
-  //     closeButton: "text-red-500 hover:text-red-700",
-  //     titleGradient: "from-red-400 via-red-500 to-red-600",
-  //   },
-  //   orange: {
-  //     border: "border-orange-500",
-  //     closeButton: "text-orange-500 hover:text-orange-700",
-  //     titleGradient: "from-orange-400 via-orange-500 to-orange-600",
-  //   },
-  // };
 
   useEffect(() => {
     if (isOpen) {
@@ -71,7 +51,7 @@ const Modal: React.FC<ModalProps> = ({
 
   useEffect(() => {
     if (!isOpen && !visible) return;
-    if (disablePointerEvents) return; // Don't add keyboard handlers if pointer events are disabled
+    if (disablePointerEvents) return; 
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -119,7 +99,6 @@ const Modal: React.FC<ModalProps> = ({
           } ${className}`}
           style={{
             maxHeight: fullHeight ? "90vh" : "80vh",
-            height: fullHeight ? "90vh" : undefined,
             overflow: "hidden",
             boxShadow:
               "0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
@@ -164,15 +143,14 @@ const Modal: React.FC<ModalProps> = ({
             </div>
           )}
           {/* Body (scrollable) */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <div
-              className="px-8 md:px-10 py-8 md:py-10 modal-scroll overflow-y-auto h-full"
+              className="px-8 md:px-10 py-8 md:py-10 modal-scroll"
               style={{
                 WebkitOverflowScrolling: "touch",
                 touchAction: "pan-y",
                 overscrollBehavior: "contain",
                 scrollbarGutter: "stable",
-                maxHeight: "100%",
               }}
             >
               {children}

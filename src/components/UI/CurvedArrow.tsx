@@ -7,9 +7,7 @@ type CurvedArrowProps = {
   left?: number;
   top?: number;
   position?: "absolute" | "relative" | "fixed" | "sticky" | "static";
-  // Multiplier applied only to the arrowhead geometry (not the curve)
   headScale?: number;
-  // Optional stroke width override for the arrowhead only
   headStrokeWidth?: number;
   isUndoRedo?: boolean;
 };

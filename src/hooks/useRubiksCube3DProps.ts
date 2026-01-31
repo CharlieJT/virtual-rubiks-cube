@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import type { CubeState } from "@/types/cube";
-import { isHighlightIntensitySlide } from "@/consts/tutorialSlideConfig";
+import { isHighlightIntensitySlide } from "@components/tutorials/consts/tutorialSlideConfig";
 import {
   findWhiteGreenRedCorner,
   findRedGreenSecondLayerEdge,
   findGreenWhiteEdge,
-} from "@/utils/tutorialHelpers";
+} from "@components/tutorials/utils/tutorialHelpers";
 
 interface UseRubiksCube3DPropsParams {
   activeSlideId: string | undefined;

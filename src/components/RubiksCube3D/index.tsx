@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CubeMove } from "@/types/cube";
 import { AnimationHelper, type AnimatedCubie } from "@utils/animationHelper";
-import CUBIE_STYLE_MAP from "@/maps/cubieStyleMap";
+import CUBIE_STYLE_MAP from "@/config/cube/cubieStyleMap";
 import {
   BORDER_RADIUS,
   BORDER_DEPTH,
@@ -18,6 +18,8 @@ import type { RubiksCube3DProps, RubiksCube3DHandle } from "./types";
 import useLogoTexture from "@/hooks/useLogoTexture";
 import useRoundedBoxGeometry from "@/hooks/useRoundedBoxGeometry";
 import useHoverLogic from "@/hooks/useHoverLogic";
+import type { CustomWindowType } from "@/types/window";
+import type { Tween } from "@tweenjs/tween.js";
 
 THREE.Cache.enabled = true;
 
@@ -253,7 +255,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const startGuardRef = useRef<string | null>(null);
     const cubiesRef = useRef<AnimatedCubie[]>([]);
     const raycastTargetsRef = useRef<THREE.Mesh[]>([]);
-    const currentTweenRef = useRef<any>(null);
+    const currentTweenRef = useRef<Tween>(null);
     const meshesReadyRef = useRef(false);
     const shakeTimeRef = useRef(0);
     const previousErrorFlashRef = useRef(false);
@@ -292,9 +294,9 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const commitDragMove = useCallback(
       (move: CubeMove) => {
         onDragMoveStart?.();
-        (window as any).__isManualDragMove = true;
+        (window as CustomWindowType).__isManualDragMove = true;
         commitMoveOnce(move);
-        (window as any).__isManualDragMove = false;
+        (window as CustomWindowType).__isManualDragMove = false;
       },
       [commitMoveOnce, onDragMoveStart]
     );

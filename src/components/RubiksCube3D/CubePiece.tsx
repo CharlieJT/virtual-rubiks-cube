@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { getCubieGeometry, getStickerGeometryForCorners } from "./geometry";
 import type { CubePieceProps } from "./types";
 import type { CubeState } from "@/types/cube";
-import STICKER_CORNER_MAP from "@/maps/stickerCornerMap";
+import STICKER_CORNER_MAP from "@/config/cube/stickerCornerMap";
 import CUBE_COLORS from "@/consts/cubeColours";
 import { activeTouches } from "@utils/touchState";
 import {
@@ -68,19 +68,6 @@ const CubePiece = React.memo(
         const mat = stickerMatsRef.current[face];
         const base = baseColorsRef.current[face];
         if (!mat || !base) continue;
-        
-        // Debug: check if fade should be running for M slice
-        if (gridIndex && gridIndex[0] === 1 && colorFadeProgress > 0 && colorFadeProgress < 0.05) {
-          const [x, y, z] = gridIndex;
-          const faceKey = `${x},${y},${z},${face}`;
-          const needsGreyFade = stickerGreyMap?.get(faceKey) ?? false;
-          if (needsGreyFade && !previousColors) {
-            console.log(`[CubePiece] WARNING: M slice [${x},${y},${z}] ${face} needs fade but previousColors is null!`);
-          }
-          if (needsGreyFade && !baselineColors) {
-            console.log(`[CubePiece] WARNING: M slice [${x},${y},${z}] ${face} needs fade but baselineColors is null!`);
-          }
-        }
 
         // Handle two-phase color fade transition
         if (previousColors && baselineColors && colorFadeProgress > 0 && gridIndex) {
@@ -90,11 +77,6 @@ const CubePiece = React.memo(
           const grey = new THREE.Color("#808080");
           const previousColor = new THREE.Color(previousColors[face as keyof CubeState["colors"]] || CUBE_COLORS.BLACK);
           const baselineColor = new THREE.Color(baselineColors[face as keyof CubeState["colors"]] || CUBE_COLORS.BLACK);
-          
-          // Debug: log fade for M slice pieces (first few frames)
-          if (x === 1 && needsGreyFade && colorFadeProgress < 0.05) {
-            console.log(`[CubePiece] M slice fade: [${x},${y},${z}] ${face} needsGrey=${needsGreyFade} prev=${previousColor.getHexString()} base=${baselineColor.getHexString()} progress=${colorFadeProgress.toFixed(3)}`);
-          }
           
           if (colorFadeProgress <= 0.5) {
             // Phase 1 (0 to 0.5): ONLY fade mismatched stickers to grey
@@ -255,7 +237,7 @@ const CubePiece = React.memo(
       for (let i = 0; i < 6; i++) {
         const mat = mats[i];
         mat.color.set(0x000000);
-        (mat as any).map = null;
+        mat.map = null;
         mat.needsUpdate = true;
       }
     }, [
@@ -298,7 +280,9 @@ const CubePiece = React.memo(
           const shiftHeld = !!e.shiftKey;
           if (isPrimary && !shiftHeld) {
             const pointerType =
-              (e.nativeEvent && (e.nativeEvent as any).pointerType) || null;
+              (e.nativeEvent && "pointerType" in e.nativeEvent
+                ? (e.nativeEvent as PointerEvent).pointerType
+                : null);
             if (pointerType === "touch") {
               // If there's already an active drag with a different finger, ignore this touch
               if (
@@ -314,21 +298,22 @@ const CubePiece = React.memo(
               // This allows one finger to finish a move while a second finger starts a new move
               if ((touchCount || 0) > 2) return;
               if (activeTouches.count > 2) return;
-              const touches = (e.nativeEvent &&
-                (e.nativeEvent as any).touches) as TouchList | undefined;
+              const touches = (e.nativeEvent && "touches" in e.nativeEvent
+                ? (e.nativeEvent as unknown as TouchEvent).touches
+                : undefined) as TouchList | undefined;
               if (touches && touches.length > 2) return;
             }
             e.stopPropagation();
             const intersectionPoint = e.point || new THREE.Vector3();
-            onPointerDown?.(e, position as any, intersectionPoint);
+            onPointerDown?.(e as unknown as React.PointerEvent, position, intersectionPoint);
           }
         }}
         onPointerMove={(e) => {
           const isPrimary = (e.button ?? 0) === 0;
           const shiftHeld = !!e.shiftKey;
           if (isPrimary && !shiftHeld) {
-            e.stopPropagation();
-            onPointerMove?.(e);
+            e.stopPropagation ();
+            onPointerMove?.(e as unknown as React.PointerEvent);
           }
         }}
         onPointerUp={(e) => {
@@ -435,7 +420,7 @@ const CubePiece = React.memo(
             // - If this cubie is NOT highlighted and intensity>0: dull toward grey
             const hi = highlightIntensity;
             return (
-              <group key={f.key} position={f.pos} rotation={f.rot as any}>
+              <group key={f.key} position={f.pos} rotation={f.rot}>
                 <mesh geometry={geom}>
                   {/* Sticker material: if this is the white center with logo, use the logo texture; color still modulates brightness so it can dull */}
                   <meshPhongMaterial
@@ -460,7 +445,7 @@ const CubePiece = React.memo(
                         // Start from base: for logo we multiply the texture by color; for normal stickers we use the sticker color
                         let base = showLogo
                           ? new THREE.Color(0xffffff)
-                          : new THREE.Color(col as any);
+                          : new THREE.Color(col);
 
                         // If we're fading, interpolate between old and new colors
                         // But useFrame will handle the actual animation, so just set initial state here
@@ -472,23 +457,23 @@ const CubePiece = React.memo(
                         // Color is now handled in useFrame for smooth transitions
                         // Return base color here, useFrame will update it
                         return base;
-                      })() as any
+                      })()
                     }
                     transparent={!!showLogo}
                     shininess={(hi || 0) > 0 ? (isHighlighted ? 24 : 2) : 8}
                     specular={
                       (hi || 0) > 0
                         ? isHighlighted
-                          ? (0x222222 as any)
-                          : (0x111111 as any)
-                        : (0x222222 as any)
+                          ? (0x222222)
+                          : (0x111111)
+                        : (0x222222)
                     }
                     emissive={
                       (hi || 0) > 0
                         ? isHighlighted
-                          ? (new THREE.Color(col as any) as any)
-                          : (0x111111 as any)
-                        : (0x111111 as any)
+                          ? (new THREE.Color(col))
+                          : (0x111111)
+                        : (0x111111)
                     }
                     emissiveIntensity={
                       (hi || 0) > 0

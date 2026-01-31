@@ -1,11 +1,10 @@
 import type { CubeState } from "@/types/cube";
 import { CubeJSWrapper } from "@utils/cubejsWrapper";
-import { getCubieColorSet } from "@/utils/tutorialHelpers";
+import { getCubieColorSet } from "@components/tutorials/utils/tutorialHelpers";
 import CUBE_COLORS from "@/consts/cubeColours";
 import type { Slide } from "./notationSlides";
 
-export function getYellowCornersSlides(): Slide[] {
-  return [
+const getYellowCornersSlides = (): Slide[] => [
     {
       id: "intro",
       title: "Positioning yellow corner pieces",
@@ -268,4 +267,5 @@ export function getYellowCornersSlides(): Slide[] {
       },
     },
   ];
-}
+
+export { getYellowCornersSlides };

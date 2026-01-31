@@ -2,7 +2,7 @@ import type { CubeState } from "@/types/cube";
 
 const GREY = "#808080";
 
-export function makeCentersGrey(cube3D: CubeState[][][]): CubeState[][][] {
+const makeCentersGrey = (cube3D: CubeState[][][]): CubeState[][][] => {
   const result: CubeState[][][] = [];
   
   for (let x = 0; x < 3; x++) {
@@ -30,7 +30,9 @@ export function makeCentersGrey(cube3D: CubeState[][][]): CubeState[][][] {
   }
   
   return result;
-}
+};
+
+export { makeCentersGrey };
 
 
 

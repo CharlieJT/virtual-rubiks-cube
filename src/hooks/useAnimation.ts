@@ -6,11 +6,13 @@ import type {
   RubiksCube3DHandle,
   TrackingStateRef,
 } from "../components/RubiksCube3D/types";
+import type { CubeMove } from "@/types/cube";
+import type { CubeJSWrapper } from "@/utils/cubejsWrapper";
 
 const useAnimation = (
   trackingStateRef: React.RefObject<TrackingStateRef>,
   cleanupDragState: () => void,
-  commitMoveOnce: (move: any) => void
+  commitMoveOnce: (move: CubeMove) => void
 ) => {
   // Update snapping animation logic
   const updateSnappingAnimation = () => {
@@ -130,12 +132,13 @@ export const useImperativeHandle3D = (
       }
 
       // Detect multi-touch early and force-disable orbits during 2+ fingers
-      const native = (e as any).nativeEvent ?? e;
+      const native = e.nativeEvent as PointerEvent | TouchEvent | undefined;
       const pointerType: string | undefined =
-        (native && (native as any).pointerType) || (e as any).pointerType;
+        (native && "pointerType" in native ? native.pointerType : undefined) ||
+        ("pointerType" in e ? (e as unknown as PointerEvent).pointerType : undefined);
       const touchesLen: number =
-        (native && (native as any).touches
-          ? (native as any).touches.length
+        (native && "touches" in native
+          ? (native as TouchEvent).touches.length
           : 0) ||
         (touchCount ?? 0);
       if (pointerType === "touch" && touchesLen >= 2) {
@@ -311,7 +314,7 @@ export const useImperativeHandle3D = (
       },
       resetToInitialPosition: (
         orbitControlsRef?: React.RefObject<any>,
-        _cubeRef?: React.RefObject<any>,
+        _cubeRef?: React.RefObject<CubeJSWrapper>,
         onComplete?: () => void,
         instant?: boolean
       ) => {
@@ -350,7 +353,7 @@ export const useImperativeHandle3D = (
         const camUp = camera.up.clone().normalize();
 
         // Get options first to check if we need to flip
-        const extraOpts = (controls as any).__resetOpts || {};
+        const extraOpts = (controls).__resetOpts || {};
 
         // Step 1: align cube's +Y (white) to camera up, OR -Y (yellow) if flipping
         // Use EXACTLY the same computation for both cases - just use different local vector
@@ -453,7 +456,7 @@ export const useImperativeHandle3D = (
         }
 
         // Clear one-shot options
-        if ((controls as any).__resetOpts) delete (controls as any).__resetOpts;
+        if ((controls).__resetOpts) delete (controls).__resetOpts;
 
         // If instant is true, set rotation directly without animation
         if (instant) {

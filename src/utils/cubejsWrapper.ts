@@ -3,7 +3,7 @@ import Cube from "cubejs";
 export type CubejsMove = string;
 
 export class CubeJSWrapper {
-  private cube: any;
+  private cube;
   private static solvedString: string | null = null;
 
   constructor() {
@@ -111,7 +111,7 @@ export class CubeJSWrapper {
   solve(): string[] {
     // Optionally initialize pruning tables if available
     try {
-      const anyCube: any = Cube as any;
+      const anyCube = Cube;
       if (typeof anyCube.initSolver === "function") {
         // Some versions accept callback or run sync; call and ignore the result
         anyCube.initSolver();

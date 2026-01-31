@@ -169,7 +169,7 @@ export class AnimationHelper {
 
     animationId = requestAnimationFrame(animate);
 
-    return { stop: () => cancelAnimationFrame(animationId) } as any;
+    return { stop: () => cancelAnimationFrame(animationId) } as TweenType;
   }
 
   static animate(
@@ -253,7 +253,7 @@ export class AnimationHelper {
 
     animationId = requestAnimationFrame(animate);
 
-    return { stop: () => cancelAnimationFrame(animationId) } as any;
+    return { stop: () => cancelAnimationFrame(animationId) } as TweenType;
   }
 
   static update(): void {
