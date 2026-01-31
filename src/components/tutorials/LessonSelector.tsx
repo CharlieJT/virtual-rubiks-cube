@@ -216,6 +216,7 @@ const LessonSelector = ({
         (initialLessonId ? getSectionForLesson(initialLessonId) : null)
     );
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   
   // Initialize scroll positions from window storage or defaults
   const getStoredScrollPositions = () => {
@@ -276,17 +277,20 @@ const LessonSelector = ({
       saveScrollPositions();
     }
     setIsTransitioning(true);
+    setIsVisible(false);
     setTimeout(() => {
       setSelectedSection(level);
-      setIsTransitioning(false);
-      // Always scroll to top when entering section view
+      // Set scroll position BEFORE making content visible
+      const scrollContainer = getScrollContainer();
+      if (scrollContainer) {
+        scrollContainer.scrollTop = 0;
+      }
+      // Small delay to ensure scroll is set, then show content
       setTimeout(() => {
-        const scrollContainer = getScrollContainer();
-        if (scrollContainer) {
-          scrollContainer.scrollTop = 0;
-        }
-      }, 50);
-    }, 150);
+        setIsVisible(true);
+        setIsTransitioning(false);
+      }, 10);
+    }, 200);
   };
 
   const handleBack = () => {
@@ -299,28 +303,34 @@ const LessonSelector = ({
         saveScrollPositions();
       }
     }
-    // Save the overview scroll position to restore
-    const savedOverviewPosition = overviewScrollPositionRef.current;
-    // Reset all scroll positions for next time
-    overviewScrollPositionRef.current = 0;
-    sectionScrollPositionsRef.current = {
-      beginner: 0,
-      intermediate: 0,
-      advanced: 0,
-    };
-    delete (window as CustomWindowType).__lessonSelectorScrollPositions;
+    // Get the saved overview scroll position to restore
+    // Read from both ref and stored positions (in case component remounted)
+    const stored = getStoredScrollPositions();
+    const savedOverviewPosition = overviewScrollPositionRef.current || stored.overview;
     setIsTransitioning(true);
+    setIsVisible(false);
     setTimeout(() => {
       setSelectedSection(null);
-      setIsTransitioning(false);
-      // Restore overview scroll position when going back to sections
-      setTimeout(() => {
+      // Set scroll position BEFORE making content visible
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
         const scrollContainer = getScrollContainer();
         if (scrollContainer) {
           scrollContainer.scrollTop = savedOverviewPosition;
+          // Update ref to match
+          overviewScrollPositionRef.current = savedOverviewPosition;
+          // Small delay to ensure scroll is set, then show content
+          setTimeout(() => {
+            setIsVisible(true);
+            setIsTransitioning(false);
+          }, 10);
+        } else {
+          // Fallback if container not found
+          setIsVisible(true);
+          setIsTransitioning(false);
         }
-      }, 50);
-    }, 150);
+      });
+    }, 200);
   };
 
   // Handle initial section selection and scroll restoration
@@ -328,6 +338,7 @@ const LessonSelector = ({
     if (initialLessonId && !initialSection) {
       const section = getSectionForLesson(initialLessonId);
       if (section) {
+        setIsVisible(false);
         setSelectedSection(section);
         // Restore scroll position for this section when coming back from a lesson
         // Use a longer timeout to ensure DOM is ready
@@ -340,11 +351,16 @@ const LessonSelector = ({
             scrollContainer.scrollTop = savedPosition;
             // Update refs to match
             sectionScrollPositionsRef.current[section] = savedPosition;
+            // Show content after scroll is set
+            setTimeout(() => {
+              setIsVisible(true);
+            }, 10);
           }
         }, 200);
       }
     } else if (!initialLessonId && !initialSection) {
       // Reset scroll position when modal opens fresh (no initial section/lesson)
+      setIsVisible(false);
       const scrollContainer = getScrollContainer();
       if (scrollContainer) {
         scrollContainer.scrollTop = 0;
@@ -357,6 +373,9 @@ const LessonSelector = ({
         advanced: 0,
       };
       delete (window as CustomWindowType).__lessonSelectorScrollPositions;
+      setTimeout(() => {
+        setIsVisible(true);
+      }, 10);
     }
   }, [initialLessonId, initialSection]);
 
@@ -378,9 +397,14 @@ const LessonSelector = ({
           </p>
         </div>
         <div
-          className={`grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 transition-opacity duration-300 ${
-            isTransitioning ? "opacity-0" : "opacity-100"
+          className={`grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 transition-all duration-300 ease-out ${
+            isVisible && !isTransitioning
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-2"
           }`}
+          style={{
+            visibility: isVisible || isTransitioning ? "visible" : "hidden",
+          }}
         >
           {lessonSections.map((section) => (
             <div
@@ -464,9 +488,14 @@ const LessonSelector = ({
   if (currentSection) {
     return (
       <div
-        className={`max-w-6xl mx-auto transition-opacity duration-300 ${
-          isTransitioning ? "opacity-0" : "opacity-100"
+        className={`max-w-6xl mx-auto transition-all duration-300 ease-out ${
+          isVisible && !isTransitioning
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 translate-y-2"
         }`}
+        style={{
+          visibility: isVisible || isTransitioning ? "visible" : "hidden",
+        }}
       >
         {/* Back Button */}
         <button
