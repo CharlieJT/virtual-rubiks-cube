@@ -100,7 +100,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
               <div className="text-sm text-gray-600 leading-relaxed">
                 <TypewriterText
                   text={activeSlide.description}
-                  keyProp={currentSlide}
+                  keyProp={String(currentSlide)}
                   activeSlideId={activeSlide.id}
                 />
               </div>
@@ -145,7 +145,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
             <div className="text-sm text-gray-600 leading-relaxed">
               <TypewriterText
                 text={activeSlide.description}
-                keyProp={currentSlide}
+                keyProp={String(currentSlide)}
                 activeSlideId={activeSlide.id}
               />
             </div>
