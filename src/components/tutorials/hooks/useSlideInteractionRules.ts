@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { isPracticeSlide as checkIsPracticeSlide } from "@components/tutorials/consts/tutorialSlideConfig";
 import type { Slide } from "@components/tutorials/slideDefinitions";
 
@@ -19,8 +19,24 @@ export const useSlideInteractionRules = ({
   setOrbitControlsEnabled,
   handleOrbitControlsChange,
 }: UseSlideInteractionRulesParams) => {
+  const previousSlideIdRef = useRef<string | undefined>(undefined);
+  
   useEffect(() => {
     if (!activeSlide) return;
+    
+    // Skip entirely on first mount - useSlideTransition handles initial setup
+    if (previousSlideIdRef.current === undefined) {
+      previousSlideIdRef.current = activeSlide.id;
+      return;
+    }
+    
+    // Only run when slide actually changes (not on first mount)
+    if (previousSlideIdRef.current === activeSlide.id) {
+      return;
+    }
+    
+    previousSlideIdRef.current = activeSlide.id;
+    
     const isPracticeSlide10_11_12 = checkIsPracticeSlide(activeSlide.id);
 
     if (activeSlide.id === "find-green-white") {
@@ -30,9 +46,11 @@ export const useSlideInteractionRules = ({
     } else if (isPracticeSlide10_11_12 && practiceCompleted) {
       setInputDisabled(true);
       setOrbitControlsEnabled(true);
+      handleOrbitControlsChange(true);
     } else if (activeSlide.id === "mechanical-approach") {
       setInputDisabled(true);
       setOrbitControlsEnabled(true);
+      handleOrbitControlsChange(true);
     } else {
       const shouldDisableInput =
         !activeSlide.allowFaceMoves ||
@@ -45,8 +63,9 @@ export const useSlideInteractionRules = ({
         handleOrbitControlsChange(false);
       } else {
         setOrbitControlsEnabled(true);
+        handleOrbitControlsChange(true);
       }
     }
-  }, [activeSlide, isResetting, practiceCompleted, setInputDisabled, setOrbitControlsEnabled, handleOrbitControlsChange]);
+  }, [activeSlide?.id, isResetting, practiceCompleted, setInputDisabled, setOrbitControlsEnabled, handleOrbitControlsChange]);
 };
 

@@ -349,6 +349,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     [activeSlide?.id, fixSequence]
   );
 
+  const isInitializingRef = useRef(false);
+  
   useSlideTransition({
     currentSlide,
     slides,
@@ -364,6 +366,8 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     disableOrbitTemporarily,
     clearControlsInternal,
     orbitPrevRef,
+    isInitializingRef,
+    handleOrbitControlsChange,
   });
 
   const { touchCount } = useTwoFingerSpin(

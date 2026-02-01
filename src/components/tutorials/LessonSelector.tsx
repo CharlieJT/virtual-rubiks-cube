@@ -201,6 +201,32 @@ const LessonSelector = ({
   initialSection = null,
   initialLessonId,
 }: LessonSelectorProps) => {
+  const windowLessonId = (window as CustomWindowType).__tutorialBackLessonId;
+  const shouldBlockFromWindow = !!windowLessonId;
+  const shouldBlockInitially = !!(initialLessonId || shouldBlockFromWindow);
+  const interactionBlockedRef = useRef(shouldBlockInitially);
+  const persistentBlockRef = useRef(shouldBlockInitially);
+  const userNavigatedRef = useRef(false);
+  const isBlockedNow = interactionBlockedRef.current || persistentBlockRef.current;
+  
+  useEffect(() => {
+    if (userNavigatedRef.current) {
+      return;
+    }
+    
+    if (initialLessonId || windowLessonId) {
+      interactionBlockedRef.current = true;
+      if (!persistentBlockRef.current) {
+        persistentBlockRef.current = true;
+      }
+      const timeout = setTimeout(() => {
+        interactionBlockedRef.current = false;
+      }, 500);
+      return () => clearTimeout(timeout);
+    } else {
+      interactionBlockedRef.current = false;
+    }
+  }, [initialLessonId, windowLessonId]);
   const getSectionForLesson = (lessonId: string): SectionLevel | null => {
     for (const section of lessonSections) {
       if (section.lessons.some((lesson) => lesson.id === lessonId)) {
@@ -263,6 +289,10 @@ const LessonSelector = ({
   };
 
   const handleSectionClick = (level: SectionLevel) => {
+    userNavigatedRef.current = true;
+    interactionBlockedRef.current = false;
+    persistentBlockRef.current = false;
+    
     // Save current scroll position before transitioning
     const scrollContainer = getScrollContainer();
     if (scrollContainer) {
@@ -294,6 +324,10 @@ const LessonSelector = ({
   };
 
   const handleBack = () => {
+    userNavigatedRef.current = true;
+    interactionBlockedRef.current = false;
+    persistentBlockRef.current = false;
+    
     // Save current section scroll position before going back
     if (selectedSection) {
       const scrollContainer = getScrollContainer();
@@ -338,34 +372,24 @@ const LessonSelector = ({
     if (initialLessonId && !initialSection) {
       const section = getSectionForLesson(initialLessonId);
       if (section) {
-        setIsVisible(false);
+        setIsVisible(true);
         setSelectedSection(section);
-        // Restore scroll position for this section when coming back from a lesson
-        // Use a longer timeout to ensure DOM is ready
         setTimeout(() => {
           const scrollContainer = getScrollContainer();
           if (scrollContainer) {
-            // Restore the saved scroll position for this section from window storage
             const stored = getStoredScrollPositions();
             const savedPosition = stored.sections[section] || 0;
             scrollContainer.scrollTop = savedPosition;
-            // Update refs to match
             sectionScrollPositionsRef.current[section] = savedPosition;
-            // Show content after scroll is set
-            setTimeout(() => {
-              setIsVisible(true);
-            }, 10);
           }
         }, 200);
       }
     } else if (!initialLessonId && !initialSection) {
-      // Reset scroll position when modal opens fresh (no initial section/lesson)
       setIsVisible(false);
       const scrollContainer = getScrollContainer();
       if (scrollContainer) {
         scrollContainer.scrollTop = 0;
       }
-      // Reset all scroll position refs and window storage
       overviewScrollPositionRef.current = 0;
       sectionScrollPositionsRef.current = {
         beginner: 0,
@@ -386,7 +410,9 @@ const LessonSelector = ({
   // Section Overview View
   if (!selectedSection) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div 
+        className="max-w-6xl mx-auto"
+      >
         <div className="mb-8">
           <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight mb-1.5">
             Learn to Solve
@@ -409,7 +435,47 @@ const LessonSelector = ({
           {lessonSections.map((section) => (
             <div
               key={section.level}
-              onClick={() => handleSectionClick(section.level)}
+              onClickCapture={(e) => {
+                const isBlocked = isBlockedNow || interactionBlockedRef.current || persistentBlockRef.current;
+                if (isBlocked) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.nativeEvent.stopImmediatePropagation) {
+                    e.nativeEvent.stopImmediatePropagation();
+                  }
+                  return false;
+                }
+              }}
+              onClick={(e) => {
+                const isBlocked = isBlockedNow || interactionBlockedRef.current || persistentBlockRef.current;
+                if (isBlocked) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.nativeEvent.stopImmediatePropagation) {
+                    e.nativeEvent.stopImmediatePropagation();
+                  }
+                  return false;
+                }
+                handleSectionClick(section.level);
+              }}
+              onPointerDown={(e) => {
+                if (interactionBlockedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              onTouchStart={(e) => {
+                if (interactionBlockedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              onTouchEnd={(e) => {
+                if (interactionBlockedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
               className="group relative p-6 md:p-7 bg-white/80 backdrop-blur-xl border border-gray-200/50 rounded-2xl hover:border-gray-300/50 hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
               style={{
                 transform: "translateY(0)",
@@ -533,7 +599,12 @@ const LessonSelector = ({
           {currentSection.lessons.map((lesson) => (
             <div
               key={lesson.id}
-              onClick={() => {
+              onClick={(e) => {
+                if (interactionBlockedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return;
+                }
                 if (!lesson.comingSoon) {
                   // Save current section scroll position before navigating to lesson
                   const scrollContainer = getScrollContainer();
@@ -543,6 +614,24 @@ const LessonSelector = ({
                     saveScrollPositions();
                   }
                   onSelectLesson(lesson.id);
+                }
+              }}
+              onPointerDown={(e) => {
+                if (interactionBlockedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              onTouchStart={(e) => {
+                if (interactionBlockedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+              onTouchEnd={(e) => {
+                if (interactionBlockedRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
                 }
               }}
               className={`group relative p-6 md:p-7 bg-white/80 backdrop-blur-xl border ${

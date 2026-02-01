@@ -21,6 +21,8 @@ interface UseSlideTransitionProps {
   disableOrbitTemporarily: () => void;
   clearControlsInternal: () => void;
   orbitPrevRef: React.RefObject<any>;
+  isInitializingRef?: React.RefObject<boolean>;
+  handleOrbitControlsChange?: (enabled: boolean) => void;
 }
 
 export const useSlideTransition = ({
@@ -38,6 +40,8 @@ export const useSlideTransition = ({
   disableOrbitTemporarily,
   clearControlsInternal,
   orbitPrevRef,
+  isInitializingRef,
+  handleOrbitControlsChange,
 }: UseSlideTransitionProps) => {
   const prevSlideRef = useRef<number>(-1);
   const isInitialMountRef = useRef(true);
@@ -81,6 +85,7 @@ export const useSlideTransition = ({
     }
 
     if (isInitialMount) {
+      if (isInitializingRef) isInitializingRef.current = true;
       cubeViewRef.current.resetToInitialPosition(
         orbitControlsRef,
         cubeRef,
@@ -98,7 +103,19 @@ export const useSlideTransition = ({
             if (typeof controls.rotateSpeed === "number")
               controls.rotateSpeed = 1.2;
             setOrbitControlsEnabled(shouldEnableOrbit);
+            if (handleOrbitControlsChange) {
+              handleOrbitControlsChange(shouldEnableOrbit);
+            }
             if (typeof controls.update === "function") controls.update();
+            // Force update to ensure controls are active
+            requestAnimationFrame(() => {
+              if (controls && controls.update) {
+                controls.update();
+              }
+              if (isInitializingRef) isInitializingRef.current = false;
+            });
+          } else {
+            if (isInitializingRef) isInitializingRef.current = false;
           }
           isTransitioningRef.current = false;
           setIsTransitioning?.(false);

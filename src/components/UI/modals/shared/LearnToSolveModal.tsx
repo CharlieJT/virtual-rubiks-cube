@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@components/UI/Modal";
 import LessonSelector from "@components/tutorials/LessonSelector";
 import type { CustomWindowType } from "@/types/window";
@@ -16,19 +16,27 @@ const LearnToSolveModal = ({
   onStartTutorial,
   initialLessonId: propInitialLessonId,
 }: LearnToSolveModalProps) => {
-  // Get initial lesson ID from window (set when navigating back from tutorial)
+  const windowLessonId = (window as CustomWindowType).__tutorialBackLessonId;
+  
   const initialLessonId = useMemo(() => {
-    const backLessonId = (window as CustomWindowType).__tutorialBackLessonId;
-    if (backLessonId) {
-      // Clear it after reading
-      delete (window as CustomWindowType).__tutorialBackLessonId;
-      return backLessonId;
+    if (windowLessonId) {
+      return windowLessonId;
     }
     return propInitialLessonId;
-  }, [propInitialLessonId, isOpen]);
+  }, [propInitialLessonId, windowLessonId]);
+  
+  useEffect(() => {
+    if (!isOpen && (window as CustomWindowType).__tutorialBackLessonId) {
+      delete (window as CustomWindowType).__tutorialBackLessonId;
+    }
+  }, [isOpen]);
 
   // Key to force remount and reset state when modal closes
   const [modalKey, setModalKey] = useState(0);
+
+  const [blockInteractions, setBlockInteractions] = useState(() => {
+    return !!initialLessonId;
+  });
 
   // Reset scroll and remount component when modal closes
   useEffect(() => {
@@ -68,14 +76,49 @@ const LearnToSolveModal = ({
       }
     }
   }, [isOpen, initialLessonId]);
+  
+  useEffect(() => {
+    if (initialLessonId || windowLessonId) {
+      setBlockInteractions(true);
+      blockRef.current = true;
+      const timeout = setTimeout(() => {
+        setBlockInteractions(false);
+        blockRef.current = false;
+      }, 500);
+      return () => clearTimeout(timeout);
+    } else {
+      setBlockInteractions(false);
+      blockRef.current = false;
+    }
+  }, [initialLessonId, windowLessonId]);
 
+  const shouldBlockNow = !!initialLessonId;
+  const blockRef = useRef(shouldBlockNow);
+  if (shouldBlockNow) {
+    blockRef.current = true;
+  }
+  
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="" fullHeight={true}>
-      <LessonSelector
-        key={modalKey}
-        onSelectLesson={onStartTutorial}
-        initialLessonId={initialLessonId}
-      />
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose}
+      title="" 
+      fullHeight={true}
+      disableBackdropClick={shouldBlockNow || blockInteractions || blockRef.current}
+      disableTransition={!!initialLessonId}
+    >
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+        }}
+      >
+        <LessonSelector
+          key={modalKey}
+          onSelectLesson={onStartTutorial}
+          initialLessonId={initialLessonId}
+        />
+      </div>
     </Modal>
   );
 };

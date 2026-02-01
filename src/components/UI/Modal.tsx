@@ -17,6 +17,7 @@ interface ModalProps {
   titlePadding?: string;
   theme?: "default" | "red" | "orange";
   fullHeight?: boolean;
+  disableTransition?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -32,6 +33,7 @@ const Modal: React.FC<ModalProps> = ({
   centerTitle = false,
   titlePadding,
   fullHeight = false,
+  disableTransition = false,
 }) => {
   const [visible, setVisible] = useState(false);
   const [entered, setEntered] = useState(false);
@@ -39,15 +41,23 @@ const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setVisible(true);
-      // Wait for mount, then trigger transition in
-      setTimeout(() => setEntered(true), 10);
+      if (disableTransition) {
+        setEntered(true);
+      } else {
+        setTimeout(() => setEntered(true), 10);
+      }
     } else {
       setEntered(false);
-      // Delay unmount for transition
       const timeout = setTimeout(() => setVisible(false), 220);
       return () => clearTimeout(timeout);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && disableTransition) {
+      setEntered(true);
+    }
+  }, [isOpen, disableTransition]);
 
   useEffect(() => {
     if (!isOpen && !visible) return;
@@ -85,7 +95,7 @@ const Modal: React.FC<ModalProps> = ({
         onClose={onClose}
         opacity="dark"
         entered={entered}
-        withTransition={true}
+        withTransition={!disableTransition}
         disableClick={disableBackdropClick || disablePointerEvents}
       />
       <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none p-4">
