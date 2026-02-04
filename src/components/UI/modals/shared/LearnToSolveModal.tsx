@@ -48,7 +48,7 @@ const LearnToSolveModal = ({
           // Find the actual scrollable container (parent with overflow-y-auto)
           const scrollContainer = modalScroll.parentElement;
           if (scrollContainer && scrollContainer.classList.contains("overflow-y-auto")) {
-            scrollContainer.scrollTop = 0;
+          scrollContainer.scrollTop = 0;
           } else {
             // Fallback: traverse up to find scrollable parent
             let parent = modalScroll.parentElement;
@@ -97,7 +97,7 @@ const LearnToSolveModal = ({
   if (shouldBlockNow) {
     blockRef.current = true;
   }
-  
+
   return (
     <Modal 
       isOpen={isOpen} 
@@ -113,11 +113,11 @@ const LearnToSolveModal = ({
           height: '100%',
         }}
       >
-        <LessonSelector
+      <LessonSelector
           key={modalKey}
-          onSelectLesson={onStartTutorial}
-          initialLessonId={initialLessonId}
-        />
+        onSelectLesson={onStartTutorial}
+        initialLessonId={initialLessonId}
+      />
       </div>
     </Modal>
   );

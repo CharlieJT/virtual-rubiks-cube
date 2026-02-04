@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { CubeJSWrapper } from "@utils/cubejsWrapper";
 import cubejsTo3D from "@utils/cubejsTo3D";
-import type { CubeMove, Solution } from "@/types/cube";
+import type { CubeMove, CubeState, Solution } from "@/types/cube";
 import type { BestTimeResult } from "@/hooks/useBestTimes";
 
 export const useAppState = () => {
@@ -60,6 +60,12 @@ export const useAppState = () => {
   const [scrambleIndex, setScrambleIndex] = useState<number>(-1);
   const [solutionIndex, setSolutionIndex] = useState<number>(-1);
   const [isScramblingState, setIsScramblingState] = useState(false);
+
+  // Fade transition state (for timer session transitions)
+  const [previousCube3D, setPreviousCube3D] = useState<CubeState[][][] | null>(null);
+  const [baselineCube3D, setBaselineCube3D] = useState<CubeState[][][] | null>(null);
+  const [stickerGreyMap, setStickerGreyMap] = useState<Map<string, boolean>>(new Map());
+  const [colorFadeProgress, setColorFadeProgress] = useState(0);
 
   // Refs
   const lastMoveTimeRef = useRef(0);
@@ -171,6 +177,16 @@ export const useAppState = () => {
     setSolutionIndex,
     isScramblingState,
     setIsScramblingState,
+
+    // Fade transition state
+    previousCube3D,
+    setPreviousCube3D,
+    baselineCube3D,
+    setBaselineCube3D,
+    stickerGreyMap,
+    setStickerGreyMap,
+    colorFadeProgress,
+    setColorFadeProgress,
 
     // Refs
     lastMoveTimeRef,

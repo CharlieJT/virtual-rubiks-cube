@@ -50,8 +50,11 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
   // Get logo texture for white center piece
   const { logoReady, tiptonsTexture } = useLogoTexture();
 
-  // Sync rotation with cube group
+  // Sync rotation with cube group (only when visible)
   useFrame(() => {
+    // Early exit when not visible
+    if (opacity === 0) return;
+    
     if (groupRef.current && cubeViewRef?.current) {
       const cubeRotation = cubeViewRef.current.getCurrentRotation();
       if (cubeRotation) {
@@ -147,15 +150,21 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
     return pieces;
   }, [cubeState, move]);
 
+  // Track if we need to reset rotations
+  const needsResetRef = useRef(false);
+
   useFrame(() => {
+    // Early exit when not visible
+    if (opacity === 0) return;
+    
     if (rotationGroupRef.current && isAnimatingMove) {
+      needsResetRef.current = true;
       const isPrime = move.includes("'");
       const isDouble = move.includes("2");
       const moveBase = move.replace(/['2]/g, "").toUpperCase();
       let baseRotation: number;
       let rotationAxis: "x" | "y" | "z";
 
-      // Determine rotation axis and base direction based on move
       switch (moveBase) {
         case "R":
           rotationAxis = "x";
@@ -163,7 +172,7 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
           break;
         case "L":
           rotationAxis = "x";
-          baseRotation = isDouble ? Math.PI : isPrime ? -Math.PI / 2 : Math.PI / 2; // Opposite of R
+          baseRotation = isDouble ? Math.PI : isPrime ? -Math.PI / 2 : Math.PI / 2;
           break;
         case "F":
           rotationAxis = "z";
@@ -171,7 +180,7 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
           break;
         case "B":
           rotationAxis = "z";
-          baseRotation = isDouble ? Math.PI : isPrime ? -Math.PI / 2 : Math.PI / 2; // Opposite of F
+          baseRotation = isDouble ? Math.PI : isPrime ? -Math.PI / 2 : Math.PI / 2;
           break;
         case "U":
           rotationAxis = "y";
@@ -179,7 +188,7 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
           break;
         case "D":
           rotationAxis = "y";
-          baseRotation = isDouble ? Math.PI : isPrime ? -Math.PI / 2 : Math.PI / 2; // Opposite of U
+          baseRotation = isDouble ? Math.PI : isPrime ? -Math.PI / 2 : Math.PI / 2;
           break;
         default:
           rotationAxis = "z";
@@ -187,18 +196,13 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
       }
 
       const targetRotation = baseRotation * rotationProgress;
-
-      // Apply rotation to the appropriate axis
       rotationGroupRef.current.rotation[rotationAxis] = targetRotation;
-    } else if (
-      rotationGroupRef.current &&
-      !isAnimatingMove &&
-      rotationProgress === 0
-    ) {
-      // Reset all rotations
+    } else if (rotationGroupRef.current && needsResetRef.current && !isAnimatingMove && rotationProgress === 0) {
+      // Reset all rotations only when transitioning from animating to not animating
       rotationGroupRef.current.rotation.x = 0;
       rotationGroupRef.current.rotation.y = 0;
       rotationGroupRef.current.rotation.z = 0;
+      needsResetRef.current = false;
     }
   });
 

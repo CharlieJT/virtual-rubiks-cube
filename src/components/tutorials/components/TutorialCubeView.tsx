@@ -301,7 +301,7 @@ const TutorialCubeView = ({
                 touchAction: "none",
                 opacity: isRecapSlide ? 0 : 1,
               }}
-              dpr={canvasDpr[0]}
+              dpr={canvasDpr}
               gl={{
                 antialias: true,
                 powerPreference: "high-performance",
@@ -336,7 +336,7 @@ const TutorialCubeView = ({
               onPointerUpCapture={handlePointerUp}
             >
               <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
-              <spotLight position={[-30, 20, 60]} intensity={0.3} castShadow />
+              <spotLight position={[-30, 20, 60]} intensity={0.3} />
               <ambientLight
                 intensity={isRecapSlide ? 0.95 : 1.2}
                 color={CUBE_COLORS.WHITE}

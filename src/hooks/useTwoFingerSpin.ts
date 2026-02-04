@@ -7,7 +7,9 @@ const useTwoFingerSpin = (
   cubeContainerRef: RefObject<HTMLDivElement>,
   cubeViewRef: RefObject<RubiksCube3DHandle>,
   precisionActive: boolean,
-  onOrbitControlsChange: (enabled: boolean) => void
+  onOrbitControlsChange: (enabled: boolean) => void,
+  forceReattach?: number,
+  isCooldownActive?: boolean
 ) => {
   const [touchCount, setTouchCount] = useState(0);
   const pinchRef = useRef<{
@@ -48,6 +50,11 @@ const useTwoFingerSpin = (
         e.preventDefault();
         return;
       }
+      // If cooldown is active, ignore touch events
+      if (isCooldownActive) {
+        e.preventDefault();
+        return;
+      }
       setTouchCount(e.touches.length);
       activeTouches.count = e.touches.length;
       if (e.touches.length === 2) {
@@ -69,6 +76,11 @@ const useTwoFingerSpin = (
 
     const onTouchMove = (e: TouchEvent) => {
       if (el.querySelector('[data-locked-overlay="true"]')) {
+        e.preventDefault();
+        return;
+      }
+      // If cooldown is active, ignore touch events
+      if (isCooldownActive) {
         e.preventDefault();
         return;
       }
@@ -149,7 +161,19 @@ const useTwoFingerSpin = (
       window.removeEventListener("touchmove", winTouchMove);
       window.removeEventListener("touchend", winTouchEnd);
     };
-  }, [cubeContainerRef, cubeViewRef, onOrbitControlsChange, precisionActive]);
+  }, [cubeContainerRef, cubeViewRef, onOrbitControlsChange, precisionActive, forceReattach, isCooldownActive]);
+
+  useEffect(() => {
+    const el = cubeContainerRef.current;
+    if (!el) return;
+    const canvas = el.querySelector("canvas") as HTMLElement | null;
+    if (canvas) {
+      canvas.style.pointerEvents = "auto";
+      canvas.style.touchAction = "none";
+    }
+    el.style.pointerEvents = "auto";
+    el.style.touchAction = "none";
+  }, [cubeContainerRef, forceReattach]);
 
   return { touchCount } as const;
 };

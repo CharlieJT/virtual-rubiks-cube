@@ -67,6 +67,13 @@ export interface TrackingStateRef {
   _snapCompleted?: boolean;
 }
 
+// Data structure for centralized animation in parent
+export interface PieceMaterialData {
+  materials: Record<string, THREE.MeshPhongMaterial>;
+  baseColors: Record<string, THREE.Color>;
+  gridIndex: [number, number, number];
+}
+
 export interface CubePieceProps {
   position: [number, number, number];
   colors: CubeState["colors"];
@@ -81,6 +88,7 @@ export interface CubePieceProps {
     intersectionPoint: THREE.Vector3
   ) => void;
   onMeshReady?: (mesh: THREE.Mesh, x: number, y: number, z: number) => void;
+  onMaterialsReady?: (key: string, data: PieceMaterialData) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
   touchCount?: number;
   cornerStyles?: string[];

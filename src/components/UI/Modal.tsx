@@ -44,7 +44,7 @@ const Modal: React.FC<ModalProps> = ({
       if (disableTransition) {
         setEntered(true);
       } else {
-        setTimeout(() => setEntered(true), 10);
+      setTimeout(() => setEntered(true), 10);
       }
     } else {
       setEntered(false);
@@ -81,13 +81,13 @@ const Modal: React.FC<ModalProps> = ({
   return createPortal(
     <div
       className={
-        disablePointerEvents ? "pointer-events-none" : "pointer-events-auto"
+        disablePointerEvents || !isOpen ? "pointer-events-none" : "pointer-events-auto"
       }
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 9997,
-        pointerEvents: disablePointerEvents ? "none" : "auto",
+        zIndex: isOpen ? 9997 : -1,
+        pointerEvents: disablePointerEvents || !isOpen ? "none" : "auto",
       }}
     >
       <Backdrop

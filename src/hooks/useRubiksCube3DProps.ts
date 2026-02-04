@@ -74,14 +74,10 @@ export const useRubiksCube3DProps = ({
   ]);
 
   const highlightIntensity = useMemo(() => {
-    // Don't highlight the target piece - it should stay normal brightness
-    // Only dull others, don't brighten the target
     return 0;
   }, [activeSlideId]);
 
   const highlightPositions = useMemo((): [number, number, number][] | undefined => {
-    // Return empty array so target piece is NOT highlighted (stays normal)
-    // We still need to identify the target piece to exclude it from dulling
     if (activeSlideId === "mechanical-approach" && lessonId === "white-corners") {
       const pos = findWhiteGreenRedCorner(tutorialCube3D);
       return pos ? [pos] : [];
@@ -109,6 +105,7 @@ export const useRubiksCube3DProps = ({
     }
     return 0;
   }, [activeSlideId, lessonId]);
+
 
   return {
     inputDisabled: inputDisabledValue,

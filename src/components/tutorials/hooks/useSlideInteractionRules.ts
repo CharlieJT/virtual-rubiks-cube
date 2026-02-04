@@ -62,7 +62,7 @@ export const useSlideInteractionRules = ({
         setOrbitControlsEnabled(false);
         handleOrbitControlsChange(false);
       } else {
-        setOrbitControlsEnabled(true);
+      setOrbitControlsEnabled(true);
         handleOrbitControlsChange(true);
       }
     }
