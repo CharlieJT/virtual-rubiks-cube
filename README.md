@@ -14,6 +14,25 @@ An advanced interactive 3D Rubik's cube built with React, TypeScript, Three.js, 
 - **Orbit Controls**: Smooth camera controls with rotation, zoom, and pan
 - **Two-Finger Spin Mode**: Dedicated two-finger gesture for cube rotation separate from slice moves
 
+### Interactive Tutorial System
+
+- **Comprehensive Learning Path**: Step-by-step tutorials covering the complete beginner's method
+- **9 Complete Lessons**: From notation basics to full cube solving
+  - Rubik's Cube Introduction
+  - Notation & Moves
+  - White Cross
+  - White Corners
+  - Second Layer
+  - Yellow Cross
+  - Yellow Edges
+  - Yellow Corners
+  - Orient Yellow Corners
+- **Interactive Practice**: Hands-on practice slides with real-time feedback
+- **Visual Guidance**: Highlighted target pieces and step-by-step instructions
+- **Algorithm Sequences**: Learn and practice solving algorithms with visual aids
+- **Progress Tracking**: Navigate through lessons with clear progress indicators
+- **Smart Cube Filtering**: Focus on relevant pieces during each lesson step
+
 ### Timer & Best Times System
 
 - **Speedcubing Timer**: Authentic seven-segment display timer with MM:SS.ss format
@@ -117,6 +136,7 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 - **Zoom**: Mouse wheel or pinch to zoom in/out
 - **Pan**: Right-click and drag to pan the view
 - **Reset View**: Double-click to reset camera position
+- **No-Roll Orbit**: Camera prevents unwanted cube rolling during circular drags (top face stays consistent)
 
 ### Cube Interaction
 
@@ -126,6 +146,15 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 - **Move Buttons**: Use the comprehensive control panel for precise moves
 - **Scramble**: Generate and execute random scrambles with smooth animations
 - **Solve**: Generate solution using advanced algorithms
+- **No-Roll Orbit**: Camera controls prevent unwanted cube rolling during circular drags
+
+### Learning & Tutorials
+
+- **Access Tutorials**: Click "Learn to Solve" button to access the complete tutorial system
+- **Beginner-Friendly**: Start with notation basics and progress through all solving steps
+- **Interactive Practice**: Practice each step with guided exercises
+- **Visual Feedback**: See highlighted pieces and follow step-by-step instructions
+- **Algorithm Practice**: Learn and master solving algorithms through hands-on practice
 
 ### Timer & Speedcubing
 
@@ -149,36 +178,40 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 
 ```
 src/
+├── App/
+│   └── AppState.ts          # Global application state management
 ├── App.css
-├── App.tsx
+├── App.tsx                  # Main application component
 ├── index.css
-├── main.tsx
+├── main.tsx                 # Application entry point
 ├── tw.css
 ├── vite-env.d.ts
 ├── assets/
 │   └── tiptons-solver.png
 ├── components/
-│   ├── BestTimesModal.tsx
-│   ├── ConfirmModal.tsx
 │   ├── ControlPanel.tsx
-│   ├── InfoModal.tsx
+│   ├── LessonContent.tsx
+│   ├── lessons/             # Lesson renderer components
 │   ├── MoveButtonsPanel.tsx
 │   ├── MoveOverlay.tsx
-│   ├── QuitTimerModal.tsx
-│   ├── ResetTimerModal.tsx
-│   ├── RubiksCube3D/
+│   ├── RubiksCube3D/        # 3D cube rendering components
 │   │   ├── CubePiece.tsx
 │   │   ├── geometry.ts
 │   │   ├── index.tsx
 │   │   └── types.ts
 │   ├── SevenSegmentDisplay.tsx
-│   ├── SolutionAlreadyGeneratedModal.tsx
-│   ├── SolutionGeneratedModal.tsx
-│   ├── SolveSuccessModal.tsx
-│   ├── TimerCancelModal.tsx
 │   ├── TimerDisplay.tsx
-│   ├── TimerModal.tsx
-│   └── UI/
+│   ├── tutorials/           # Comprehensive tutorial system
+│   │   ├── components/      # Tutorial UI components
+│   │   ├── consts/          # Tutorial configuration
+│   │   ├── hooks/           # Tutorial-specific hooks
+│   │   ├── slideDefinitions/ # Lesson slide definitions
+│   │   └── utils/           # Tutorial utilities
+│   └── UI/                  # Reusable UI components
+│       ├── modals/          # Modal components
+│       │   ├── shared/      # Shared modals
+│       │   ├── solution/    # Solution modals
+│       │   └── timer/       # Timer modals
 │       ├── Backdrop.tsx
 │       ├── BestTimesButton.tsx
 │       ├── Button.tsx
@@ -190,40 +223,41 @@ src/
 │       ├── SpinTrackpad.tsx
 │       ├── StatusBadge.tsx
 │       └── UndoRedoButtons.tsx
+├── config/
+│   └── cube/                # Cube configuration and mappings
+│       ├── cubieStyleMap.ts
+│       ├── positionMoveMapping.ts
+│       ├── sameFaceDelta.ts
+│       ├── stickerCornerMap.ts
+│       ├── viaTransitionDelta.ts
+│       └── whiteOrentationMapDeg.ts
 ├── consts/
 │   ├── cubeColours.ts
 │   ├── faceColors.ts
 │   └── moves.ts
 ├── hooks/
-│   ├── useAnimation.ts
 │   ├── useBestTimes.ts
 │   ├── useDprManager.ts
-│   ├── useDragLogic.ts
-│   ├── useHoverLogic.tsx
 │   ├── useIsTouchDevice.tsx
 │   ├── useLogoTexture.tsx
 │   ├── usePrecisionMode.ts
 │   ├── useRoundedBoxGeometry.ts
+│   ├── useRubiksCube3DProps.ts
 │   ├── useTimer.ts
 │   ├── useTrackpadHandlers.ts
 │   ├── useTwoFingerSpin.ts
 │   └── useWhiteLogo.ts
-├── maps/
-│   ├── cubieStyleMap.ts
-│   ├── positionMoveMapping.ts
-│   ├── sameFaceDelta.ts
-│   ├── stickerCornerMap.ts
-│   ├── viaTransitionDelta.ts
-│   └── whiteOrentationMapDeg.ts
 ├── types/
 │   ├── cube.ts
-│   └── cubejs.d.ts
-├── utils/
-│   ├── animationHelper.ts
-│   ├── cubejsTo3D.ts
-│   ├── cubejsWrapper.ts
-│   ├── touchState.ts
-│   └── whiteCenterOrientationMap.ts
+│   ├── cubejs.d.ts
+│   ├── orbitControls.ts
+│   └── window.ts
+└── utils/
+    ├── animationHelper.ts
+    ├── cubejsTo3D.ts
+    ├── cubejsWrapper.ts
+    ├── touchState.ts
+    └── whiteCenterOrientationMap.ts
 ```
 
 - **Face-Local Coordinates**: Accurate drag detection in 3D space
@@ -246,11 +280,16 @@ src/
 
 ## Performance Optimizations
 
+- **Centralized Animation Loop**: Single `useFrame` hook for all cube pieces (reduced from 27 separate hooks)
 - **Mesh Reference Management**: Efficient cubie tracking and updates
+- **Material Optimization**: Pre-allocated materials and color management
+- **DPR Management**: Dynamic device pixel ratio adjustment for optimal performance
+- **Three.js Caching**: Enabled object caching for improved performance
 - **Throttled Pointer Events**: Optimized touch handling for mobile devices
 - **Geometry Reuse**: Shared geometries and materials across cube pieces
 - **Animation Batching**: Grouped updates for smooth 60fps performance
-- **Low-Performance Mode**: Optional reduced quality for older devices
+- **Fast Sequence Path**: Optimized animation path for scrambles and solutions
+- **Canvas Ready Gating**: Prevents interaction race conditions during initialization
 
 ## Contributing
 
@@ -275,9 +314,9 @@ src/
 - [ ] **Enhanced Solving**: Implement advanced solving algorithms (CFOP, Roux)
 - [x] **Move History**: ✅ Undo/redo functionality with move timeline
 - [x] **Timer Integration**: ✅ Speedcubing timer with statistics and best times tracking
+- [x] **Algorithm Trainer**: ✅ Interactive tutorial system for learning algorithms
 - [ ] **Multiple Cube Sizes**: Support for 2x2, 4x4, 5x5 cubes
 - [ ] **Custom Themes**: User-selectable color schemes and cube styles
-- [ ] **Algorithm Trainer**: Interactive tutorial system for learning algorithms
 - [ ] **Competition Mode**: Online competitions and leaderboards
 - [ ] **Accessibility**: Enhanced keyboard navigation and screen reader support
 - [ ] **Statistics Dashboard**: Detailed solving statistics and trend analysis
