@@ -156,7 +156,7 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
               {bestTimeResult.wasPersonalBest ? (
                 <div className="flex items-center justify-center gap-1">
                   <span className="text-lg">🎉</span>
-                  <span className="font-bold">NEW PERSONAL BEST!</span>
+                  <span className="font-bold text-black">NEW PERSONAL BEST!</span>
                   <span className="text-lg">🎉</span>
                 </div>
               ) : (

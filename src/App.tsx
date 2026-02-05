@@ -36,7 +36,7 @@ import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import InfoButton from "@components/UI/InfoButton";
 import type { OrbitControlsInstance } from "./types/orbitControls";
 import type { CustomWindowType } from "./types/window";
-import { useAppState } from "./App/AppState";
+import useAppState from "./App/AppState";
 
 const App = () => {
   const {

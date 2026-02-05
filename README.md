@@ -179,7 +179,10 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 ```
 src/
 ├── App/
-│   └── AppState.ts          # Global application state management
+│   ├── AppState.ts          # Composes all state modules
+│   ├── CubeState.ts         # Cube state management
+│   ├── SessionState.ts      # Timer/session state management
+│   └── UIState.ts           # UI modal state management
 ├── App.css
 ├── App.tsx                  # Main application component
 ├── index.css
@@ -250,6 +253,7 @@ src/
 ├── types/
 │   ├── cube.ts
 │   ├── cubejs.d.ts
+│   ├── CubeInterface.ts    # Cube abstraction interface
 │   ├── orbitControls.ts
 │   └── window.ts
 └── utils/
