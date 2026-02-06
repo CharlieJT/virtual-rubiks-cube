@@ -41,6 +41,7 @@ const SolutionGeneratedModal: React.FC<SolutionGeneratedModalProps> = ({
 
   return (
     <Modal
+      compact
       isOpen={isOpen}
       onClose={onClose}
       centerTitle={true}

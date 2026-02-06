@@ -1,4 +1,9 @@
 import React from "react";
+import CheckIcon from "@components/UI/Icons/CheckIcon";
+import HourglassIcon from "@components/UI/Icons/HourglassIcon";
+import LightningIcon from "@components/UI/Icons/LightningIcon";
+import CompassIcon from "@components/UI/Icons/CompassIcon";
+import ShuffleIcon from "@components/UI/Icons/ShuffleIcon";
 
 interface StatusBadgeProps {
   isScrambling?: boolean;
@@ -14,24 +19,24 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   isScrambled = false,
 }) => {
   let colorClass = "bg-green-400 text-green-900";
-  let icon = "✅";
+  let Icon = CheckIcon;
   let label = "Solved";
 
   if (isScrambling) {
     colorClass = "bg-blue-400 text-blue-900";
-    icon = "⏳";
+    Icon = HourglassIcon;
     label = "Scrambling";
   } else if (isSolving) {
     colorClass = "bg-yellow-400 text-yellow-900";
-    icon = "⚡";
+    Icon = LightningIcon;
     label = "Solving";
   } else if (isAutoOrienting) {
     colorClass = "bg-orange-400 text-orange-900";
-    icon = "🧭";
+    Icon = CompassIcon;
     label = "Orienting";
   } else if (isScrambled) {
     colorClass = "bg-red-400 text-red-900";
-    icon = "🔀";
+    Icon = ShuffleIcon;
     label = "Scrambled";
   }
 
@@ -40,7 +45,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
       <div
         className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm ${colorClass}`}
       >
-        <span>{icon}</span>
+        <Icon size={18} className="flex-shrink-0" />
         {label}
       </div>
     </div>

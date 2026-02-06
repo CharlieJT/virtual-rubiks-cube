@@ -211,6 +211,25 @@ src/
 │   │   ├── slideDefinitions/ # Lesson slide definitions
 │   │   └── utils/           # Tutorial utilities
 │   └── UI/                  # Reusable UI components
+│       ├── Icons/           # SVG icon components (no barrel export)
+│       │   ├── TimerIcon.tsx
+│       │   ├── BeginnerShieldIcon.tsx
+│       │   ├── IntermediateShieldIcon.tsx
+│       │   ├── AdvancedShieldIcon.tsx
+│       │   ├── BooksIcon.tsx
+│       │   ├── BrainIcon.tsx
+│       │   ├── DiceIcon.tsx
+│       │   ├── TrophyIcon.tsx
+│       │   ├── PartyIcon.tsx
+│       │   ├── StarIcon.tsx
+│       │   ├── SeedlingIcon.tsx
+│       │   ├── LightningIcon.tsx
+│       │   ├── LightbulbIcon.tsx
+│       │   ├── CheckIcon.tsx
+│       │   ├── HourglassIcon.tsx
+│       │   ├── CompassIcon.tsx
+│       │   ├── ShuffleIcon.tsx
+│       │   └── WarningIcon.tsx
 │       ├── modals/          # Modal components
 │       │   ├── shared/      # Shared modals
 │       │   ├── solution/    # Solution modals
@@ -222,7 +241,7 @@ src/
 │       ├── Footer.tsx
 │       ├── Header.tsx
 │       ├── InfoButton.tsx
-│       ├── Modal.tsx
+│       ├── Modal.tsx        # Supports compact (420px) or wide (900px) via compact prop
 │       ├── SpinTrackpad.tsx
 │       ├── StatusBadge.tsx
 │       └── UndoRedoButtons.tsx
@@ -263,6 +282,15 @@ src/
     ├── touchState.ts
     └── whiteCenterOrientationMap.ts
 ```
+
+#### Icon System
+
+- **Custom SVG Icons**: Stroke-based icons in `components/UI/Icons/` replace emojis across the app
+- **Individual Files**: Each icon has its own file (no barrel export); import directly, e.g. `import TimerIcon from "@components/UI/Icons/TimerIcon"`
+- **Consistent Props**: All icons accept `className`, `size`, and `strokeWidth` for flexible styling
+- **Usage**: Control panel dropdown, modals, overlays, status badge, lesson selector sections, and tutorial content
+
+#### Face-Local Coordinates
 
 - **Face-Local Coordinates**: Accurate drag detection in 3D space
 - **Gesture Recognition**: Distinguishes between moves and camera controls

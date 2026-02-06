@@ -10,6 +10,8 @@ import CUBE_COLORS from "@/consts/cubeColours";
 import ConfirmModal from "@components/UI/modals/shared/ConfirmModal";
 import InfoModal from "@components/UI/modals/shared/InfoModal";
 import MoveOverlay from "@components/MoveOverlay";
+import DiceIcon from "@components/UI/Icons/DiceIcon";
+import BrainIcon from "@components/UI/Icons/BrainIcon";
 import StatusBadge from "@components/UI/StatusBadge";
 import Header from "@components/UI/Header";
 import Footer from "@components/UI/Footer";
@@ -171,7 +173,7 @@ const App = () => {
   const cubeContainerRef = useRef<HTMLDivElement | null>(null);
 
   const { precisionActive, handleContainerDoubleClick } = usePrecisionMode(
-    cubeContainerRef as React.RefObject<HTMLElement>
+    cubeContainerRef as React.RefObject<HTMLElement>,
   );
 
   isAnimatingRef.current = isAnimating;
@@ -190,9 +192,13 @@ const App = () => {
     const next = moveQueueRef.current.shift();
     if (next) {
       if (currentRunRef.current === "scramble") {
-        setScrambleIndex((i) => Math.min(i + 1, (scrambleMovesRef.current?.length ?? 1) - 1));
+        setScrambleIndex((i) =>
+          Math.min(i + 1, (scrambleMovesRef.current?.length ?? 1) - 1),
+        );
       } else if (currentRunRef.current === "solve") {
-        setSolutionIndex((i) => Math.min(i + 1, (solutionRef.current?.steps.length ?? 1) - 1));
+        setSolutionIndex((i) =>
+          Math.min(i + 1, (solutionRef.current?.steps.length ?? 1) - 1),
+        );
       }
       lastMoveSourceRef.current = "queue";
       setPendingMove(next);
@@ -202,7 +208,11 @@ const App = () => {
 
   const pumpQueueSoon = useCallback(() => {
     const attempt = () => {
-      if (AnimationHelper.isLocked() || isAnimatingRef.current || pendingMoveRef.current) {
+      if (
+        AnimationHelper.isLocked() ||
+        isAnimatingRef.current ||
+        pendingMoveRef.current
+      ) {
         setTimeout(attempt, 0);
         return;
       }
@@ -218,7 +228,7 @@ const App = () => {
       moveQueueRef.current.push(...(moves as CubeMove[]));
       pumpQueueSoon();
     },
-    [pumpQueueSoon]
+    [pumpQueueSoon],
   );
 
   const executeScramble = useCallback(() => {
@@ -280,12 +290,20 @@ const App = () => {
       const currentCube3D = cube3D;
       setPreviousCube3D(currentCube3D);
 
-      const solvedCube = new (cubeRef.current.constructor as typeof import("@utils/cubejsWrapper").CubeJSWrapper)();
+      const solvedCube = new (cubeRef.current
+        .constructor as typeof import("@utils/cubejsWrapper").CubeJSWrapper)();
       const solvedCube3D = cubejsTo3D(solvedCube.getCube());
       setBaselineCube3D(solvedCube3D);
 
       const greyMap = new Map<string, boolean>();
-      const faceKeys: Array<keyof CubeState["colors"]> = ["front", "back", "left", "right", "top", "bottom"];
+      const faceKeys: Array<keyof CubeState["colors"]> = [
+        "front",
+        "back",
+        "left",
+        "right",
+        "top",
+        "bottom",
+      ];
 
       for (let x = 0; x < 3; x++) {
         for (let y = 0; y < 3; y++) {
@@ -294,10 +312,15 @@ const App = () => {
             const solvedPiece = solvedCube3D[x]?.[y]?.[z];
             if (currentPiece && solvedPiece) {
               for (const face of faceKeys) {
-                const currentColor = currentPiece.colors[face] || CUBE_COLORS.BLACK;
-                const solvedColor = solvedPiece.colors[face] || CUBE_COLORS.BLACK;
+                const currentColor =
+                  currentPiece.colors[face] || CUBE_COLORS.BLACK;
+                const solvedColor =
+                  solvedPiece.colors[face] || CUBE_COLORS.BLACK;
                 const key = `${x},${y},${z},${face}`;
-                if (currentColor !== CUBE_COLORS.BLACK && currentColor !== solvedColor) {
+                if (
+                  currentColor !== CUBE_COLORS.BLACK &&
+                  currentColor !== solvedColor
+                ) {
                   greyMap.set(key, true);
                 }
               }
@@ -313,7 +336,7 @@ const App = () => {
         cubeViewRef.current.resetToInitialPosition(
           orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
           cubeRef,
-          undefined
+          undefined,
         );
       }
 
@@ -358,7 +381,8 @@ const App = () => {
             setOrbitControlsEnabled(true);
             if (orbitControlsRef.current) {
               orbitControlsRef.current.enabled = true;
-              if (typeof orbitControlsRef.current.update === "function") orbitControlsRef.current.update();
+              if (typeof orbitControlsRef.current.update === "function")
+                orbitControlsRef.current.update();
             }
             sessionPhaseRef.current = "idle";
           }
@@ -366,32 +390,41 @@ const App = () => {
       };
       requestAnimationFrame(animateFade);
     },
-    [cube3D, clearMoveHistory]
+    [cube3D, clearMoveHistory],
   );
 
   const handleScramble = useCallback(
     (keepTimerMode = false, allowDuringLock = false) => {
-      if ((inputDisabled || sessionPhaseRef.current !== "idle") && !allowDuringLock) return;
+      if (
+        (inputDisabled || sessionPhaseRef.current !== "idle") &&
+        !allowDuringLock
+      )
+        return;
       if (isAnimating || AnimationHelper.isLocked()) return;
       resetTimer();
       if (!keepTimerMode) setIsTimerEnabled(false);
       clearMoveHistory();
       executeScramble();
     },
-    [isAnimating, resetTimer, executeScramble, clearMoveHistory, inputDisabled]
+    [isAnimating, resetTimer, executeScramble, clearMoveHistory, inputDisabled],
   );
 
   const handleStartTimer = useCallback(() => setShowTimerModal(true), []);
 
   const performAnimatedScramble = useCallback(() => {
-    setInputDisabled(false);
-    setOrbitControlsEnabled(true);
-    if (orbitControlsRef.current) {
-      orbitControlsRef.current.enabled = true;
-      if (typeof orbitControlsRef.current.update === "function") orbitControlsRef.current.update();
-    }
-    sessionPhaseRef.current = "idle";
-    executeScramble();
+    const startScramble = () => {
+      setInputDisabled(false);
+      setOrbitControlsEnabled(true);
+      if (orbitControlsRef.current) {
+        orbitControlsRef.current.enabled = true;
+        if (typeof orbitControlsRef.current.update === "function")
+          orbitControlsRef.current.update();
+      }
+      sessionPhaseRef.current = "idle";
+      executeScramble();
+    };
+    const delayMs = 400;
+    setTimeout(startScramble, delayMs);
   }, [executeScramble]);
 
   const handleTimerModalYes = useCallback(() => {
@@ -418,8 +451,14 @@ const App = () => {
     }, 300);
   }, [cancelTimer, fadeToSolvedState]);
 
-  const handleQuitTimerCancel = useCallback(() => setShowQuitTimerModal(false), []);
-  const handleTimerResetNew = useCallback(() => setShowResetTimerModal(true), []);
+  const handleQuitTimerCancel = useCallback(
+    () => setShowQuitTimerModal(false),
+    [],
+  );
+  const handleTimerResetNew = useCallback(
+    () => setShowResetTimerModal(true),
+    [],
+  );
 
   const handleResetTimerConfirm = useCallback(() => {
     setIsResettingSession(true);
@@ -432,7 +471,10 @@ const App = () => {
     }, 300);
   }, [resetTimer, fadeToSolvedState, performAnimatedScramble]);
 
-  const handleResetTimerCancel = useCallback(() => setShowResetTimerModal(false), []);
+  const handleResetTimerCancel = useCallback(
+    () => setShowResetTimerModal(false),
+    [],
+  );
 
   const handleSolveSuccessTryAgain = useCallback(() => {
     setIsTimerEnabled(true);
@@ -448,7 +490,9 @@ const App = () => {
       if (finalTime) {
         setFinalSolveTime(finalTime);
         if (isTimerActive) {
-          const timeMs = timerState.startTime ? Date.now() - timerState.startTime : 0;
+          const timeMs = timerState.startTime
+            ? Date.now() - timerState.startTime
+            : 0;
           if (timeMs > 0) {
             const result = addBestTime(finalTime, timeMs);
             setBestTimeResult(result);
@@ -458,12 +502,14 @@ const App = () => {
         }
       }
       if (cubeViewRef.current) {
-        cubeViewRef.current.celebratorySpin(() => setShowSolveSuccessModal(true));
+        cubeViewRef.current.celebratorySpin(() =>
+          setShowSolveSuccessModal(true),
+        );
       } else {
         setShowSolveSuccessModal(true);
       }
     },
-    [isTimerActive, timerState.startTime, addBestTime]
+    [isTimerActive, timerState.startTime, addBestTime],
   );
 
   const handleSolveSuccessClose = useCallback(() => {
@@ -475,10 +521,22 @@ const App = () => {
     }, 300);
   }, [resetTimer, fadeToSolvedState]);
 
-  const handleBestTimesOpen = useCallback(() => setShowBestTimesModal(true), []);
-  const handleBestTimesClose = useCallback(() => setShowBestTimesModal(false), []);
-  const handleBestTimesReset = useCallback(() => { resetBestTimes(); setShowBestTimesModal(false); }, [resetBestTimes]);
-  const handleLearnToSolveOpen = useCallback(() => setShowLearnToSolveModal(true), []);
+  const handleBestTimesOpen = useCallback(
+    () => setShowBestTimesModal(true),
+    [],
+  );
+  const handleBestTimesClose = useCallback(
+    () => setShowBestTimesModal(false),
+    [],
+  );
+  const handleBestTimesReset = useCallback(() => {
+    resetBestTimes();
+    setShowBestTimesModal(false);
+  }, [resetBestTimes]);
+  const handleLearnToSolveOpen = useCallback(
+    () => setShowLearnToSolveModal(true),
+    [],
+  );
   const handleLearnToSolveClose = useCallback(() => {
     setShowLearnToSolveModal(false);
     setModalCloseCooldown(true);
@@ -489,7 +547,9 @@ const App = () => {
     }
     if (cubeContainerRef.current) {
       cubeContainerRef.current.style.pointerEvents = "none";
-      const canvas = cubeContainerRef.current.querySelector("canvas") as HTMLElement | null;
+      const canvas = cubeContainerRef.current.querySelector(
+        "canvas",
+      ) as HTMLElement | null;
       if (canvas) {
         canvas.style.pointerEvents = "none";
       }
@@ -506,7 +566,9 @@ const App = () => {
           }
         }
         if (cubeContainerRef.current) {
-          const canvas = cubeContainerRef.current.querySelector("canvas") as HTMLElement | null;
+          const canvas = cubeContainerRef.current.querySelector(
+            "canvas",
+          ) as HTMLElement | null;
           if (canvas) {
             canvas.style.pointerEvents = "auto";
             canvas.style.touchAction = "none";
@@ -518,7 +580,9 @@ const App = () => {
             container.style.userSelect = "none";
             container.style.webkitUserSelect = "none";
           }
-          const lockedOverlay = cubeContainerRef.current.querySelector('[data-locked-overlay="true"]');
+          const lockedOverlay = cubeContainerRef.current.querySelector(
+            '[data-locked-overlay="true"]',
+          );
           if (lockedOverlay) {
             (lockedOverlay as HTMLElement).remove();
           }
@@ -527,7 +591,7 @@ const App = () => {
       restoreTouchEvents();
     }, 500);
   }, [setOrbitControlsEnabled]);
-  
+
   const resetMainCube = useCallback(() => {
     AnimationHelper.forceUnlock();
     cubeRef.current.reset();
@@ -563,10 +627,13 @@ const App = () => {
     setOrbitControlsEnabled(true);
     if (orbitControlsRef.current) {
       orbitControlsRef.current.enabled = true;
-      if (typeof orbitControlsRef.current.update === "function") orbitControlsRef.current.update();
+      if (typeof orbitControlsRef.current.update === "function")
+        orbitControlsRef.current.update();
     }
     if (cubeContainerRef.current) {
-      const canvas = cubeContainerRef.current.querySelector("canvas") as HTMLElement | null;
+      const canvas = cubeContainerRef.current.querySelector(
+        "canvas",
+      ) as HTMLElement | null;
       if (canvas) {
         canvas.style.pointerEvents = "auto";
         canvas.style.touchAction = "none";
@@ -578,7 +645,9 @@ const App = () => {
         container.style.userSelect = "none";
         container.style.webkitUserSelect = "none";
       }
-      const lockedOverlay = cubeContainerRef.current.querySelector('[data-locked-overlay="true"]');
+      const lockedOverlay = cubeContainerRef.current.querySelector(
+        '[data-locked-overlay="true"]',
+      );
       if (lockedOverlay) {
         (lockedOverlay as HTMLElement).remove();
       }
@@ -587,19 +656,30 @@ const App = () => {
       cubeViewRef.current.resetToInitialPosition(
         orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
         cubeRef,
-        undefined
+        undefined,
       );
     }
-  }, [clearMoveHistory, setCube3D, setOrbitControlsEnabled, setQueueFast, setQueueFastMs]);
-  
-  const handleTutorialStart = useCallback((lessonId: string) => {
-    resetMainCube();
-    setTutorialLessonId(lessonId);
-    setShowLearnToSolveModal(false);
-  }, [resetMainCube]);
+  }, [
+    clearMoveHistory,
+    setCube3D,
+    setOrbitControlsEnabled,
+    setQueueFast,
+    setQueueFastMs,
+  ]);
+
+  const handleTutorialStart = useCallback(
+    (lessonId: string) => {
+      resetMainCube();
+      setTutorialLessonId(lessonId);
+      setShowLearnToSolveModal(false);
+    },
+    [resetMainCube],
+  );
 
   const tutorialLessonIdRef = useRef<string | null>(null);
-  useEffect(() => { tutorialLessonIdRef.current = tutorialLessonId; }, [tutorialLessonId]);
+  useEffect(() => {
+    tutorialLessonIdRef.current = tutorialLessonId;
+  }, [tutorialLessonId]);
 
   useEffect(() => {
     if (!tutorialLessonId && !showLearnToSolveModal) {
@@ -612,7 +692,9 @@ const App = () => {
           }
         }
         if (cubeContainerRef.current) {
-          const canvas = cubeContainerRef.current.querySelector("canvas") as HTMLElement | null;
+          const canvas = cubeContainerRef.current.querySelector(
+            "canvas",
+          ) as HTMLElement | null;
           if (canvas) {
             canvas.style.pointerEvents = "auto";
             canvas.style.touchAction = "none";
@@ -624,7 +706,9 @@ const App = () => {
             container.style.userSelect = "none";
             container.style.webkitUserSelect = "none";
           }
-          const lockedOverlay = cubeContainerRef.current.querySelector('[data-locked-overlay="true"]');
+          const lockedOverlay = cubeContainerRef.current.querySelector(
+            '[data-locked-overlay="true"]',
+          );
           if (lockedOverlay) {
             (lockedOverlay as HTMLElement).remove();
           }
@@ -651,7 +735,9 @@ const App = () => {
       lastMoveSourceRef.current = "undo";
       setPendingMove(inverseMove as CubeMove);
       setHistoryIndex(historyIndex - 1);
-      setTimeout(() => { undoInProgressRef.current = false; }, 120);
+      setTimeout(() => {
+        undoInProgressRef.current = false;
+      }, 120);
     } else {
       undoInProgressRef.current = false;
     }
@@ -665,7 +751,9 @@ const App = () => {
       lastMoveSourceRef.current = "redo";
       setPendingMove(moveHistory[newIndex] as CubeMove);
       setHistoryIndex(newIndex);
-      setTimeout(() => { redoInProgressRef.current = false; }, 120);
+      setTimeout(() => {
+        redoInProgressRef.current = false;
+      }, 120);
     }
   }, [historyIndex, moveHistory, isAnimating]);
 
@@ -673,29 +761,40 @@ const App = () => {
   const historyIndexRef = useRef(-1);
   const addingToHistoryRef = useRef(false);
 
-  useEffect(() => { moveHistoryRef.current = moveHistory; }, [moveHistory]);
-  useEffect(() => { historyIndexRef.current = historyIndex; }, [historyIndex]);
+  useEffect(() => {
+    moveHistoryRef.current = moveHistory;
+  }, [moveHistory]);
+  useEffect(() => {
+    historyIndexRef.current = historyIndex;
+  }, [historyIndex]);
 
   const addMoveToHistory = useCallback((move: string) => {
     if (addingToHistoryRef.current) return;
     addingToHistoryRef.current = true;
     const currentIndex = historyIndexRef.current;
     const currentHistory = moveHistoryRef.current;
-    const newHistory = currentIndex === currentHistory.length - 1
-      ? [...currentHistory, move]
-      : [...currentHistory.slice(0, currentIndex + 1), move];
+    const newHistory =
+      currentIndex === currentHistory.length - 1
+        ? [...currentHistory, move]
+        : [...currentHistory.slice(0, currentIndex + 1), move];
     const newIndex = newHistory.length - 1;
     setMoveHistory(newHistory);
     setHistoryIndex(newIndex);
     moveHistoryRef.current = newHistory;
     historyIndexRef.current = newIndex;
-    setTimeout(() => { addingToHistoryRef.current = false; }, 100);
+    setTimeout(() => {
+      addingToHistoryRef.current = false;
+    }, 100);
   }, []);
 
   const handleButtonMove = useCallback(
     (move: string) => {
       const now = Date.now();
-      if (isAnimating || AnimationHelper.isLocked() || now - lastMoveTimeRef.current < 100) {
+      if (
+        isAnimating ||
+        AnimationHelper.isLocked() ||
+        now - lastMoveTimeRef.current < 100
+      ) {
         requestAnimationFrame(() => handleButtonMove(move));
         return;
       }
@@ -703,12 +802,14 @@ const App = () => {
       lastMoveSourceRef.current = "manual";
       setPendingMove(move as CubeMove);
     },
-    [isAnimating]
+    [isAnimating],
   );
 
   const handleMoveAnimationDone = useCallback(
     (move: CubeMove) => {
-      const isWholeCubeRotation = ["x", "x'", "y", "y'", "z", "z'"].includes(move);
+      const isWholeCubeRotation = ["x", "x'", "y", "y'", "z", "z'"].includes(
+        move,
+      );
 
       if (!isWholeCubeRotation) {
         cubeRef.current.move(move);
@@ -716,13 +817,19 @@ const App = () => {
         const solved = cubeRef.current.isSolved();
         setIsScrambled(!solved);
 
-        const isManualMove = (window as CustomWindowType).__isManualDragMove || lastMoveSourceRef.current === "manual";
+        const isManualMove =
+          (window as CustomWindowType).__isManualDragMove ||
+          lastMoveSourceRef.current === "manual";
         if (isTimerEnabled && !isTimerActive && isManualMove) startTimer();
 
         if (solved && isTimerActive) {
           const finalTime = stopTimer();
           const waitForStableState = () => {
-            if (isAnimatingRef.current || AnimationHelper.isLocked() || pendingMoveRef.current) {
+            if (
+              isAnimatingRef.current ||
+              AnimationHelper.isLocked() ||
+              pendingMoveRef.current
+            ) {
               setTimeout(waitForStableState, 50);
               return;
             }
@@ -732,7 +839,10 @@ const App = () => {
         }
 
         if (currentRunRef.current === "scramble") {
-          scrambleRemainingRef.current = Math.max(0, scrambleRemainingRef.current - 1);
+          scrambleRemainingRef.current = Math.max(
+            0,
+            scrambleRemainingRef.current - 1,
+          );
         }
 
         if (isManualMove) {
@@ -761,25 +871,46 @@ const App = () => {
       if (moveQueueRef.current.length === 0) {
         setQueueFast(false);
         setQueueFastMs(null);
-        if (currentRunRef.current === "scramble" && scrambleRemainingRef.current <= 0) {
+        if (
+          currentRunRef.current === "scramble" &&
+          scrambleRemainingRef.current <= 0
+        ) {
           setIsScramblingState(false);
           currentRunRef.current = null;
           setInputDisabled(false);
           sessionPhaseRef.current = "idle";
         }
-        if (currentRunRef.current === "solve") { setIsSolving(false); currentRunRef.current = null; }
-        if (currentRunRef.current === "auto-orient") { setIsAutoOrienting(false); currentRunRef.current = null; }
-        setTimeout(() => { setScrambleIndex(-1); setSolutionIndex(-1); }, 0);
+        if (currentRunRef.current === "solve") {
+          setIsSolving(false);
+          currentRunRef.current = null;
+        }
+        if (currentRunRef.current === "auto-orient") {
+          setIsAutoOrienting(false);
+          currentRunRef.current = null;
+        }
+        setTimeout(() => {
+          setScrambleIndex(-1);
+          setSolutionIndex(-1);
+        }, 0);
       }
     },
-    [pumpQueueSoon, isTimerEnabled, isTimerActive, startTimer, stopTimer, timerState, formatTimerMs]
+    [
+      pumpQueueSoon,
+      isTimerEnabled,
+      isTimerActive,
+      startTimer,
+      stopTimer,
+      timerState,
+      formatTimerMs,
+    ],
   );
 
   const handleOrbitControlsChange = useCallback((enabled: boolean) => {
     setOrbitControlsEnabled(enabled);
     if (orbitControlsRef.current) {
       orbitControlsRef.current.enabled = enabled;
-      if (typeof orbitControlsRef.current.update === "function") orbitControlsRef.current.update();
+      if (typeof orbitControlsRef.current.update === "function")
+        orbitControlsRef.current.update();
     }
   }, []);
 
@@ -825,7 +956,10 @@ const App = () => {
         if (!solution || lastSolvedState !== currentState) {
           const fresh = cubeRef.current.solve();
           const algo = fresh.join(" ");
-          const steps = fresh.map((m) => ({ move: m as CubeMove, description: "" }));
+          const steps = fresh.map((m) => ({
+            move: m as CubeMove,
+            description: "",
+          }));
           setSolution({ steps, moveCount: fresh.length, algorithm: algo });
           setLastSolvedState(currentState);
           movesToRun = fresh;
@@ -854,7 +988,7 @@ const App = () => {
   useEffect(() => {
     if (!tutorialLessonId) {
       setCanvasReady(false);
-      setTouchHookKey(prev => prev + 1);
+      setTouchHookKey((prev) => prev + 1);
     }
   }, [tutorialLessonId]);
 
@@ -864,7 +998,7 @@ const App = () => {
     precisionActive,
     handleOrbitControlsChange,
     touchHookKey,
-    modalCloseCooldown || !canvasReady
+    modalCloseCooldown || !canvasReady,
   );
 
   useEffect(() => {
@@ -887,7 +1021,9 @@ const App = () => {
         }
         container.style.pointerEvents = "auto";
         container.style.touchAction = "none";
-        const lockedOverlay = container.querySelector('[data-locked-overlay="true"]');
+        const lockedOverlay = container.querySelector(
+          '[data-locked-overlay="true"]',
+        );
         if (lockedOverlay) {
           (lockedOverlay as HTMLElement).remove();
         }
@@ -905,25 +1041,42 @@ const App = () => {
 
   useEffect(() => {
     const handleSolutionQueue = (event: CustomEvent) => {
-      const { moves, fast } = event.detail as { moves: string[]; fast?: boolean };
+      const { moves, fast } = event.detail as {
+        moves: string[];
+        fast?: boolean;
+      };
       if (moves && moves.length > 0) enqueueMoves(moves, !!fast);
     };
-    window.addEventListener("queueSolutionMoves", handleSolutionQueue as EventListener);
-    return () => window.removeEventListener("queueSolutionMoves", handleSolutionQueue as EventListener);
+    window.addEventListener(
+      "queueSolutionMoves",
+      handleSolutionQueue as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "queueSolutionMoves",
+        handleSolutionQueue as EventListener,
+      );
   }, [enqueueMoves]);
 
   const {
     onPointerDown: handleTrackpadPointerDown,
     onPointerMove: handleTrackpadPointerMove,
     onPointerUp: handleTrackpadPointerUp,
-  } = useTrackpadHandlers(cubeViewRef as React.RefObject<RubiksCube3DHandle>, precisionActive);
+  } = useTrackpadHandlers(
+    cubeViewRef as React.RefObject<RubiksCube3DHandle>,
+    precisionActive,
+  );
 
   const isTouchDevice = useIsTouchDevice();
-  const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } = useDprManager(isTouchDevice);
+  const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } =
+    useDprManager(isTouchDevice);
 
   const [infoOpen, setInfoOpen] = useState(false);
   if (tutorialLessonId) {
-    return renderLesson({ lessonId: tutorialLessonId, onBack: handleTutorialBack });
+    return renderLesson({
+      lessonId: tutorialLessonId,
+      onBack: handleTutorialBack,
+    });
   }
 
   return (
@@ -952,7 +1105,7 @@ const App = () => {
         <InfoButton onClick={() => setInfoOpen(true)} />
         <div className="flex-1 flex items-center justify-center px-2 min-h-0">
           <div
-            key={tutorialLessonId ? 'tutorial' : 'main'}
+            key={tutorialLessonId ? "tutorial" : "main"}
             ref={cubeContainerRef}
             onDoubleClick={handleContainerDoubleClick}
             className="w-full max-w-6xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]"
@@ -977,7 +1130,7 @@ const App = () => {
               <>
                 <MoveOverlay
                   title="Scramble:"
-                  icon={<span>🎲</span>}
+                  icon={<DiceIcon size={20} className="inline-block" />}
                   moves={scrambleMoves || []}
                   highlightIndex={scrambleIndex}
                   show={
@@ -993,7 +1146,7 @@ const App = () => {
                 />
                 <MoveOverlay
                   title="Solution:"
-                  icon={<span>🧠</span>}
+                  icon={<BrainIcon size={20} className="inline-block" />}
                   moves={solution ? solution.steps.map((s) => s.move) : []}
                   highlightIndex={solutionIndex}
                   moveCount={solution?.moveCount}
@@ -1015,7 +1168,10 @@ const App = () => {
             <Canvas
               camera={{ position: [5, 5, 5], fov: 53 }}
               className="w-full h-full pt-9"
-              style={{ touchAction: "none", pointerEvents: canvasReady ? "auto" : "none" }}
+              style={{
+                touchAction: "none",
+                pointerEvents: canvasReady ? "auto" : "none",
+              }}
               dpr={canvasDpr}
               gl={{
                 antialias: true,
@@ -1029,9 +1185,17 @@ const App = () => {
                 attachSetDpr(state.setDpr);
                 const canvas = state.gl.domElement as HTMLCanvasElement;
                 const onLost = (ev: Event) => ev.preventDefault();
-                const onRestored = () => { try { state.gl.resetState(); } catch {} };
+                const onRestored = () => {
+                  try {
+                    state.gl.resetState();
+                  } catch {}
+                };
                 canvas.addEventListener("webglcontextlost", onLost, false);
-                canvas.addEventListener("webglcontextrestored", onRestored, false);
+                canvas.addEventListener(
+                  "webglcontextrestored",
+                  onRestored,
+                  false,
+                );
                 setTimeout(() => {
                   setCanvasReady(true);
                 }, 800);
@@ -1040,7 +1204,9 @@ const App = () => {
                 setInteractiveDpr();
                 cubeViewRef.current?.handlePointerDown(e);
               }}
-              onPointerMoveCapture={() => { setInteractiveDpr(); }}
+              onPointerMoveCapture={() => {
+                setInteractiveDpr();
+              }}
               onPointerUpCapture={() => {
                 setInteractiveDpr();
                 cubeViewRef.current?.handlePointerUp?.();
@@ -1183,7 +1349,9 @@ const App = () => {
         isOpen={showLearnToSolveModal}
         onClose={handleLearnToSolveClose}
         onStartTutorial={handleTutorialStart}
-        initialLessonId={(window as CustomWindowType).__tutorialBackLessonId || undefined}
+        initialLessonId={
+          (window as CustomWindowType).__tutorialBackLessonId || undefined
+        }
       />
 
       <Footer />

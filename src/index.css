@@ -69,6 +69,15 @@ body {
   scrollbar-color: #bbb #f1f5f9;
 }
 
+/* Hide scrollbar while keeping scroll functionality */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Custom scrollbar for slide text - always visible when scrollable */
 .slide-text-scroll {
   scrollbar-width: thin;

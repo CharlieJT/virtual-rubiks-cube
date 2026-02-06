@@ -110,7 +110,7 @@ const FixBoxContent = ({
 
   const content = (
     <div
-      className="absolute top-2 left-2 md:top-3 md:left-3"
+      className="absolute top-2 left-2 lg:top-3 lg:left-3 lg:scale-125 lg:origin-top-left"
       style={{
         zIndex: -1,
         pointerEvents: "none",
@@ -163,7 +163,7 @@ const FixBoxContent = ({
       >
         {content}
       </div>,
-      document.body
+      document.body,
     );
   }
 

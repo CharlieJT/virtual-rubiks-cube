@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { useSequenceMeasurements } from "@components/tutorials/hooks/useSequenceMeasurements";
 import { useSequenceAnimations } from "@components/tutorials/hooks/useSequenceAnimations";
 import {
@@ -75,6 +75,19 @@ const AnimatedSequence: React.FC<AnimatedSequenceProps> = ({
   const getPartStateFn = (partIdx: number) =>
     getPartState(partIdx, parts, currentIndex);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const activePartRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activePartRef.current && scrollContainerRef.current) {
+      activePartRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [currentIndex]);
+
   const activeColorInfo =
     showFrontFaceLabel && !allSequencesComplete
       ? getActiveColorInfo(parts, allSequencesComplete, getPartStateFn)
@@ -92,60 +105,70 @@ const AnimatedSequence: React.FC<AnimatedSequenceProps> = ({
           disablePointerEvents={disablePointerEvents}
         />
       )}
-      <div className="flex items-center gap-2">
-        {parts.map((part, partIdx) => {
-          const { isCompleted, isActive, isFuture } = getPartStateFn(partIdx);
-          const measuredWidth = sequenceWidths.get(partIdx) || 200;
-          const isCollapsing = collapsingIndex === partIdx;
-          const isCollapsingToPending = collapsingToPending.has(partIdx);
-          const collapsingToPendingOpacityValue =
-            collapsingToPendingOpacity.get(partIdx);
-          const showTick = showTickAfterCollapse.has(partIdx) && isCompleted;
-          const tickOpacityValue = tickOpacity.get(partIdx) ?? 1;
-          const isExpanding = expandingOpacity.has(partIdx);
-          const expandOpacity = expandingOpacity.get(partIdx);
-          const measuredHeight = sequenceHeights.get(partIdx);
-          const isExpandingFromFuture =
-            isExpanding && expandOpacity !== undefined && expandOpacity < 1;
+      <div
+        ref={scrollContainerRef}
+        className="scrollbar-hide overflow-x-auto overflow-y-hidden max-w-[min(calc(100vw-3rem),480px)] scroll-smooth"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="flex items-center gap-2">
+          {parts.map((part, partIdx) => {
+            const { isCompleted, isActive, isFuture } = getPartStateFn(partIdx);
+            const measuredWidth = sequenceWidths.get(partIdx) || 200;
+            const isCollapsing = collapsingIndex === partIdx;
+            const isCollapsingToPending = collapsingToPending.has(partIdx);
+            const collapsingToPendingOpacityValue =
+              collapsingToPendingOpacity.get(partIdx);
+            const showTick = showTickAfterCollapse.has(partIdx) && isCompleted;
+            const tickOpacityValue = tickOpacity.get(partIdx) ?? 1;
+            const isExpanding = expandingOpacity.has(partIdx);
+            const expandOpacity = expandingOpacity.get(partIdx);
+            const measuredHeight = sequenceHeights.get(partIdx);
+            const isExpandingFromFuture =
+              isExpanding && expandOpacity !== undefined && expandOpacity < 1;
 
-          const borderOpacityForRender = isFuture
-            ? 0
-            : isExpandingFromFuture && expandOpacity !== undefined
-            ? expandOpacity
-            : isCollapsingToPending &&
-              collapsingToPendingOpacityValue !== undefined
-            ? collapsingToPendingOpacityValue
-            : 1;
+            const borderOpacityForRender = isFuture
+              ? 0
+              : isExpandingFromFuture && expandOpacity !== undefined
+                ? expandOpacity
+                : isCollapsingToPending &&
+                    collapsingToPendingOpacityValue !== undefined
+                  ? collapsingToPendingOpacityValue
+                  : 1;
 
-          return (
-            <SequencePartItem
-              key={partIdx}
-              part={part}
-              partIdx={partIdx}
-              currentIndex={currentIndex}
-              partialDirection={partialDirection}
-              measuredWidth={measuredWidth}
-              measuredHeight={measuredHeight}
-              isCompleted={isCompleted}
-              isActive={isActive}
-              isFuture={isFuture}
-              isCollapsing={isCollapsing}
-              isCollapsingToPending={isCollapsingToPending}
-              collapsingToPendingOpacityValue={collapsingToPendingOpacityValue}
-              showTick={showTick}
-              tickOpacityValue={tickOpacityValue}
-              isExpanding={isExpanding}
-              expandOpacity={expandOpacity}
-              isExpandingFromFuture={isExpandingFromFuture}
-              borderOpacityForRender={borderOpacityForRender}
-              disableTransitions={disableTransitions}
-              disablePointerEvents={disablePointerEvents}
-              tickLineState={tickLineStates.get(partIdx) ?? false}
-              measureRefs={measureRefs}
-              fixErrorPulse={fixErrorPulse && isActive}
-            />
-          );
-        })}
+            return (
+              <SequencePartItem
+                key={partIdx}
+                part={part}
+                innerRef={isActive ? activePartRef : undefined}
+                partIdx={partIdx}
+                currentIndex={currentIndex}
+                partialDirection={partialDirection}
+                measuredWidth={measuredWidth}
+                measuredHeight={measuredHeight}
+                isCompleted={isCompleted}
+                isActive={isActive}
+                isFuture={isFuture}
+                isCollapsing={isCollapsing}
+                isCollapsingToPending={isCollapsingToPending}
+                collapsingToPendingOpacityValue={
+                  collapsingToPendingOpacityValue
+                }
+                showTick={showTick}
+                tickOpacityValue={tickOpacityValue}
+                isExpanding={isExpanding}
+                expandOpacity={expandOpacity}
+                isExpandingFromFuture={isExpandingFromFuture}
+                borderOpacityForRender={borderOpacityForRender}
+                disableTransitions={disableTransitions}
+                disablePointerEvents={disablePointerEvents}
+                tickLineState={tickLineStates.get(partIdx) ?? false}
+                measureRefs={measureRefs}
+                fixErrorPulse={fixErrorPulse && isActive}
+              />
+            );
+          })}
+          <div className="min-w-2 w-2 h-2"></div>
+        </div>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ interface SequencePartItemProps {
   part: SequencePart;
   partIdx: number;
   currentIndex: number;
+  innerRef?: React.RefObject<HTMLDivElement | null>;
   partialDirection: 0 | 1 | -1;
   measuredWidth: number | undefined;
   measuredHeight: number | undefined;
@@ -37,6 +38,7 @@ const SequencePartItem: React.FC<SequencePartItemProps> = ({
   part,
   partIdx,
   currentIndex,
+  innerRef,
   partialDirection,
   measuredWidth,
   measuredHeight,
@@ -118,6 +120,7 @@ const SequencePartItem: React.FC<SequencePartItemProps> = ({
       </div>
 
       <div
+        ref={innerRef}
         className="flex flex-col items-center gap-1"
         style={{
           pointerEvents: disablePointerEvents ? "none" : "auto",

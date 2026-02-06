@@ -15,7 +15,7 @@ const TutorialResetModal: React.FC<TutorialResetModalProps> = ({
   onConfirm,
   isResetting = false,
 }) => (
-  <Modal isOpen={isOpen} onClose={onClose} title="Reset Cube?" theme="orange">
+  <Modal isOpen={isOpen} onClose={onClose} title="Reset Cube?" theme="orange" compact>
     <div className="space-y-4 text-gray-800 text-base">
       <p className="text-md text-slate-700">
         This will solve the cube back to a clean state. No timer or scramble
