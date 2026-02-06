@@ -1,6 +1,7 @@
 import React from "react";
 import Button from "@components/UI/Button";
 import Modal from "@/components/UI/Modal";
+import TimerIcon from "@components/UI/Icons/TimerIcon";
 
 interface TimerModalProps {
   isOpen: boolean;
@@ -20,13 +21,14 @@ const TimerModal: React.FC<TimerModalProps> = ({
   <Modal
     isOpen={isOpen}
     onClose={onClose}
+    compact
     title={
       <div className="flex items-center gap-2 pb-4">
         <span>Start Timer Session?</span>
         {/* Info Icon */}
         <div className="flex items-center justify-between mb-0">
           <h2 className="text-2xl font-bold text-black flex items-center gap-1">
-            <span>⏱️</span>
+            <TimerIcon size={28} />
           </h2>
         </div>
       </div>

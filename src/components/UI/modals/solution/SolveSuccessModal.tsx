@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import Button from "@components/UI/Button";
 import Modal from "@components/UI/Modal";
 import SevenSegmentDisplay from "@components/SevenSegmentDisplay";
+import TrophyIcon from "@components/UI/Icons/TrophyIcon";
+import PartyIcon from "@components/UI/Icons/PartyIcon";
+import StarIcon from "@components/UI/Icons/StarIcon";
 import type { BestTimeResult } from "@/hooks/useBestTimes";
 
 interface SolveSuccessModalProps {
@@ -129,7 +132,7 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
   }, [isOpen]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} showCloseButton={false}>
+    <Modal isOpen={isOpen} onClose={onClose} showCloseButton={false} compact>
       <div className="text-center relative overflow-hidden">
         {/* Confetti */}
         {showConfetti && (
@@ -141,7 +144,9 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
         {/* Content */}
         <div className="relative z-20">
           {/* Trophy Icon */}
-          <div className="text-4xl my-3">🏆</div>
+          <div className="my-3 flex justify-center">
+            <TrophyIcon size={48} />
+          </div>
 
           {/* Success Message */}
           <h2 className="text-2xl font-bold text-black mb-2">
@@ -155,17 +160,17 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
             <div className="mb-3">
               {bestTimeResult.wasPersonalBest ? (
                 <div className="flex items-center justify-center gap-1">
-                  <span className="text-lg">🎉</span>
+                  <PartyIcon size={20} className="flex-shrink-0" />
                   <span className="font-bold text-black">NEW PERSONAL BEST!</span>
-                  <span className="text-lg">🎉</span>
+                  <PartyIcon size={20} className="flex-shrink-0" />
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  <span>⭐</span>
+                  <StarIcon size={18} className="flex-shrink-0" />
                   <span className="font-bold">
                     New #{bestTimeResult.position} Best Time!
                   </span>
-                  <span>⭐</span>
+                  <StarIcon size={18} className="flex-shrink-0" />
                 </div>
               )}
             </div>

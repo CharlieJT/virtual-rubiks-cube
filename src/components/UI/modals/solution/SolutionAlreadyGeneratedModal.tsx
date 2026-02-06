@@ -22,6 +22,7 @@ const SolutionAlreadyGeneratedModal: React.FC<
 
   return (
     <Modal
+      compact
       isOpen={isOpen}
       onClose={onClose}
       centerTitle={true}

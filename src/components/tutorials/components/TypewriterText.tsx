@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { isRecapSlide } from "@components/tutorials/consts/tutorialSlideConfig";
 import useIsTouchDevice from "@/hooks/useIsTouchDevice";
 
@@ -6,6 +7,7 @@ interface TypewriterTextProps {
   text: string;
   keyProp: string;
   activeSlideId?: string;
+  chevronPortalRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 // Helper function to parse HTML and reveal text progressively
@@ -57,6 +59,7 @@ const TypewriterText = ({
   text,
   keyProp,
   activeSlideId,
+  chevronPortalRef,
 }: TypewriterTextProps) => {
   const [displayed, setDisplayed] = useState("");
   const [showBottomShadow, setShowBottomShadow] = useState(false);
@@ -125,7 +128,7 @@ const TypewriterText = ({
     const scrollAmount = isTouchDevice ? 150 : 600;
     const newScrollTop = Math.min(
       element.scrollTop + scrollAmount,
-      element.scrollHeight - element.clientHeight
+      element.scrollHeight - element.clientHeight,
     );
     element.scrollTo({
       top: newScrollTop,
@@ -139,8 +142,8 @@ const TypewriterText = ({
         ref={scrollRef}
         className={`slide-text-scroll bg-slate-200/75 backdrop-blur border border-slate-400 border-2 rounded-lg h-40 overflow-y-scroll text-sm md:text-md text-gray-700 whitespace-pre-line block pb-10 p-4 ${
           isRecap
-            ? "h-[calc(100vh-8rem)] md:h-[calc(100vh-9rem)]"
-            : "md:h-[calc(100vh-17.5rem)]"
+            ? "h-[calc(100dvh-8.6rem)] md:h-[calc(100dvh-9rem)]"
+            : "md:h-[calc(100dvh-16.5rem)]"
         }`}
         style={{ minHeight, display: "block" }}
         dangerouslySetInnerHTML={{ __html: displayed }}
@@ -155,29 +158,48 @@ const TypewriterText = ({
             "linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0.3) 100%)",
         }}
       />
-      {/* Scroll down chevron button */}
-      {isScrollable && !isAtBottom && (
-        <button
-          onClick={handleScrollDown}
-          className="absolute -bottom-8 left-[calc(50%+1rem)] transform -translate-x-1/2 z-10 rounded-xl p-2 transition-all duration-200 flex items-center justify-center group cursor-pointer animate-scroll-hint"
-          aria-label="Scroll down"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-gray-700 group-hover:text-gray-900 transition-colors"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </button>
-      )}
+      {/* Scroll down chevron button - portaled above footer on recap slides */}
+      {isScrollable &&
+        !isAtBottom &&
+        (() => {
+          const ChevronSvg = () => (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-gray-700 group-hover:text-gray-900 transition-colors"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          );
+          if (chevronPortalRef?.current && isRecap) {
+            return createPortal(
+              <button
+                onClick={handleScrollDown}
+                className="pointer-events-auto absolute bottom-7 left-[50%] rounded-xl p-2 transition-all duration-200 flex items-center justify-center group cursor-pointer animate-scroll-hint"
+                aria-label="Scroll down"
+              >
+                <ChevronSvg />
+              </button>,
+              chevronPortalRef.current,
+            );
+          }
+          return (
+            <button
+              onClick={handleScrollDown}
+              className="absolute -bottom-8 left-[calc(50%+1rem)] transform -translate-x-1/2 z-50 rounded-xl p-2 transition-all duration-200 flex items-center justify-center group cursor-pointer animate-scroll-hint"
+              aria-label="Scroll down"
+            >
+              <ChevronSvg />
+            </button>
+          );
+        })()}
       <style>{`
         @keyframes scroll-hint {
           0% {
