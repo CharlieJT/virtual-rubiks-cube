@@ -18,6 +18,7 @@ interface ModalProps {
   theme?: "default" | "red" | "orange";
   fullHeight?: boolean;
   disableTransition?: boolean;
+  compact?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -34,6 +35,7 @@ const Modal: React.FC<ModalProps> = ({
   titlePadding,
   fullHeight = false,
   disableTransition = false,
+  compact = false,
 }) => {
   const [visible, setVisible] = useState(false);
   const [entered, setEntered] = useState(false);
@@ -100,7 +102,7 @@ const Modal: React.FC<ModalProps> = ({
       />
       <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none p-4">
         <div
-          className={`bg-white/95 backdrop-blur-2xl border border-gray-200/50 rounded-3xl min-w-[320px] max-w-[95vw] md:max-w-[900px] shadow-2xl relative flex flex-col transition-all duration-300 ${
+          className={`bg-white/95 backdrop-blur-2xl border border-gray-200/50 rounded-3xl min-w-[320px] max-w-[95vw] ${compact ? "md:max-w-[420px]" : "md:max-w-[900px]"} shadow-2xl relative flex flex-col transition-all duration-300 ${
             disablePointerEvents ? "pointer-events-none" : "pointer-events-auto"
           } ${
             entered

@@ -1,3 +1,6 @@
+import WarningIcon from "@components/UI/Icons/WarningIcon";
+import PartyIcon from "@components/UI/Icons/PartyIcon";
+
 interface LessonContentProps {
   lessonId: string;
 }
@@ -275,15 +278,19 @@ const LessonContent = ({ lessonId }: LessonContentProps) => {
             </code>
           </div>
           <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-400">
-            <p className="text-red-800 text-sm font-medium mb-2">⚠️ Warning:</p>
+            <p className="text-red-800 text-sm font-medium mb-2 flex items-center gap-1.5">
+              <WarningIcon size={16} className="flex-shrink-0" />
+              Warning:
+            </p>
             <p className="text-red-800 text-sm">
               NEVER rotate the entire cube during this step. Only turn the top
               layer (U) to move corners.
             </p>
           </div>
           <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-400">
-            <p className="text-green-800 text-sm">
-              <strong>🎉 Congratulations!</strong> Once complete, your cube is
+            <p className="text-green-800 text-sm flex items-center gap-1.5">
+              <PartyIcon size={16} className="flex-shrink-0" />
+              <strong>Congratulations!</strong> Once complete, your cube is
               solved!
             </p>
           </div>

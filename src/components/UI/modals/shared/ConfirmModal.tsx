@@ -24,6 +24,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   isSolving = false,
 }) => (
   <Modal
+    compact
     isOpen={isOpen}
     onClose={onCancel}
     title={<div className="pb-4">{title}</div>}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { isRecapSlide } from "@components/tutorials/consts/tutorialSlideConfig";
 import TypewriterText from "@components/tutorials/components/TypewriterText";
 import SlideNavigationButtons from "@components/tutorials/components/SlideNavigationButtons";
@@ -23,6 +23,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
   onBack,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const chevronPortalRef = useRef<HTMLDivElement>(null);
 
   if (!activeSlide) return null;
 
@@ -56,7 +57,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
         className={`fixed inset-0 w-screen h-screen bg-white/70 backdrop-blur-2xl z-40 ${
           isExpanded ? "translate-y-0" : "translate-y-full"
         }`}
-        style={{ height: "100vh", width: "100vw" }}
+        style={{ height: "100dvh", width: "100vw" }}
       >
         {activeSlide.showConfetti && (
           <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
@@ -65,10 +66,10 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
         )}
         <div
           className="relative z-0 h-full flex flex-col overflow-hidden"
-          style={{ height: "100vh" }}
+          style={{ height: "100dvh" }}
         >
           <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="max-w-screen-2xl mx-auto px-3 md:px-8 py-3 md:py-4">
+            <div className="max-w-screen-2xl mx-auto px-3 md:px-8 py-3">
               <div className="flex items-center gap-2 mb-3 h-12">
                 <span className="text-xs font-medium text-gray-500 tracking-wider uppercase whitespace-nowrap">
                   {currentSlide + 1} / {totalSlides}
@@ -102,12 +103,17 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
                   text={activeSlide.description}
                   keyProp={String(currentSlide)}
                   activeSlideId={activeSlide.id}
+                  chevronPortalRef={chevronPortalRef}
                 />
               </div>
             </div>
           </div>
-          <div className="border-t border-gray-200/30 shrink-0">
-            <div className="max-w-screen-2xl mx-auto px-3 md:px-8 py-3 md:py-4">
+          <div
+            ref={chevronPortalRef}
+            className="absolute bottom-0 left-0 right-0 h-20 flex items-end justify-center pointer-events-none z-50 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          />
+          <div className="shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="max-w-screen-2xl mx-auto px-3 pt-3 md:pt-3">
               <div className="flex justify-end">
                 <SlideNavigationButtons
                   currentSlide={currentSlide}
@@ -128,8 +134,8 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
   return (
     <div className="sticky bottom-0 w-full bg-white/70 backdrop-blur-2xl border-t border-gray-200/30 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] z-40">
       <div
-        className="max-w-screen-2xl mx-auto px-3 md:px-8 py-3 md:py-4"
-        style={{ minHeight: "5em" }}
+        className="max-w-screen-2xl mx-auto px-3 py-3"
+        style={{ minHeight: "4em" }}
       >
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-6">
           <div className="flex-1 text-gray-900 md:hidden">
@@ -150,7 +156,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
               />
             </div>
           </div>
-          <div className="flex-shrink-0 md:ml-auto">
+          <div className="flex-shrink-0 md:w-full">
             <SlideNavigationButtons
               currentSlide={currentSlide}
               totalSlides={totalSlides}

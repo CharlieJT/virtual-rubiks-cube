@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { CustomWindowType } from "@/types/window";
+import BeginnerShieldIcon from "@components/UI/Icons/BeginnerShieldIcon";
+import IntermediateShieldIcon from "@components/UI/Icons/IntermediateShieldIcon";
+import AdvancedShieldIcon from "@components/UI/Icons/AdvancedShieldIcon";
+import LightbulbIcon from "@components/UI/Icons/LightbulbIcon";
 
 interface LessonSelectorProps {
   onSelectLesson: (lessonId: string) => void;
@@ -40,11 +44,13 @@ interface LessonSection {
   description: string;
   level: SectionLevel;
   lessons: Lesson[];
-  icon: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
   color: {
     gradient: string;
     badge: string;
     border: string;
+    accent: string;
+    shadow: string;
   };
 }
 
@@ -53,11 +59,13 @@ const lessonSections: LessonSection[] = [
     title: "Beginner",
     description: "Learn the fundamentals and solve your first cube",
     level: "beginner",
-    icon: "🌱",
+    icon: BeginnerShieldIcon,
     color: {
-      gradient: "from-blue-75 to-blue-100/50 border-blue-300/50",
-      badge: "bg-blue-100 text-blue-700 border-blue-300",
-      border: "border-blue-300/50",
+      gradient: "from-blue-50/80 to-blue-100/60",
+      badge: "text-blue-600",
+      border: "border-blue-200/70",
+      accent: "from-blue-400 to-blue-600",
+      shadow: "shadow-blue-200/20",
     },
     lessons: [
       {
@@ -120,11 +128,13 @@ const lessonSections: LessonSection[] = [
     title: "Intermediate",
     description: "Speed up your solves with advanced techniques",
     level: "intermediate",
-    icon: "⚡",
+    icon: IntermediateShieldIcon,
     color: {
-      gradient: "from-purple-75 to-purple-100/50 border-purple-300/50",
-      badge: "bg-purple-100 text-purple-700 border-purple-300",
-      border: "border-purple-300/50",
+      gradient: "from-purple-50/80 to-purple-100/60",
+      badge: "text-purple-600",
+      border: "border-purple-200/70",
+      accent: "from-purple-400 to-purple-600",
+      shadow: "shadow-purple-200/20",
     },
     lessons: [
       {
@@ -161,11 +171,13 @@ const lessonSections: LessonSection[] = [
     title: "Advanced",
     description: "Master speedcubing with full algorithm sets",
     level: "advanced",
-    icon: "🏆",
+    icon: AdvancedShieldIcon,
     color: {
-      gradient: "from-amber-75 to-amber-100/50 border-amber-300/50",
-      badge: "bg-amber-100 text-amber-700 border-amber-300",
-      border: "border-amber-300/50",
+      gradient: "from-amber-50/80 to-amber-100/60",
+      badge: "text-amber-600",
+      border: "border-amber-200/70",
+      accent: "from-amber-400 to-amber-600",
+      shadow: "shadow-amber-200/20",
     },
     lessons: [
       {
@@ -207,13 +219,14 @@ const LessonSelector = ({
   const interactionBlockedRef = useRef(shouldBlockInitially);
   const persistentBlockRef = useRef(shouldBlockInitially);
   const userNavigatedRef = useRef(false);
-  const isBlockedNow = interactionBlockedRef.current || persistentBlockRef.current;
-  
+  const isBlockedNow =
+    interactionBlockedRef.current || persistentBlockRef.current;
+
   useEffect(() => {
     if (userNavigatedRef.current) {
       return;
     }
-    
+
     if (initialLessonId || windowLessonId) {
       interactionBlockedRef.current = true;
       if (!persistentBlockRef.current) {
@@ -236,28 +249,29 @@ const LessonSelector = ({
     return null;
   };
 
-  const [selectedSection, setSelectedSection] =
-    useState<SectionLevel | null>(
-      initialSection ||
-        (initialLessonId ? getSectionForLesson(initialLessonId) : null)
-    );
+  const [selectedSection, setSelectedSection] = useState<SectionLevel | null>(
+    initialSection ||
+      (initialLessonId ? getSectionForLesson(initialLessonId) : null),
+  );
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
-  
+
   // Initialize scroll positions from window storage or defaults
   const getStoredScrollPositions = () => {
     const stored = (window as CustomWindowType).__lessonSelectorScrollPositions;
-    return stored || {
-      overview: 0,
-      sections: { beginner: 0, intermediate: 0, advanced: 0 },
-    };
+    return (
+      stored || {
+        overview: 0,
+        sections: { beginner: 0, intermediate: 0, advanced: 0 },
+      }
+    );
   };
 
   const overviewScrollPositionRef = useRef<number>(
-    getStoredScrollPositions().overview
+    getStoredScrollPositions().overview,
   );
   const sectionScrollPositionsRef = useRef<Record<SectionLevel, number>>(
-    getStoredScrollPositions().sections as Record<SectionLevel, number>
+    getStoredScrollPositions().sections as Record<SectionLevel, number>,
   );
 
   // Save scroll positions to window storage
@@ -273,7 +287,10 @@ const LessonSelector = ({
     if (!modalScroll) return null;
     // The actual scrollable container is the parent with overflow-y-auto
     const scrollContainer = modalScroll.parentElement;
-    if (scrollContainer && scrollContainer.classList.contains("overflow-y-auto")) {
+    if (
+      scrollContainer &&
+      scrollContainer.classList.contains("overflow-y-auto")
+    ) {
       return scrollContainer as HTMLElement;
     }
     // Fallback: try to find the scrollable container by traversing up
@@ -292,7 +309,7 @@ const LessonSelector = ({
     userNavigatedRef.current = true;
     interactionBlockedRef.current = false;
     persistentBlockRef.current = false;
-    
+
     // Save current scroll position before transitioning
     const scrollContainer = getScrollContainer();
     if (scrollContainer) {
@@ -327,7 +344,7 @@ const LessonSelector = ({
     userNavigatedRef.current = true;
     interactionBlockedRef.current = false;
     persistentBlockRef.current = false;
-    
+
     // Save current section scroll position before going back
     if (selectedSection) {
       const scrollContainer = getScrollContainer();
@@ -340,7 +357,8 @@ const LessonSelector = ({
     // Get the saved overview scroll position to restore
     // Read from both ref and stored positions (in case component remounted)
     const stored = getStoredScrollPositions();
-    const savedOverviewPosition = overviewScrollPositionRef.current || stored.overview;
+    const savedOverviewPosition =
+      overviewScrollPositionRef.current || stored.overview;
     setIsTransitioning(true);
     setIsVisible(false);
     setTimeout(() => {
@@ -410,9 +428,7 @@ const LessonSelector = ({
   // Section Overview View
   if (!selectedSection) {
     return (
-      <div 
-        className="max-w-6xl mx-auto"
-      >
+      <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight mb-1.5">
             Learn to Solve
@@ -436,7 +452,10 @@ const LessonSelector = ({
             <div
               key={section.level}
               onClickCapture={(e) => {
-                const isBlocked = isBlockedNow || interactionBlockedRef.current || persistentBlockRef.current;
+                const isBlocked =
+                  isBlockedNow ||
+                  interactionBlockedRef.current ||
+                  persistentBlockRef.current;
                 if (isBlocked) {
                   e.preventDefault();
                   e.stopPropagation();
@@ -447,7 +466,10 @@ const LessonSelector = ({
                 }
               }}
               onClick={(e) => {
-                const isBlocked = isBlockedNow || interactionBlockedRef.current || persistentBlockRef.current;
+                const isBlocked =
+                  isBlockedNow ||
+                  interactionBlockedRef.current ||
+                  persistentBlockRef.current;
                 if (isBlocked) {
                   e.preventDefault();
                   e.stopPropagation();
@@ -476,38 +498,51 @@ const LessonSelector = ({
                   e.stopPropagation();
                 }
               }}
-              className="group relative p-6 md:p-7 bg-white/80 backdrop-blur-xl border border-gray-200/50 rounded-2xl hover:border-gray-300/50 hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
-              style={{
-                transform: "translateY(0)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-1px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
+              className={`group relative p-6 md:p-8 bg-white/90 backdrop-blur-xl border rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden
+                border-l-4 ${section.level === "beginner" ? "border-l-blue-400" : section.level === "intermediate" ? "border-l-purple-400" : "border-l-amber-400"}
+                shadow-lg hover:shadow-2xl hover:-translate-y-1
+                border-t border-r border-b border-gray-200/60
+                hover:border-gray-300/80`}
             >
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${section.color.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-              ></div>
-              <div className="relative flex flex-col items-center text-center gap-3">
+              <svg
+                className="absolute inset-x-0 -bottom-32 w-full h-[420px] md:h-[430px] opacity-[0.05] group-hover:opacity-[0.09] transition-opacity duration-300 pointer-events-none"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <path
+                  fill={
+                    section.level === "beginner"
+                      ? "#3b82f6"
+                      : section.level === "intermediate"
+                        ? "#a855f7"
+                        : "#f59e0b"
+                  }
+                  d="M 0,25 Q 25,35 50,30 Q 75,25 100,30 L 100,100 Q 50,110 0,100 Z"
+                />
+              </svg>
+              <div className="relative flex flex-col items-center text-center gap-4">
                 <div
-                  className={`w-12 h-12 rounded-xl ${section.color.badge} flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300`}
+                  className={`w-16 h-16 rounded-2xl ${section.color.badge} flex items-center justify-center group-hover:scale-105 transition-transform duration-300`}
                 >
-                  {section.icon}
+                  {React.createElement(section.icon, { size: 42 })}
                 </div>
-                <div>
-                  <h3 className="text-lg md:text-xl font-semibold text-gray-900 tracking-tight mb-1.5">
+                <div className="space-y-1.5">
+                  <h3
+                    className={`text-lg md:text-xl font-bold tracking-tight ${section.level === "beginner" ? "text-blue-800" : section.level === "intermediate" ? "text-purple-800" : "text-amber-800"}`}
+                  >
                     {section.title}
                   </h3>
-                  <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
+                  <p className="text-sm text-gray-600 leading-relaxed max-w-[200px] mx-auto">
                     {section.description}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-500 mt-1">
+                <div
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold
+                  ${section.level === "beginner" ? "bg-blue-50 text-blue-700" : section.level === "intermediate" ? "bg-purple-50 text-purple-700" : "bg-amber-50 text-amber-700"}`}
+                >
                   <span>{section.lessons.length} Lessons</span>
                   <svg
-                    className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-all duration-300 group-hover:translate-x-1"
+                    className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -528,7 +563,7 @@ const LessonSelector = ({
         <div className="mt-10 p-6 md:p-7 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl border border-gray-200/50 backdrop-blur-sm">
           <div className="flex items-start gap-2.5">
             <div className="flex-shrink-0 w-6 h-6 rounded-lg bg-gray-200/50 flex items-center justify-center text-sm">
-              💡
+              <LightbulbIcon size={18} />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-1.5 text-sm">
