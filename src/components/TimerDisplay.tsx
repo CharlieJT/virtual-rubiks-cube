@@ -1,5 +1,6 @@
 import React from "react";
 import SevenSegmentDisplay from "./SevenSegmentDisplay";
+import DiceIcon from "@components/UI/Icons/DiceIcon";
 
 interface TimerDisplayProps {
   time: string;
@@ -41,8 +42,9 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
 
     {/* Scrambling message */}
     {isScrambling && (
-      <p className="text-yellow-300 text-xs italic tracking-wide mt-0 animate-pulse">
-        🎲 Scrambling cube for timed solve...
+      <p className="text-yellow-300 text-xs italic tracking-wide mt-0 animate-pulse flex items-center justify-center gap-1.5">
+        <DiceIcon size={14} className="flex-shrink-0" />
+        Scrambling cube for timed solve...
       </p>
     )}
   </div>

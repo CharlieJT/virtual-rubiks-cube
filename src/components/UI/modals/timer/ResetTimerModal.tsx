@@ -18,6 +18,7 @@ const ResetTimerModal: React.FC<ResetTimerModalProps> = ({
   <Modal
     isOpen={isOpen}
     onClose={onClose}
+    compact
     title="Reset Timer Session?"
     theme="orange"
   >

@@ -18,6 +18,7 @@ const QuitTimerModal: React.FC<QuitTimerModalProps> = ({
   <Modal
     isOpen={isOpen}
     onClose={onClose}
+    compact
     title="Quit Timer Session?"
     theme="red"
   >
