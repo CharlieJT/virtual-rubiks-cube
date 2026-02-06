@@ -12,24 +12,51 @@ interface AnimatedCubie {
   z: number;
 }
 
+const AXIS_X = Object.freeze(new THREE.Vector3(1, 0, 0));
+const AXIS_Y = Object.freeze(new THREE.Vector3(0, 1, 0));
+const AXIS_Z = Object.freeze(new THREE.Vector3(0, 0, 1));
+
+const MOVE_CONFIG: Record<string, { axis: THREE.Vector3; dir: number }> = {
+  U: { axis: AXIS_Y, dir: -1 },
+  D: { axis: AXIS_Y, dir: 1 },
+  R: { axis: AXIS_X, dir: -1 },
+  L: { axis: AXIS_X, dir: 1 },
+  F: { axis: AXIS_Z, dir: -1 },
+  B: { axis: AXIS_Z, dir: 1 },
+  M: { axis: AXIS_X, dir: 1 },
+  E: { axis: AXIS_Y, dir: 1 },
+  S: { axis: AXIS_Z, dir: -1 },
+  X: { axis: AXIS_X, dir: 1 },
+  Y: { axis: AXIS_Y, dir: 1 },
+  Z: { axis: AXIS_Z, dir: 1 },
+};
+
 export class AnimationHelper {
   private static locked = false;
+  private static activeAnimations = 0;
 
   static isLocked(): boolean {
     return this.locked;
   }
+  
+  static isAnimating(): boolean {
+    return this.activeAnimations > 0 || this.locked;
+  }
 
   static lock(): void {
     this.locked = true;
+    this.activeAnimations++;
   }
 
   static unlock(): void {
     this.locked = false;
+    this.activeAnimations = Math.max(0, this.activeAnimations - 1);
   }
 
   static forceUnlock(): void {
     TWEEN.removeAll();
     this.locked = false;
+    this.activeAnimations = 0;
   }
 
   static getMoveAxisAndDir(move: CubeMove): [THREE.Vector3, number] {
@@ -38,56 +65,12 @@ export class AnimationHelper {
     const cleanMove = move.replace(/['2]/g, "");
     const baseMove = cleanMove[0].toUpperCase();
 
+    const config = MOVE_CONFIG[baseMove] || { axis: AXIS_Y, dir: 1 };
     const baseTurns = isDouble ? 2 : 1;
-
-    let axis: THREE.Vector3;
-    let baseDirection: number;
-
-    if (baseMove === "U") {
-      axis = new THREE.Vector3(0, 1, 0);
-      baseDirection = -1;
-    } else if (baseMove === "D") {
-      axis = new THREE.Vector3(0, 1, 0);
-      baseDirection = 1;
-    } else if (baseMove === "R") {
-      axis = new THREE.Vector3(1, 0, 0);
-      baseDirection = -1;
-    } else if (baseMove === "L") {
-      axis = new THREE.Vector3(1, 0, 0);
-      baseDirection = 1;
-    } else if (baseMove === "F") {
-      axis = new THREE.Vector3(0, 0, 1);
-      baseDirection = -1;
-    } else if (baseMove === "B") {
-      axis = new THREE.Vector3(0, 0, 1);
-      baseDirection = 1;
-    } else if (baseMove === "M") {
-      axis = new THREE.Vector3(1, 0, 0);
-      baseDirection = 1;
-    } else if (baseMove === "E") {
-      axis = new THREE.Vector3(0, 1, 0);
-      baseDirection = 1;
-    } else if (baseMove === "S") {
-      axis = new THREE.Vector3(0, 0, 1);
-      baseDirection = -1;
-    } else if (baseMove === "X") {
-      axis = new THREE.Vector3(1, 0, 0);
-      baseDirection = 1;
-    } else if (baseMove === "Y") {
-      axis = new THREE.Vector3(0, 1, 0);
-      baseDirection = 1;
-    } else if (baseMove === "Z") {
-      axis = new THREE.Vector3(0, 0, 1);
-      baseDirection = 1;
-    } else {
-      axis = new THREE.Vector3(0, 1, 0);
-      baseDirection = 1;
-    }
-
-    const finalDirection = isPrime ? -baseDirection : baseDirection;
-
+    const finalDirection = isPrime ? -config.dir : config.dir;
     const totalRotation = (Math.PI / 2) * baseTurns * finalDirection;
-    return [axis, totalRotation];
+    
+    return [config.axis, totalRotation];
   }
 
   static isCubieInMove(
@@ -138,8 +121,6 @@ export class AnimationHelper {
     this.lock();
 
     const [axis, totalRotation] = this.getMoveAxisAndDir(move);
-
-    const normalizedAxis = axis.clone().normalize();
     const startTime = performance.now();
     let animationId: number;
     let currentRotationAmount = 0;
@@ -147,29 +128,24 @@ export class AnimationHelper {
     const animate = () => {
       const elapsed = performance.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-
       const targetRotation = totalRotation * progress;
       const deltaRotation = targetRotation - currentRotationAmount;
 
       if (deltaRotation !== 0) {
-        parentGroup.rotateOnAxis(normalizedAxis, deltaRotation);
+        parentGroup.rotateOnAxis(axis, deltaRotation);
         currentRotationAmount = targetRotation;
       }
 
       if (progress < 1) {
         animationId = requestAnimationFrame(animate);
       } else {
-        // Call onComplete first to update logical state
         onComplete && onComplete();
-
-        // Immediately unlock to ensure synchronization
         this.unlock();
       }
     };
 
     animationId = requestAnimationFrame(animate);
-
-    return { stop: () => cancelAnimationFrame(animationId) } as any;
+    return { stop: () => cancelAnimationFrame(animationId) } as TweenType;
   }
 
   static animate(
@@ -177,9 +153,13 @@ export class AnimationHelper {
     parentGroup: THREE.Group,
     move: CubeMove,
     onComplete?: () => void,
-    duration: number = 150
+    duration: number = 150,
+    isFastSequence: boolean = false,
+    onMaterialsUpdate?: () => void
   ): TweenType | null {
-    if (this.locked) return null;
+    if (this.locked) {
+      return null;
+    }
 
     const cleanMove = move.replace(/['2]/g, "");
     const baseMove = cleanMove[0].toUpperCase();
@@ -198,10 +178,90 @@ export class AnimationHelper {
       return null;
     }
 
+    if (isFastSequence) {
+      const originalPositions = new Map<THREE.Mesh, THREE.Vector3>();
+      const originalVisibility: boolean[] = [];
+      affectedCubies.forEach((cubie, index) => {
+        originalPositions.set(cubie.mesh, cubie.mesh.position.clone());
+        originalVisibility[index] = cubie.mesh.visible;
+      });
+
+      const startTime = performance.now();
+      let animationId: number;
+      const [axis, totalRotation] = this.getMoveAxisAndDir(move);
+      const normalizedAxis = axis.clone().normalize();
+      let currentRotationAmount = 0;
+
+      const animate = () => {
+        const elapsed = performance.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const targetRotation = totalRotation * progress;
+        const deltaRotation = targetRotation - currentRotationAmount;
+
+        if (deltaRotation !== 0) {
+          const rotationCenter = new THREE.Vector3(0, 0, 0);
+          const cleanMove = move.replace(/['2]/g, "").toUpperCase();
+          const baseMove = cleanMove[0];
+          
+          if (baseMove === "U") rotationCenter.set(0, 1.05, 0);
+          else if (baseMove === "D") rotationCenter.set(0, -1.05, 0);
+          else if (baseMove === "R") rotationCenter.set(1.05, 0, 0);
+          else if (baseMove === "L") rotationCenter.set(-1.05, 0, 0);
+          else if (baseMove === "F") rotationCenter.set(0, 0, 1.05);
+          else if (baseMove === "B") rotationCenter.set(0, 0, -1.05);
+          
+          affectedCubies.forEach((cubie) => {
+            cubie.mesh.position.sub(rotationCenter);
+            cubie.mesh.position.applyAxisAngle(normalizedAxis, deltaRotation);
+            cubie.mesh.position.add(rotationCenter);
+            cubie.mesh.rotateOnAxis(normalizedAxis, deltaRotation);
+          });
+          currentRotationAmount = targetRotation;
+        }
+
+        if (progress < 1) {
+          animationId = requestAnimationFrame(animate);
+        } else {
+          affectedCubies.forEach((cubie) => {
+            cubie.mesh.rotation.set(0, 0, 0);
+          });
+          
+          affectedCubies.forEach((cubie) => {
+            const pos = cubie.mesh.position;
+            cubie.x = Math.round(pos.x / 1.05 + 1);
+            cubie.y = Math.round(pos.y / 1.05 + 1);
+            cubie.z = Math.round(pos.z / 1.05 + 1);
+            cubie.x = Math.max(0, Math.min(2, cubie.x));
+            cubie.y = Math.max(0, Math.min(2, cubie.y));
+            cubie.z = Math.max(0, Math.min(2, cubie.z));
+            cubie.originalPosition.copy(cubie.mesh.position);
+          });
+          
+          onComplete && onComplete();
+          
+          if (onMaterialsUpdate) {
+            onMaterialsUpdate();
+          }
+          
+          affectedCubies.forEach((cubie, index) => {
+            cubie.mesh.visible = originalVisibility[index] ?? true;
+            cubie.mesh.updateMatrixWorld(true);
+          });
+          
+          this.unlock();
+        }
+      };
+
+      animationId = requestAnimationFrame(animate);
+      return { stop: () => cancelAnimationFrame(animationId) } as TweenType;
+    }
+
     const group = new THREE.Group();
     group.name = "AnimationGroup";
 
-    affectedCubies.forEach((cubie) => {
+    const originalVisibility: boolean[] = [];
+    affectedCubies.forEach((cubie, index) => {
+      originalVisibility[index] = cubie.mesh.visible;
       parentGroup.remove(cubie.mesh);
       group.add(cubie.mesh);
     });
@@ -209,9 +269,6 @@ export class AnimationHelper {
     parentGroup.add(group);
 
     const [axis, totalRotation] = this.getMoveAxisAndDir(move);
-
-    const normalizedAxis = axis.clone().normalize();
-
     const startTime = performance.now();
     let animationId: number;
     let currentRotationAmount = 0;
@@ -219,45 +276,69 @@ export class AnimationHelper {
     const animate = () => {
       const elapsed = performance.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-
       const targetRotation = totalRotation * progress;
       const deltaRotation = targetRotation - currentRotationAmount;
 
       if (deltaRotation !== 0) {
-        group.rotateOnAxis(normalizedAxis, deltaRotation);
+        group.rotateOnAxis(axis, deltaRotation);
         currentRotationAmount = targetRotation;
       }
 
       if (progress < 1) {
         animationId = requestAnimationFrame(animate);
       } else {
-        // Important! Call onComplete first to update the logical state
-        // This updates the cube colors in the logical state
+        if (isFastSequence && onMaterialsUpdate) {
         onComplete && onComplete();
-
-        // Now when we add the cubies back, they'll already have the updated material colors
-        // from their association with the logical state via ref/state in the parent component
+          onMaterialsUpdate();
+          
+          const finalPositions = new Map<THREE.Mesh, THREE.Vector3>();
+          affectedCubies.forEach((cubie) => {
+            finalPositions.set(cubie.mesh, cubie.originalPosition.clone());
+          });
+          
         parentGroup.remove(group);
 
-        // CRITICAL: We need a small delay before adding the meshes back
-        // This ensures React has time to update materials with new colors before repositioning
-        setTimeout(() => {
-          affectedCubies.forEach((cubie) => {
+          affectedCubies.forEach((cubie, index) => {
+            const finalPos = finalPositions.get(cubie.mesh) || cubie.originalPosition;
             parentGroup.add(cubie.mesh);
+            cubie.mesh.position.copy(finalPos);
+            cubie.mesh.rotation.set(0, 0, 0);
+            cubie.mesh.visible = originalVisibility[index] ?? true;
+            cubie.mesh.updateMatrixWorld(true);
+          });
+          
+          this.unlock();
+        } else {
+          onComplete && onComplete();
+          
+          affectedCubies.forEach((cubie) => {
+            cubie.mesh.visible = false;
+          });
+          
+          parentGroup.remove(group);
+          
+          affectedCubies.forEach((cubie, index) => {
+            parentGroup.add(cubie.mesh);
+            cubie.mesh.position.copy(cubie.originalPosition);
+            cubie.mesh.rotation.set(0, 0, 0);
+            cubie.mesh.visible = originalVisibility[index] ?? true;
+            cubie.mesh.updateMatrixWorld(true);
           });
 
           this.unlock();
-        }, 0);
+        }
       }
     };
 
     animationId = requestAnimationFrame(animate);
 
-    return { stop: () => cancelAnimationFrame(animationId) } as any;
+    return { stop: () => cancelAnimationFrame(animationId) } as TweenType;
   }
 
   static update(): void {
+    if (this.activeAnimations > 0) {
     TWEEN.update();
+    }
   }
 
   static rotateAroundWorldAxis(

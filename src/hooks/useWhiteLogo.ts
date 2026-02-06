@@ -6,8 +6,8 @@ import {
   getWhiteLogoDeltaByBucketDeg,
   getWhiteLogoDeltaRad,
 } from "@utils/whiteCenterOrientationMap";
-import SAME_FACE_DELTA from "@/maps/sameFaceDelta";
-import VIA_TRANSITION_DELTA from "@/maps/viaTransitionDelta";
+import SAME_FACE_DELTA from "@/config/cube/sameFaceDelta";
+import VIA_TRANSITION_DELTA from "@/config/cube/viaTransitionDelta";
 import CUBE_COLORS from "@/consts/cubeColours";
 
 const { WHITE } = CUBE_COLORS;
@@ -196,7 +196,7 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
 
   // Update white logo angle based on a completed move (quaternion-based, consistent with animation)
   const applyMoveToWhiteLogoAngle = useCallback(
-    (move: CubeMove, groupRef: React.RefObject<THREE.Group | null>) => {
+    (move: CubeMove, groupRef: React.RefObject<THREE.Group | null>, isFastSequence: boolean = false) => {
       const moveStr = (move as string).toUpperCase();
       const now = Date.now();
       // Guard: avoid double-apply if the exact same move fires twice within 120ms
@@ -240,6 +240,8 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
         // M → x visual rotation (cube rotates opposite to slice direction)
         // E → y visual rotation
         // S → z' visual rotation
+        // NOTE: Group rotation is now applied in useLayoutEffect for better synchronization
+        // Group rotation is handled in RubiksCube3D's useLayoutEffect to prevent flash
         const coordinateRotationMap: Record<string, [THREE.Vector3, number]> = {
           M: [new THREE.Vector3(1, 0, 0), Math.PI / 2], // x rotation (opposite of slice direction)
           "M'": [new THREE.Vector3(1, 0, 0), -Math.PI / 2], // x' rotation
@@ -253,15 +255,18 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
         };
 
         const rotation = coordinateRotationMap[moveStr];
-        if (rotation && groupRef.current) {
+        if (rotation) {
           const [axis, angle] = rotation;
           const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
 
-          // Apply rotation to the actual cube group to physically move it
-          groupRef.current.quaternion.multiply(q);
-
-          // Also update white quaternion tracking for consistency
+          // Always update white quaternion tracking
           whiteQuatRef.current.multiply(q);
+          
+          // Only apply group rotation for fast sequences (performance optimization)
+          // Manual moves will have rotation applied in useLayoutEffect for better synchronization
+          if (isFastSequence && groupRef.current) {
+            groupRef.current.quaternion.multiply(q);
+          }
         }
       } else if (currentWhiteFace && baseToFaceKey[base]) {
         // End-of-move update: if we rotated the face that currently holds the white center,
@@ -450,10 +455,25 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     [getWhiteCenterFaceFromState, cubeState]
   );
 
+  // Reset logo to default position
+  const resetLogo = useCallback(() => {
+    setWhiteLogoAngle(0);
+    displayedAngleRef.current = 0;
+    whiteQuatRef.current.identity();
+    const face = getWhiteCenterFaceFromState();
+    if (face) {
+      prevWhiteFaceRef.current = face;
+    } else {
+      prevWhiteFaceRef.current = null;
+    }
+    lastAppliedMoveRef.current = null;
+  }, [getWhiteCenterFaceFromState]);
+
   return {
     whiteLogoAngle,
     setWhiteLogoAngle,
     applyMoveToWhiteLogoAngle,
+    resetLogo,
   };
 };
 

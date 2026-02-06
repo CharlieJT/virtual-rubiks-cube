@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { CubeState, CubeMove, SwipeDirection } from "@/types/cube";
 import type { AnimatedCubie } from "@utils/animationHelper";
+import type { OrbitControlsInstance } from "@/types/orbitControls";
+import type { CubeJSWrapper } from "@/utils/cubejsWrapper";
 
 export type HandlePreciseHoverType = React.BaseSyntheticEvent<
   React.PointerEvent & {
@@ -17,17 +19,17 @@ export interface DragState {
   startPosition: THREE.Vector2;
   currentPosition: THREE.Vector2;
   cubiePosition: [number, number, number];
-  clickedFace: string; // The actual face that was clicked (front, back, left, right, top, bottom)
-  moveAxis: string; // The axis to rotate (x, y, z)
-  moveDirection: number; // 1 or -1 for direction
+  clickedFace: string;
+  moveAxis: string;
+  moveDirection: number;
   rotationAxis: THREE.Vector3;
   affectedCubies: AnimatedCubie[];
   dragGroup: THREE.Group | null;
   currentRotation: number;
-  lockedMoveType: string; // The move type that was locked in (F, R, U, etc.)
-  lockedIsPrime: boolean; // Whether the locked move is prime or not
-  hasLockedDirection: boolean; // Whether direction has been locked
-  _snapCompleted?: boolean; // Guard to prevent duplicate snap completion
+  lockedMoveType: string;
+  lockedIsPrime: boolean;
+  hasLockedDirection: boolean;
+  _snapCompleted?: boolean;
 }
 
 export interface TrackingStateRef {
@@ -37,7 +39,6 @@ export interface TrackingStateRef {
   cubiePosition: [number, number, number];
   clickedFace: string;
   uniquePieceId: string;
-  // Drag state
   isDragging: boolean;
   _pointerId?: number;
   lockedMoveType: string;
@@ -48,7 +49,6 @@ export interface TrackingStateRef {
   rotationAxis: THREE.Vector3;
   currentRotation: number;
   hasStartedDrag: boolean;
-  // Snapping animation state
   isSnapping: boolean;
   snapAnimationStartTime: number;
   snapAnimationDuration: number;
@@ -58,72 +58,105 @@ export interface TrackingStateRef {
   _axisLock?: "vertical" | "horizontal";
   _initialDragDirection?: SwipeDirection;
   _allowedMoves?: string[];
-  // Face-local axes in screen space, captured at pointer down
   _screenFaceRight?: THREE.Vector2;
   _screenFaceUp?: THREE.Vector2;
   _lockThresholdPx?: number;
-  // Canonical base move and expected sign (from AnimationHelper) used to interpret rotation
   _baseMove?: string;
   _expectedBaseSign?: number;
-  // Parity to fix sign per face/axis
   _dragSignParity?: number;
-  // Guard: ensure snap completion runs once
   _snapCompleted?: boolean;
+}
+
+// Data structure for centralized animation in parent
+export interface PieceMaterialData {
+  materials: Record<string, THREE.MeshPhongMaterial>;
+  baseColors: Record<string, THREE.Color>;
+  gridIndex: [number, number, number];
 }
 
 export interface CubePieceProps {
   position: [number, number, number];
   colors: CubeState["colors"];
-  gridIndex?: [number, number, number]; // (x,y,z) in 0..2 for outer-face determination
+  previousColors?: CubeState["colors"] | null;
+  baselineColors?: CubeState["colors"] | null;
+  stickerGreyMap?: Map<string, boolean>;
+  colorFadeProgress?: number;
+  gridIndex?: [number, number, number];
   onPointerDown?: (
-    e: any,
+    e: React.PointerEvent,
     pos: [number, number, number],
     intersectionPoint: THREE.Vector3
   ) => void;
   onMeshReady?: (mesh: THREE.Mesh, x: number, y: number, z: number) => void;
-  onPointerMove?: (e: any) => void;
+  onMaterialsReady?: (key: string, data: PieceMaterialData) => void;
+  onPointerMove?: (e: React.PointerEvent) => void;
   touchCount?: number;
   cornerStyles?: string[];
   children?: React.ReactNode;
-  trackingStateRef?: React.MutableRefObject<
+  trackingStateRef?: React.RefObject<
     TrackingStateRef & { _pointerId?: number }
   >;
+  highlightIntensity?: number;
+  isHighlighted?: boolean;
+  dullOthersIntensity?: number;
+  errorFlash?: boolean;
 }
 
 export interface RubiksCube3DProps {
   cubeState: CubeState[][][];
+  previousCube3D?: CubeState[][][] | null;
+  baselineCube3D?: CubeState[][][] | null;
+  stickerGreyMap?: Map<string, boolean>;
+  colorFadeProgress?: number;
   pendingMove?: CubeMove | null;
   onMoveAnimationDone?: (move: CubeMove) => void;
   onStartAnimation?: () => void;
   isAnimating?: boolean;
   onOrbitControlsChange?: (enabled: boolean) => void;
-  onDragMove?: (move: string) => void; // New prop for drag moves
-  touchCount?: number; // number of active touches reported by parent App
-  isTimerMode?: boolean; // Whether timer mode is active for faster animations
-  moveSource?: "queue" | "manual" | "undo" | "redo" | null; // Source of the pending move for animation speed control
-  queueFast?: boolean; // When true, make queued moves animate extra fast (for solve-during-transition effect)
-  queueFastMs?: number | null; // Optional override for queued move duration in ms (takes precedence over queueFast)
-  inputDisabled?: boolean; // When true, block all cube interactions (orbit, spins, drags)
+  onDragMove?: (move: string) => void;
+  onDragMoveStart?: () => void;
+  touchCount?: number;
+  isTimerMode?: boolean;
+  moveSource?: "queue" | "manual" | "undo" | "redo" | null;
+  queueFast?: boolean;
+  queueFastMs?: number | null;
+  inputDisabled?: boolean;
+  disableSliceDrag?: boolean;
+  preventSliceMoves?: boolean;
+  children?: React.ReactNode;
+  highlightPositions?: Array<[number, number, number]>;
+  highlightIntensity?: number;
+  dullOthersIntensity?: number;
+  pieceChildren?: (
+    x: number,
+    y: number,
+    z: number,
+    piece: CubeState
+  ) => React.ReactNode;
+  hideLogo?: boolean;
+  hideRightFace?: boolean;
+  hideFrontFace?: boolean;
+  hideLeftFace?: boolean;
+  hideBackFace?: boolean;
+  hideTopFace?: boolean;
+  hideBottomFace?: boolean;
+  errorFlash?: boolean;
 }
 
 export type RubiksCube3DHandle = {
-  // Rotate the whole cube around the current camera view axis by angleRad.
-  // Positive = CCW as seen by the viewer; negative = CW.
   spinAroundViewAxis: (angleRad: number) => void;
-  // Abort any active face/slice drag immediately (used when entering two-finger spin mode)
+  spinAroundYAxis: (angleRad: number) => void;
   abortActiveDrag: () => void;
-  // Whether a face/slice drag is currently active
   isDraggingSlice: () => boolean;
-  // Get the current rotation quaternion of the cube (for auto-orient functionality)
   getCurrentRotation: () => THREE.Quaternion | null;
-  // Dramatic spinning animation for solve completion
   celebratorySpin: (onComplete?: () => void) => void;
-  // Smoothly animate the cube back to its initial position
   resetToInitialPosition: (
-    orbitControlsRef?: React.RefObject<any>,
-    cubeRef?: React.RefObject<any>,
-    onComplete?: () => void
+    orbitControlsRef?: React.RefObject<OrbitControlsInstance | null>,
+    cubeRef?: React.RefObject<CubeJSWrapper>,
+    onComplete?: () => void,
+    instant?: boolean
   ) => void;
   handlePointerDown: (e: React.PointerEvent) => void;
   handlePointerUp: () => void;
+  resetLogo: () => void;
 };

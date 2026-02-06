@@ -36,8 +36,8 @@ const useLogoTexture = () => {
         tiptonsSolverImg,
         (tex) => {
           if (cancelled) return;
-          if ((THREE as any).SRGBColorSpace) {
-            (tex as any).colorSpace = (THREE as any).SRGBColorSpace;
+          if ((THREE).SRGBColorSpace) {
+            (tex).colorSpace = (THREE).SRGBColorSpace;
           }
           tex.wrapS = THREE.ClampToEdgeWrapping;
           tex.wrapT = THREE.ClampToEdgeWrapping;

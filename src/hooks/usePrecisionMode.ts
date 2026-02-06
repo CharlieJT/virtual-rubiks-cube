@@ -41,7 +41,7 @@ const usePrecisionMode = (cubeContainerRef: RefObject<HTMLElement>) => {
     };
     el.addEventListener("touchstart", onTouchStart, { passive: true });
     return () => {
-      el.removeEventListener("touchstart", onTouchStart as any);
+      el.removeEventListener("touchstart", onTouchStart);
     };
   }, [cubeContainerRef]);
 

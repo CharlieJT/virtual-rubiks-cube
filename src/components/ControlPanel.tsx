@@ -3,6 +3,9 @@ import type { Solution } from "@/types/cube";
 import Button from "@components/UI/Button";
 import Backdrop from "@components/UI/Backdrop";
 import UndoRedoButtons from "@components/UI/UndoRedoButtons";
+import TimerIcon from "@components/UI/Icons/TimerIcon";
+import BooksIcon from "@components/UI/Icons/BooksIcon";
+import BrainIcon from "@components/UI/Icons/BrainIcon";
 
 interface ControlPanelProps {
   onScramble: () => void;
@@ -28,6 +31,7 @@ interface ControlPanelProps {
   showSolutionGeneratedModal?: boolean;
   showSolutionAlreadyGeneratedModal?: boolean;
   inputDisabled?: boolean;
+  onLearnToSolve?: () => void;
 }
 
 const ControlPanel = ({
@@ -50,6 +54,7 @@ const ControlPanel = ({
   showSolutionGeneratedModal = false,
   showSolutionAlreadyGeneratedModal = false,
   inputDisabled = false,
+  onLearnToSolve,
 }: ControlPanelProps) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -69,6 +74,11 @@ const ControlPanel = ({
   const handleStartTimer = () => {
     setShowDropdown(false);
     onStartTimer();
+  };
+
+  const handleLearnToSolve = () => {
+    setShowDropdown(false);
+    onLearnToSolve?.();
   };
 
   // Close dropdown when clicking outside
@@ -165,8 +175,16 @@ const ControlPanel = ({
                           onClick={handleStartTimer}
                           disabled={isSolving || isScrambling}
                         >
-                          <span className="text-lg">⏱️</span>
+                          <TimerIcon className="text-lg w-5 h-5" size={20} />
                           Timer Session
+                        </Button>
+                        <Button
+                          className="w-full px-4 py-2 text-left hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700 cursor-pointer"
+                          onClick={handleLearnToSolve}
+                          disabled={isSolving || isScrambling}
+                        >
+                          <BooksIcon className="text-lg w-5 h-5" size={20} />
+                          Learn to Solve
                         </Button>
                         {/* Only show Generate Solution if cube is scrambled (not solved) */}
                         {isScrambled && (
@@ -175,11 +193,11 @@ const ControlPanel = ({
                             onClick={handleGenerateSolution}
                             disabled={isGenerating || isSolving || isScrambling}
                           >
-                            <span className="text-lg">
+                            <span className="text-lg flex items-center">
                               {isGenerating ? (
                                 <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
                               ) : (
-                                "🧠"
+                                <BrainIcon className="w-5 h-5" size={20} />
                               )}
                             </span>
                             <span className="flex-1">

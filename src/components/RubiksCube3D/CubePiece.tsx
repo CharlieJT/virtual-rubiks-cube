@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import * as THREE from "three";
 import { getCubieGeometry, getStickerGeometryForCorners } from "./geometry";
 import type { CubePieceProps } from "./types";
 import type { CubeState } from "@/types/cube";
-import STICKER_CORNER_MAP from "@/maps/stickerCornerMap";
+import STICKER_CORNER_MAP from "@/config/cube/stickerCornerMap";
 import CUBE_COLORS from "@/consts/cubeColours";
 import { activeTouches } from "@utils/touchState";
 import {
@@ -20,28 +20,80 @@ const CubePiece = React.memo(
   ({
     position,
     colors,
+    previousColors,
+    baselineColors,
+    stickerGreyMap: _stickerGreyMap,
+    colorFadeProgress = 0,
     gridIndex,
     onPointerDown,
     onMeshReady,
+    onMaterialsReady,
     onPointerMove,
     touchCount = 0,
     cornerStyles = [],
     children,
     trackingStateRef,
-    // Shared resources passed from parent to avoid per-cubie allocations
+    highlightIntensity = 0,
+    isHighlighted = false,
+    pulse: _pulse = false,
+    pulseSpeed: _pulseSpeed = 1.2,
+    pulseMin: _pulseMin = 0.18,
+    pulseMax: _pulseMax = 0.28,
+    dullOthersIntensity = 0,
     roundedBoxGeometry,
     sharedLogoTexture,
     logoReady,
+    hideLogo = false,
   }: CubePieceProps & {
     roundedBoxGeometry: THREE.BufferGeometry;
     sharedLogoTexture: THREE.Texture | null;
     logoReady: boolean;
+    hideLogo?: boolean;
+    isHighlighted?: boolean;
+    pulse?: boolean;
+    pulseSpeed?: number;
+    pulseMin?: number;
+    pulseMax?: number;
+    dullOthersIntensity?: number;
   }) => {
+    // Track per-face materials and base colors - exposed to parent for centralized animation
+    const stickerMatsRef = useRef<Record<string, THREE.MeshPhongMaterial>>({});
+    const baseColorsRef = useRef<Record<string, THREE.Color>>({});
+    
+    // Register materials when all stickers are ready (called from ref callback)
+    const tryRegisterMaterials = useCallback(() => {
+      if (!gridIndex || !onMaterialsReady) return;
+      
+      // Only register when we have materials
+      const materialCount = Object.keys(stickerMatsRef.current).length;
+      if (materialCount === 0) return;
+      
+      const key = `${gridIndex[0]},${gridIndex[1]},${gridIndex[2]}`;
+      onMaterialsReady(key, {
+        materials: stickerMatsRef.current,
+        baseColors: baseColorsRef.current,
+        gridIndex,
+      });
+    }, [gridIndex, onMaterialsReady]);
+    
+    // Materials are updated by parent RubiksCube3D's useLayoutEffect
+    // This prevents race conditions and ensures synchronous updates
+    
+    
     const meshRef = useRef<THREE.Mesh>(null);
-    // Reference roundedBoxGeometry to avoid unused param TS warning (kept for future optimization work)
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    roundedBoxGeometry;
-    // no local state needed for materials; we update refs directly
+    // Reference unused props to avoid TS warnings
+    void roundedBoxGeometry;
+    void _stickerGreyMap;
+    void _pulse;
+    void _pulseSpeed;
+    void _pulseMin;
+    void _pulseMax;
+    void previousColors;
+    void baselineColors;
+    void colorFadeProgress;
+    void dullOthersIntensity;
+    void isHighlighted;
+    void highlightIntensity;
 
     // New state for cubie geometry
     const [cubieGeometry, setCubieGeometry] =
@@ -84,6 +136,7 @@ const CubePiece = React.memo(
 
     // Base sticker size & radius (used per-sticker when building specific geometry)
     const stickerBaseSize = useMemo(() => CUBIE_SIZE * STICKER_INSET, []);
+
     const [stickerRadiusTrue, stickerRadiusFalse] = useMemo(
       () => [
         stickerBaseSize * STICKER_CORNER_RATIO,
@@ -123,7 +176,7 @@ const CubePiece = React.memo(
       for (let i = 0; i < 6; i++) {
         const mat = mats[i];
         mat.color.set(0x000000);
-        (mat as any).map = null;
+        mat.map = null;
         mat.needsUpdate = true;
       }
     }, [
@@ -166,7 +219,9 @@ const CubePiece = React.memo(
           const shiftHeld = !!e.shiftKey;
           if (isPrimary && !shiftHeld) {
             const pointerType =
-              (e.nativeEvent && (e.nativeEvent as any).pointerType) || null;
+              (e.nativeEvent && "pointerType" in e.nativeEvent
+                ? (e.nativeEvent as PointerEvent).pointerType
+                : null);
             if (pointerType === "touch") {
               // If there's already an active drag with a different finger, ignore this touch
               if (
@@ -182,21 +237,22 @@ const CubePiece = React.memo(
               // This allows one finger to finish a move while a second finger starts a new move
               if ((touchCount || 0) > 2) return;
               if (activeTouches.count > 2) return;
-              const touches = (e.nativeEvent &&
-                (e.nativeEvent as any).touches) as TouchList | undefined;
+              const touches = (e.nativeEvent && "touches" in e.nativeEvent
+                ? (e.nativeEvent as unknown as TouchEvent).touches
+                : undefined) as TouchList | undefined;
               if (touches && touches.length > 2) return;
             }
             e.stopPropagation();
             const intersectionPoint = e.point || new THREE.Vector3();
-            onPointerDown?.(e, position as any, intersectionPoint);
+            onPointerDown?.(e as unknown as React.PointerEvent, position, intersectionPoint);
           }
         }}
         onPointerMove={(e) => {
           const isPrimary = (e.button ?? 0) === 0;
           const shiftHeld = !!e.shiftKey;
           if (isPrimary && !shiftHeld) {
-            e.stopPropagation();
-            onPointerMove?.(e);
+            e.stopPropagation ();
+            onPointerMove?.(e as unknown as React.PointerEvent);
           }
         }}
         onPointerUp={(e) => {
@@ -293,28 +349,57 @@ const CubePiece = React.memo(
               }
             })();
             const showLogo =
+              !hideLogo &&
               isCenterSticker &&
               sharedLogoTexture &&
               logoReady &&
               isWhite(col as string);
+            // Visual emphasis handling:
+            // - If this cubie is the highlighted target and intensity>0: brighten toward white
+            // - If this cubie is NOT highlighted and intensity>0: dull toward grey
+            const hi = highlightIntensity;
             return (
-              <group key={f.key} position={f.pos} rotation={f.rot as any}>
+              <group key={f.key} position={f.pos} rotation={f.rot}>
                 <mesh geometry={geom}>
-                  {/* Sticker material: if this is the white center with logo, use the logo texture and white color; otherwise use color */}
+                  {/* Sticker material: if this is the white center with logo, use the logo texture; color still modulates brightness so it can dull */}
                   <meshPhongMaterial
+                    ref={(m) => {
+                      if (m) {
+                        stickerMatsRef.current[f.key] = m;
+                        const newColor = showLogo ? 0xffffff : col;
+                        // Always sync material color with prop to prevent flash
+                        m.color.set(newColor);
+                        m.needsUpdate = true;
+                        baseColorsRef.current[f.key] = new THREE.Color(newColor);
+                        // Only register for tutorial features (pulse/dull/fade)
+                        // Disabled during normal cube use to avoid overhead
+                        if (onMaterialsReady) tryRegisterMaterials();
+                      }
+                    }}
                     map={showLogo ? sharedLogoTexture || undefined : undefined}
-                    color={
-                      (() => {
-                        if (showLogo) return new THREE.Color(0xffffff);
-                        const c = new THREE.Color(col as any);
-                        return c;
-                      })() as any
-                    }
                     transparent={!!showLogo}
-                    shininess={showLogo ? 12 : 0}
-                    specular={showLogo ? (0x333333 as any) : (0x111111 as any)}
-                    emissive={showLogo ? (0x111111 as any) : (0x000000 as any)}
-                    emissiveIntensity={showLogo ? 0.04 : 0}
+                    shininess={(hi || 0) > 0 ? (isHighlighted ? 24 : 2) : 8}
+                    specular={
+                      (hi || 0) > 0
+                        ? isHighlighted
+                          ? (0x222222)
+                          : (0x111111)
+                        : (0x222222)
+                    }
+                    emissive={
+                      (hi || 0) > 0
+                        ? isHighlighted
+                          ? (new THREE.Color(col))
+                          : (0x111111)
+                        : (0x111111)
+                    }
+                    emissiveIntensity={
+                      (hi || 0) > 0
+                        ? isHighlighted
+                          ? Math.min(0.35, 0.12 + (hi || 0) * 0.6)
+                          : 0.05
+                        : 0.06
+                    }
                     side={THREE.FrontSide}
                     polygonOffset
                     polygonOffsetFactor={-2}
