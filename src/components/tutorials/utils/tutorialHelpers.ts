@@ -1010,69 +1010,6 @@ export const isCubeFullySolved = (cube3D: CubeState[][][]) => {
 };
 
 /**
- * Find all white edge cubie indices (WHITE + GREEN|RED|BLUE|ORANGE)
- */
-export const findWhiteEdgeIndices = (
-  cube3D: CubeState[][][]
-): Array<[number, number, number]> => {
-  const allowed = new Set([
-    CUBE_COLORS.GREEN,
-    CUBE_COLORS.RED,
-    CUBE_COLORS.BLUE,
-    CUBE_COLORS.ORANGE,
-  ]);
-  const out: Array<[number, number, number]> = [];
-  for (let x = 0; x < 3; x++) {
-    for (let y = 0; y < 3; y++) {
-      for (let z = 0; z < 3; z++) {
-        const piece = cube3D[x][y][z];
-        const colors = getCubieColorSet(piece);
-        if (
-          colors.size === 2 &&
-          colors.has(CUBE_COLORS.WHITE) &&
-          [...colors].some((c) => allowed.has(c) && c !== CUBE_COLORS.WHITE)
-        ) {
-          out.push([x, y, z]);
-        }
-      }
-    }
-  }
-  return out;
-};
-
-/**
- * Find all white corner cubie indices
- */
-export const findWhiteCornerIndices = (
-  cube3D: CubeState[][][]
-): Array<[number, number, number]> => {
-  const allowed = new Set([
-    CUBE_COLORS.GREEN,
-    CUBE_COLORS.RED,
-    CUBE_COLORS.BLUE,
-    CUBE_COLORS.ORANGE,
-  ]);
-  const out: Array<[number, number, number]> = [];
-  for (let x = 0; x < 3; x++) {
-    for (let y = 0; y < 3; y++) {
-      for (let z = 0; z < 3; z++) {
-        const piece = cube3D[x][y][z];
-        const colors = getCubieColorSet(piece);
-        if (
-          colors.size === 3 &&
-          colors.has(CUBE_COLORS.WHITE) &&
-          [...colors].filter((c) => allowed.has(c) && c !== CUBE_COLORS.WHITE)
-            .length === 2
-        ) {
-          out.push([x, y, z]);
-        }
-      }
-    }
-  }
-  return out;
-};
-
-/**
  * Find the white/green/red corner piece position
  */
 export const findWhiteGreenRedCorner = (

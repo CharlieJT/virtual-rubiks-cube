@@ -80,7 +80,7 @@ export const useTutorialPageState = (lessonId: string) => {
 
   const isTouchDevice = useIsTouchDevice();
   const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } =
-    useDprManager(isTouchDevice);
+    useDprManager();
   const [precisionActive] = useState(false);
   const forceOrbitDisabledRef = useRef(false);
 

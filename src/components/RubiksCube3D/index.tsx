@@ -6,212 +6,23 @@ import type { CubeMove, CubeState } from "@/types/cube";
 import { AnimationHelper, type AnimatedCubie } from "@utils/animationHelper";
 import CUBIE_STYLE_MAP from "@/config/cube/cubieStyleMap";
 import CUBE_COLORS from "@/consts/cubeColours";
-import {
-  BORDER_RADIUS,
-  BORDER_DEPTH,
-  CUBIE_DISTANCE,
-  BORDER_LENGTH,
-} from "./geometry";
+import { CUBIE_DISTANCE } from "./geometry";
+import { initBorderMeshes } from "./borderMeshBuilder";
 import useWhiteLogo from "@/hooks/useWhiteLogo";
 import useDragLogic from "@/hooks/useDragLogic";
 import useAnimation, { useImperativeHandle3D } from "@/hooks/useAnimation";
 import CubePiece from "./CubePiece";
 import type { RubiksCube3DProps, RubiksCube3DHandle, PieceMaterialData } from "./types";
 import useLogoTexture from "@/hooks/useLogoTexture";
-import useRoundedBoxGeometry from "@/hooks/useRoundedBoxGeometry";
+
 import useHoverLogic from "@/hooks/useHoverLogic";
 import type { CustomWindowType } from "@/types/window";
 import type { Tween } from "@tweenjs/tween.js";
 
 THREE.Cache.enabled = true;
 
-Object.entries(CUBIE_STYLE_MAP).forEach(([key, entry]) => {
-  if (!entry) return;
-
-  if (!entry.borderMeshes) {
-    entry.borderMeshes = [];
-  }
-
-  if (entry.borderMeshes.length > 0) return;
-  const [x, y, z] = key.split(",").map(Number);
-  const extremes = [x, y, z].filter((c) => c === 0 || c === 2).length;
-  const isCorner = extremes === 3;
-  const isEdge = extremes === 2 && (x === 1 || y === 1 || z === 1);
-
-  if (isCorner) {
-    if (x === 0 && y === 0 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 0 && y === 0 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 0 && y === 2 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 0 && y === 2 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 0 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 0 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 2 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 2 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    }
-  } else if (isEdge) {
-    if (x === 1) {
-      const yOff = y === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      const zOff = z === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      entry.borderMeshes.push({
-        position: [0, yOff, zOff],
-        rotation: [0, 0, Math.PI / 2],
-        cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-      });
-    } else if (y === 1) {
-      const xOff = x === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      const zOff = z === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      entry.borderMeshes.push({
-        position: [xOff, 0, zOff],
-        rotation: [0, 0, 0],
-        cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-      });
-    } else if (z === 1) {
-      const xOff = x === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      const yOff = y === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      entry.borderMeshes.push({
-        position: [xOff, yOff, 0],
-        rotation: [Math.PI / 2, 0, 0],
-        cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-      });
-    }
-  }
-});
+// Populate border mesh descriptors on each cubie style entry (runs once)
+initBorderMeshes();
 
 const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
   (
@@ -441,7 +252,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const { whiteLogoAngle, applyMoveToWhiteLogoAngle, resetLogo } =
       useWhiteLogo(cubeState);
     const { logoReady, tiptonsTexture } = useLogoTexture();
-    const roundedBoxGeometry = useRoundedBoxGeometry();
     const { handlePreciseHover, handleLeaveCube } = useHoverLogic(
       cubeState,
       groupRef,
@@ -595,10 +405,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       tiptonsTexture.rotation = whiteLogoAngle;
       tiptonsTexture.needsUpdate = true;
     }, [whiteLogoAngle, tiptonsTexture]);
-
-    useEffect(() => {
-      // intentionally no orbit toggle on inputDisabled changes
-    }, [inputDisabled]);
 
     const logoTextureReady = logoReady && !!tiptonsTexture;
 
@@ -861,7 +667,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 baselineColors={baselineColors}
                 stickerGreyMap={stickerGreyMap}
                 colorFadeProgress={colorFadeProgress}
-                roundedBoxGeometry={roundedBoxGeometry}
                 sharedLogoTexture={tiptonsTexture}
                 logoReady={logoReady}
                 hideLogo={hideLogo}
@@ -923,7 +728,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       hideBottomFace,
       highlightSet,
       dullOthersIntensity,
-      roundedBoxGeometry,
       tiptonsTexture,
       logoReady,
       hideLogo,

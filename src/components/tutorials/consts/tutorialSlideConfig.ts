@@ -167,42 +167,34 @@ export type SlideId =
   | (typeof ANIMATED_SEQUENCE_SLIDES)[number]
   | string;
 
-export const isPracticeSlide = (slideId: string | undefined): boolean => {
-  return PRACTICE_SLIDES.includes(slideId as (typeof PRACTICE_SLIDES)[number]);
-};
+export const isPracticeSlide = (slideId: string | undefined): boolean =>
+  PRACTICE_SLIDES.includes(slideId as (typeof PRACTICE_SLIDES)[number]);
 
 export const isPracticeWhiteCornersSlide = (
   slideId: string | undefined
-): boolean => {
-  return PRACTICE_WHITE_CORNERS_SLIDES.includes(slideId as (typeof PRACTICE_WHITE_CORNERS_SLIDES)[number]);
-};
+): boolean =>
+  PRACTICE_WHITE_CORNERS_SLIDES.includes(slideId as (typeof PRACTICE_WHITE_CORNERS_SLIDES)[number]);
 
 export const isPracticeSecondLayerSlide = (
   slideId: string | undefined
-): boolean => {
-  return PRACTICE_SECOND_LAYER_SLIDES.includes(slideId as (typeof PRACTICE_SECOND_LAYER_SLIDES)[number]);
-};
+): boolean =>
+  PRACTICE_SECOND_LAYER_SLIDES.includes(slideId as (typeof PRACTICE_SECOND_LAYER_SLIDES)[number]);
 
-export const isRecapSlide = (slideId: string | undefined): boolean => {
-  return RECAP_SLIDES.includes(slideId as (typeof RECAP_SLIDES)[number]);
-};
+export const isRecapSlide = (slideId: string | undefined): boolean =>
+  RECAP_SLIDES.includes(slideId as (typeof RECAP_SLIDES)[number]);
 
-export const isMultiStageSlide = (slideId: string | undefined): boolean => {
-  return MULTI_STAGE_SLIDES.includes(slideId as (typeof MULTI_STAGE_SLIDES)[number]);
-};
+export const isMultiStageSlide = (slideId: string | undefined): boolean =>
+  MULTI_STAGE_SLIDES.includes(slideId as (typeof MULTI_STAGE_SLIDES)[number]);
 
 export const isAnimatedSequenceSlide = (
   slideId: string | undefined
-): boolean => {
-  return ANIMATED_SEQUENCE_SLIDES.includes(slideId as (typeof ANIMATED_SEQUENCE_SLIDES)[number]);
-};
+): boolean =>
+  ANIMATED_SEQUENCE_SLIDES.includes(slideId as (typeof ANIMATED_SEQUENCE_SLIDES)[number]);
 
 export const isHighlightIntensitySlide = (
   slideId: string | undefined
-): boolean => {
-  return HIGHLIGHT_INTENSITY_SLIDES.includes(slideId as (typeof HIGHLIGHT_INTENSITY_SLIDES)[number]);
-};
+): boolean =>
+  HIGHLIGHT_INTENSITY_SLIDES.includes(slideId as (typeof HIGHLIGHT_INTENSITY_SLIDES)[number]);
 
-export const requiresSetupDelay = (slideId: string | undefined): boolean => {
-  return SLIDES_WITH_SETUP_DELAY.includes(slideId as (typeof SLIDES_WITH_SETUP_DELAY)[number]);
-};
+export const requiresSetupDelay = (slideId: string | undefined): boolean =>
+  SLIDES_WITH_SETUP_DELAY.includes(slideId as (typeof SLIDES_WITH_SETUP_DELAY)[number]);

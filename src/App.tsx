@@ -5,8 +5,7 @@ import RubiksCube3D from "@components/RubiksCube3D";
 import ControlPanel from "@components/ControlPanel";
 import cubejsTo3D from "@utils/cubejsTo3D";
 import { AnimationHelper } from "@utils/animationHelper";
-import type { CubeMove, CubeState } from "@/types/cube";
-import CUBE_COLORS from "@/consts/cubeColours";
+import type { CubeMove } from "@/types/cube";
 import ConfirmModal from "@components/UI/modals/shared/ConfirmModal";
 import InfoModal from "@components/UI/modals/shared/InfoModal";
 import MoveOverlay from "@components/MoveOverlay";
@@ -34,6 +33,12 @@ import useDprManager from "@/hooks/useDprManager";
 import usePrecisionMode from "@/hooks/usePrecisionMode";
 import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
 import useTrackpadHandlers from "@/hooks/useTrackpadHandlers";
+import useMoveQueue from "@/hooks/useMoveQueue";
+import useUndoRedo from "@/hooks/useUndoRedo";
+import useFadeToSolved from "@/hooks/useFadeToSolved";
+import useScrambleLogic from "@/hooks/useScrambleLogic";
+import useTimerSessionHandlers from "@/hooks/useTimerSessionHandlers";
+import useSolveHandlers from "@/hooks/useSolveHandlers";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import InfoButton from "@components/UI/InfoButton";
 import type { OrbitControlsInstance } from "./types/orbitControls";
@@ -41,6 +46,7 @@ import type { CustomWindowType } from "./types/window";
 import useAppState from "./App/AppState";
 
 const App = () => {
+  const appState = useAppState();
   const {
     cubeRef,
     cube3D,
@@ -138,7 +144,7 @@ const App = () => {
     pendingMoveRef,
     undoInProgressRef,
     redoInProgressRef,
-  } = useAppState();
+  } = appState;
 
   const {
     timerState,
@@ -152,21 +158,6 @@ const App = () => {
 
   const { addBestTime, resetBestTimes, getFormattedBestTimes, hasTimes } =
     useBestTimes();
-
-  const formatTimerMs = useCallback((ms: number): string => {
-    const totalSeconds = ms / 1000;
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, "0")}:${seconds
-      .toFixed(2)
-      .padStart(5, "0")}`;
-  }, []);
-
-  const getInverseMove = useCallback((move: string): string => {
-    if (move.endsWith("'")) return move.slice(0, -1);
-    if (move.endsWith("2")) return move;
-    return move + "'";
-  }, []);
 
   const orbitControlsRef = useRef<OrbitControlsInstance | null>(null);
   const cubeViewRef = useRef<RubiksCube3DHandle | null>(null);
@@ -186,340 +177,217 @@ const App = () => {
     solutionRef.current = solution;
   }, [solution]);
 
-  const pumpQueue = useCallback(() => {
-    if (isAnimatingRef.current || AnimationHelper.isLocked()) return;
-    if (pendingMoveRef.current) return;
-    const next = moveQueueRef.current.shift();
-    if (next) {
-      if (currentRunRef.current === "scramble") {
-        setScrambleIndex((i) =>
-          Math.min(i + 1, (scrambleMovesRef.current?.length ?? 1) - 1),
-        );
-      } else if (currentRunRef.current === "solve") {
-        setSolutionIndex((i) =>
-          Math.min(i + 1, (solutionRef.current?.steps.length ?? 1) - 1),
-        );
+  // --- Extracted hooks (composed in dependency order) ---
+
+  const { pumpQueueSoon, enqueueMoves } = useMoveQueue({
+    isAnimatingRef,
+    pendingMoveRef,
+    moveQueueRef,
+    currentRunRef,
+    scrambleMovesRef,
+    solutionRef,
+    lastMoveSourceRef,
+    setScrambleIndex,
+    setSolutionIndex,
+    setPendingMove,
+    setQueueFast,
+    setQueueFastMs,
+  });
+
+  const { handleUndo, handleRedo, addMoveToHistory, clearMoveHistory } =
+    useUndoRedo({
+      moveHistory,
+      historyIndex,
+      isAnimating,
+      setMoveHistory,
+      setHistoryIndex,
+      setPendingMove,
+      lastMoveSourceRef,
+      undoInProgressRef,
+      redoInProgressRef,
+    });
+
+  const { fadeToSolvedState } = useFadeToSolved({
+    cube3D,
+    cubeRef,
+    cubeViewRef,
+    orbitControlsRef,
+    moveQueueRef,
+    currentRunRef,
+    scrambleRemainingRef,
+    solutionOverlaySourceRef,
+    lastMoveSourceRef,
+    isAnimatingRef,
+    pendingMoveRef,
+    sessionPhaseRef,
+    clearMoveHistory,
+    setCube3D,
+    setPreviousCube3D,
+    setBaselineCube3D,
+    setStickerGreyMap,
+    setColorFadeProgress,
+    setScrambleMoves,
+    setShowScrambleOverlay,
+    setScrambleIndex,
+    setSolution,
+    setShowSolutionOverlay,
+    setSolutionIndex,
+    setIsSolving,
+    setIsAutoOrienting,
+    setPendingMove,
+    setIsAnimating,
+    setInputDisabled,
+    setIsScrambled,
+    setLastSolvedState,
+    setOrbitControlsEnabled,
+  });
+
+  const { handleScramble, performAnimatedScramble } = useScrambleLogic({
+    isAnimating,
+    inputDisabled,
+    isScramblingState,
+    cubeRef,
+    currentRunRef,
+    lastScrambleStartedAtRef,
+    scrambleRequestPendingRef,
+    scrambleRemainingRef,
+    solutionOverlaySourceRef,
+    sessionPhaseRef,
+    orbitControlsRef,
+    enqueueMoves,
+    clearMoveHistory,
+    resetTimer,
+    setPendingMove,
+    setScrambleIndex,
+    setSolutionIndex,
+    setIsScramblingState,
+    setIsScrambled,
+    setSolution,
+    setLastSolvedState,
+    setIsGenerating,
+    setShowSolutionGeneratedModal,
+    setScrambleMoves,
+    setShowScrambleOverlay,
+    setShowSolutionOverlay,
+    setIsTimerEnabled,
+    setInputDisabled,
+    setOrbitControlsEnabled,
+  });
+
+  const {
+    handleStartTimer,
+    handleTimerModalYes,
+    handleTimerModalNo,
+    handleTimerQuit,
+    handleQuitTimerConfirm,
+    handleQuitTimerCancel,
+    handleTimerResetNew,
+    handleResetTimerConfirm,
+    handleResetTimerCancel,
+    handleSolveSuccessTryAgain,
+    handleSolveSuccessClose,
+  } = useTimerSessionHandlers({
+    fadeToSolvedState,
+    performAnimatedScramble,
+    resetTimer,
+    cancelTimer,
+    setShowTimerModal,
+    setIsStartingSession,
+    setIsTimerEnabled,
+    setShowQuitTimerModal,
+    setIsQuittingSession,
+    setShowResetTimerModal,
+    setIsResettingSession,
+    setShowSolveSuccessModal,
+  });
+
+  const [confirmSolveOpen, setConfirmSolveOpen] = useState(false);
+
+  const { handleMoveAnimationDone, handleGenerateSolution, handleSolve } =
+    useSolveHandlers({
+      isAnimating,
+      isTimerEnabled,
+      isTimerActive,
+      solution,
+      lastSolvedState,
+      showSolutionOverlay,
+      timerStartTime: timerState.startTime,
+      cubeRef,
+      cubeViewRef,
+      currentRunRef,
+      scrambleRemainingRef,
+      solutionOverlaySourceRef,
+      lastMoveSourceRef,
+      isAnimatingRef,
+      pendingMoveRef,
+      moveQueueRef,
+      sessionPhaseRef,
+      enqueueMoves,
+      pumpQueueSoon,
+      clearMoveHistory,
+      addMoveToHistory,
+      startTimer,
+      stopTimer,
+      addBestTime,
+      setCube3D,
+      setPendingMove,
+      setIsAnimating,
+      setIsScrambled,
+      setIsSolving,
+      setIsAutoOrienting,
+      setSolution,
+      setLastSolvedState,
+      setSolutionIndex,
+      setScrambleIndex,
+      setScrambleMoves,
+      setShowScrambleOverlay,
+      setShowSolutionOverlay,
+      setIsScramblingState,
+      setInputDisabled,
+      setQueueFast,
+      setQueueFastMs,
+      setIsGenerating,
+      setShowSolutionGeneratedModal,
+      setShowSolutionAlreadyGeneratedModal,
+      setShowSolveSuccessModal,
+      setFinalSolveTime,
+      setBestTimeResult,
+      setConfirmSolveOpen,
+    });
+
+  // --- Remaining inline handlers ---
+
+  const handleButtonMove = useCallback(
+    (move: string) => {
+      const now = Date.now();
+      if (
+        isAnimating ||
+        AnimationHelper.isLocked() ||
+        now - lastMoveTimeRef.current < 100
+      ) {
+        requestAnimationFrame(() => handleButtonMove(move));
+        return;
       }
-      lastMoveSourceRef.current = "queue";
-      setPendingMove(next);
-      pendingMoveRef.current = next;
+      lastMoveTimeRef.current = now;
+      lastMoveSourceRef.current = "manual";
+      setPendingMove(move as CubeMove);
+    },
+    [isAnimating],
+  );
+
+  const handleOrbitControlsChange = useCallback((enabled: boolean) => {
+    setOrbitControlsEnabled(enabled);
+    if (orbitControlsRef.current) {
+      orbitControlsRef.current.enabled = enabled;
+      if (typeof orbitControlsRef.current.update === "function")
+        orbitControlsRef.current.update();
     }
   }, []);
 
-  const pumpQueueSoon = useCallback(() => {
-    const attempt = () => {
-      if (
-        AnimationHelper.isLocked() ||
-        isAnimatingRef.current ||
-        pendingMoveRef.current
-      ) {
-        setTimeout(attempt, 0);
-        return;
-      }
-      pumpQueue();
-    };
-    setTimeout(attempt, 0);
-  }, [pumpQueue]);
-
-  const enqueueMoves = useCallback(
-    (moves: string[], fast: boolean = false, fastMs?: number | null) => {
-      if (fast) setQueueFast(true);
-      if (typeof fastMs === "number") setQueueFastMs(fastMs);
-      moveQueueRef.current.push(...(moves as CubeMove[]));
-      pumpQueueSoon();
-    },
-    [pumpQueueSoon],
-  );
-
-  const executeScramble = useCallback(() => {
-    if (isAnimating || AnimationHelper.isLocked()) return;
-    if (currentRunRef.current === "scramble" || isScramblingState) return;
-    const now = Date.now();
-    if (now - lastScrambleStartedAtRef.current < 400) return;
-    setPendingMove(null);
-
-    const scramble = cubeRef.current.generateScramble(20);
-    setScrambleIndex(-1);
-    setSolutionIndex(-1);
-    currentRunRef.current = "scramble";
-    setIsScramblingState(true);
-    scrambleRequestPendingRef.current = false;
-    lastScrambleStartedAtRef.current = now;
-    scrambleRemainingRef.current = scramble.length;
-    enqueueMoves(scramble);
-    setIsScrambled(true);
-    sessionPhaseRef.current = "scramble";
-    setSolution(null);
-    setLastSolvedState(null);
-    setIsGenerating(false);
-    setShowSolutionGeneratedModal(false);
-    setScrambleMoves(scramble);
-    setShowScrambleOverlay(true);
-    setShowSolutionOverlay(false);
-    solutionOverlaySourceRef.current = null;
-  }, [enqueueMoves, isAnimating]);
-
-  const clearMoveHistory = useCallback(() => {
-    setMoveHistory([]);
-    setHistoryIndex(-1);
+  const handleStartAnimation = useCallback(() => {
+    setIsAnimating(true);
+    isAnimatingRef.current = true;
   }, []);
-
-  const fadeToSolvedState = useCallback(
-    (onComplete?: () => void) => {
-      moveQueueRef.current = [];
-      currentRunRef.current = null;
-      scrambleRemainingRef.current = 0;
-      setScrambleMoves(null);
-      setShowScrambleOverlay(false);
-      setScrambleIndex(-1);
-      setSolution(null);
-      setShowSolutionOverlay(false);
-      setSolutionIndex(-1);
-      solutionOverlaySourceRef.current = null;
-      setIsSolving(false);
-      setIsAutoOrienting(false);
-      setPendingMove(null);
-      pendingMoveRef.current = null;
-      setIsAnimating(false);
-      isAnimatingRef.current = false;
-      lastMoveSourceRef.current = null;
-      clearMoveHistory();
-      setInputDisabled(true);
-      sessionPhaseRef.current = "transition";
-
-      const currentCube3D = cube3D;
-      setPreviousCube3D(currentCube3D);
-
-      const solvedCube = new (cubeRef.current
-        .constructor as typeof import("@utils/cubejsWrapper").CubeJSWrapper)();
-      const solvedCube3D = cubejsTo3D(solvedCube.getCube());
-      setBaselineCube3D(solvedCube3D);
-
-      const greyMap = new Map<string, boolean>();
-      const faceKeys: Array<keyof CubeState["colors"]> = [
-        "front",
-        "back",
-        "left",
-        "right",
-        "top",
-        "bottom",
-      ];
-
-      for (let x = 0; x < 3; x++) {
-        for (let y = 0; y < 3; y++) {
-          for (let z = 0; z < 3; z++) {
-            const currentPiece = currentCube3D[x]?.[y]?.[z];
-            const solvedPiece = solvedCube3D[x]?.[y]?.[z];
-            if (currentPiece && solvedPiece) {
-              for (const face of faceKeys) {
-                const currentColor =
-                  currentPiece.colors[face] || CUBE_COLORS.BLACK;
-                const solvedColor =
-                  solvedPiece.colors[face] || CUBE_COLORS.BLACK;
-                const key = `${x},${y},${z},${face}`;
-                if (
-                  currentColor !== CUBE_COLORS.BLACK &&
-                  currentColor !== solvedColor
-                ) {
-                  greyMap.set(key, true);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      setStickerGreyMap(greyMap);
-      setColorFadeProgress(0);
-
-      if (cubeViewRef.current) {
-        cubeViewRef.current.resetToInitialPosition(
-          orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
-          cubeRef,
-          undefined,
-        );
-      }
-
-      const phase1Duration = 120;
-      const phase2Delay = 120;
-      const phase2Duration = 120;
-      const totalFadeDuration = phase1Duration + phase2Delay + phase2Duration;
-      let startTime: number | null = null;
-
-      const animateFade = (timestamp: number) => {
-        if (startTime === null) startTime = timestamp;
-        const elapsed = timestamp - startTime;
-
-        let progress = 0;
-        if (elapsed < phase1Duration) {
-          progress = (elapsed / phase1Duration) * 0.5;
-        } else if (elapsed < phase1Duration + phase2Delay) {
-          progress = 0.5;
-        } else {
-          const phase2Elapsed = elapsed - (phase1Duration + phase2Delay);
-          progress = 0.5 + (phase2Elapsed / phase2Duration) * 0.5;
-        }
-
-        setColorFadeProgress(Math.min(1, progress));
-
-        if (elapsed < totalFadeDuration) {
-          requestAnimationFrame(animateFade);
-        } else {
-          cubeRef.current.reset();
-          setCube3D(cubejsTo3D(cubeRef.current.getCube()));
-          setPreviousCube3D(null);
-          setBaselineCube3D(null);
-          setStickerGreyMap(new Map());
-          setColorFadeProgress(0);
-          setIsScrambled(false);
-          setLastSolvedState(cubeRef.current.getState());
-
-          if (onComplete) {
-            onComplete();
-          } else {
-            setInputDisabled(false);
-            setOrbitControlsEnabled(true);
-            if (orbitControlsRef.current) {
-              orbitControlsRef.current.enabled = true;
-              if (typeof orbitControlsRef.current.update === "function")
-                orbitControlsRef.current.update();
-            }
-            sessionPhaseRef.current = "idle";
-          }
-        }
-      };
-      requestAnimationFrame(animateFade);
-    },
-    [cube3D, clearMoveHistory],
-  );
-
-  const handleScramble = useCallback(
-    (keepTimerMode = false, allowDuringLock = false) => {
-      if (
-        (inputDisabled || sessionPhaseRef.current !== "idle") &&
-        !allowDuringLock
-      )
-        return;
-      if (isAnimating || AnimationHelper.isLocked()) return;
-      resetTimer();
-      if (!keepTimerMode) setIsTimerEnabled(false);
-      clearMoveHistory();
-      executeScramble();
-    },
-    [isAnimating, resetTimer, executeScramble, clearMoveHistory, inputDisabled],
-  );
-
-  const handleStartTimer = useCallback(() => setShowTimerModal(true), []);
-
-  const performAnimatedScramble = useCallback(() => {
-    const startScramble = () => {
-      setInputDisabled(false);
-      setOrbitControlsEnabled(true);
-      if (orbitControlsRef.current) {
-        orbitControlsRef.current.enabled = true;
-        if (typeof orbitControlsRef.current.update === "function")
-          orbitControlsRef.current.update();
-      }
-      sessionPhaseRef.current = "idle";
-      executeScramble();
-    };
-    const delayMs = 400;
-    setTimeout(startScramble, delayMs);
-  }, [executeScramble]);
-
-  const handleTimerModalYes = useCallback(() => {
-    setIsStartingSession(true);
-    setIsTimerEnabled(true);
-    setShowTimerModal(false);
-    setTimeout(() => {
-      setIsStartingSession(false);
-      fadeToSolvedState(performAnimatedScramble);
-    }, 300);
-  }, [fadeToSolvedState, performAnimatedScramble]);
-
-  const handleTimerModalNo = useCallback(() => setShowTimerModal(false), []);
-  const handleTimerQuit = useCallback(() => setShowQuitTimerModal(true), []);
-
-  const handleQuitTimerConfirm = useCallback(() => {
-    setIsQuittingSession(true);
-    setIsTimerEnabled(false);
-    cancelTimer();
-    setShowQuitTimerModal(false);
-    setTimeout(() => {
-      setIsQuittingSession(false);
-      fadeToSolvedState();
-    }, 300);
-  }, [cancelTimer, fadeToSolvedState]);
-
-  const handleQuitTimerCancel = useCallback(
-    () => setShowQuitTimerModal(false),
-    [],
-  );
-  const handleTimerResetNew = useCallback(
-    () => setShowResetTimerModal(true),
-    [],
-  );
-
-  const handleResetTimerConfirm = useCallback(() => {
-    setIsResettingSession(true);
-    setIsTimerEnabled(true);
-    resetTimer();
-    setShowResetTimerModal(false);
-    setTimeout(() => {
-      setIsResettingSession(false);
-      fadeToSolvedState(performAnimatedScramble);
-    }, 300);
-  }, [resetTimer, fadeToSolvedState, performAnimatedScramble]);
-
-  const handleResetTimerCancel = useCallback(
-    () => setShowResetTimerModal(false),
-    [],
-  );
-
-  const handleSolveSuccessTryAgain = useCallback(() => {
-    setIsTimerEnabled(true);
-    resetTimer();
-    setShowSolveSuccessModal(false);
-    setTimeout(() => {
-      fadeToSolvedState(performAnimatedScramble);
-    }, 300);
-  }, [resetTimer, fadeToSolvedState, performAnimatedScramble]);
-
-  const handleSolveSuccess = useCallback(
-    (finalTime?: string) => {
-      if (finalTime) {
-        setFinalSolveTime(finalTime);
-        if (isTimerActive) {
-          const timeMs = timerState.startTime
-            ? Date.now() - timerState.startTime
-            : 0;
-          if (timeMs > 0) {
-            const result = addBestTime(finalTime, timeMs);
-            setBestTimeResult(result);
-          }
-        } else {
-          setBestTimeResult(null);
-        }
-      }
-      if (cubeViewRef.current) {
-        cubeViewRef.current.celebratorySpin(() =>
-          setShowSolveSuccessModal(true),
-        );
-      } else {
-        setShowSolveSuccessModal(true);
-      }
-    },
-    [isTimerActive, timerState.startTime, addBestTime],
-  );
-
-  const handleSolveSuccessClose = useCallback(() => {
-    setIsTimerEnabled(false);
-    resetTimer();
-    setShowSolveSuccessModal(false);
-    setTimeout(() => {
-      fadeToSolvedState();
-    }, 300);
-  }, [resetTimer, fadeToSolvedState]);
 
   const handleBestTimesOpen = useCallback(
     () => setShowBestTimesModal(true),
@@ -537,60 +405,6 @@ const App = () => {
     () => setShowLearnToSolveModal(true),
     [],
   );
-  const handleLearnToSolveClose = useCallback(() => {
-    setShowLearnToSolveModal(false);
-    setModalCloseCooldown(true);
-    setCanvasReady(false);
-    setOrbitControlsEnabled(false);
-    if (orbitControlsRef.current) {
-      orbitControlsRef.current.enabled = false;
-    }
-    if (cubeContainerRef.current) {
-      cubeContainerRef.current.style.pointerEvents = "none";
-      const canvas = cubeContainerRef.current.querySelector(
-        "canvas",
-      ) as HTMLElement | null;
-      if (canvas) {
-        canvas.style.pointerEvents = "none";
-      }
-    }
-    setTimeout(() => {
-      setModalCloseCooldown(false);
-      setCanvasReady(true);
-      const restoreTouchEvents = () => {
-        setOrbitControlsEnabled(true);
-        if (orbitControlsRef.current) {
-          orbitControlsRef.current.enabled = true;
-          if (typeof orbitControlsRef.current.update === "function") {
-            orbitControlsRef.current.update();
-          }
-        }
-        if (cubeContainerRef.current) {
-          const canvas = cubeContainerRef.current.querySelector(
-            "canvas",
-          ) as HTMLElement | null;
-          if (canvas) {
-            canvas.style.pointerEvents = "auto";
-            canvas.style.touchAction = "none";
-          }
-          const container = cubeContainerRef.current;
-          if (container) {
-            container.style.pointerEvents = "auto";
-            container.style.touchAction = "none";
-            container.style.userSelect = "none";
-            container.style.webkitUserSelect = "none";
-          }
-          const lockedOverlay = cubeContainerRef.current.querySelector(
-            '[data-locked-overlay="true"]',
-          );
-          if (lockedOverlay) {
-            (lockedOverlay as HTMLElement).remove();
-          }
-        }
-      };
-      restoreTouchEvents();
-    }, 500);
-  }, [setOrbitControlsEnabled]);
 
   const resetMainCube = useCallback(() => {
     AnimationHelper.forceUnlock();
@@ -667,6 +481,63 @@ const App = () => {
     setQueueFastMs,
   ]);
 
+  const [modalCloseCooldown, setModalCloseCooldown] = useState(false);
+
+  const handleLearnToSolveClose = useCallback(() => {
+    setShowLearnToSolveModal(false);
+    setModalCloseCooldown(true);
+    setCanvasReady(false);
+    setOrbitControlsEnabled(false);
+    if (orbitControlsRef.current) {
+      orbitControlsRef.current.enabled = false;
+    }
+    if (cubeContainerRef.current) {
+      cubeContainerRef.current.style.pointerEvents = "none";
+      const canvas = cubeContainerRef.current.querySelector(
+        "canvas",
+      ) as HTMLElement | null;
+      if (canvas) {
+        canvas.style.pointerEvents = "none";
+      }
+    }
+    setTimeout(() => {
+      setModalCloseCooldown(false);
+      setCanvasReady(true);
+      const restoreTouchEvents = () => {
+        setOrbitControlsEnabled(true);
+        if (orbitControlsRef.current) {
+          orbitControlsRef.current.enabled = true;
+          if (typeof orbitControlsRef.current.update === "function") {
+            orbitControlsRef.current.update();
+          }
+        }
+        if (cubeContainerRef.current) {
+          const canvas = cubeContainerRef.current.querySelector(
+            "canvas",
+          ) as HTMLElement | null;
+          if (canvas) {
+            canvas.style.pointerEvents = "auto";
+            canvas.style.touchAction = "none";
+          }
+          const container = cubeContainerRef.current;
+          if (container) {
+            container.style.pointerEvents = "auto";
+            container.style.touchAction = "none";
+            container.style.userSelect = "none";
+            container.style.webkitUserSelect = "none";
+          }
+          const lockedOverlay = cubeContainerRef.current.querySelector(
+            '[data-locked-overlay="true"]',
+          );
+          if (lockedOverlay) {
+            (lockedOverlay as HTMLElement).remove();
+          }
+        }
+      };
+      restoreTouchEvents();
+    }, 500);
+  }, [setOrbitControlsEnabled]);
+
   const handleTutorialStart = useCallback(
     (lessonId: string) => {
       resetMainCube();
@@ -727,262 +598,9 @@ const App = () => {
     setShowLearnToSolveModal(true);
   }, [resetMainCube]);
 
-  const handleUndo = useCallback(() => {
-    if (undoInProgressRef.current || isAnimating) return;
-    undoInProgressRef.current = true;
-    if (historyIndex >= 0 && moveHistory.length > 0) {
-      const inverseMove = getInverseMove(moveHistory[historyIndex]);
-      lastMoveSourceRef.current = "undo";
-      setPendingMove(inverseMove as CubeMove);
-      setHistoryIndex(historyIndex - 1);
-      setTimeout(() => {
-        undoInProgressRef.current = false;
-      }, 120);
-    } else {
-      undoInProgressRef.current = false;
-    }
-  }, [historyIndex, moveHistory, getInverseMove, isAnimating]);
-
-  const handleRedo = useCallback(() => {
-    if (redoInProgressRef.current || isAnimating) return;
-    redoInProgressRef.current = true;
-    if (historyIndex < moveHistory.length - 1) {
-      const newIndex = historyIndex + 1;
-      lastMoveSourceRef.current = "redo";
-      setPendingMove(moveHistory[newIndex] as CubeMove);
-      setHistoryIndex(newIndex);
-      setTimeout(() => {
-        redoInProgressRef.current = false;
-      }, 120);
-    }
-  }, [historyIndex, moveHistory, isAnimating]);
-
-  const moveHistoryRef = useRef<string[]>([]);
-  const historyIndexRef = useRef(-1);
-  const addingToHistoryRef = useRef(false);
-
-  useEffect(() => {
-    moveHistoryRef.current = moveHistory;
-  }, [moveHistory]);
-  useEffect(() => {
-    historyIndexRef.current = historyIndex;
-  }, [historyIndex]);
-
-  const addMoveToHistory = useCallback((move: string) => {
-    if (addingToHistoryRef.current) return;
-    addingToHistoryRef.current = true;
-    const currentIndex = historyIndexRef.current;
-    const currentHistory = moveHistoryRef.current;
-    const newHistory =
-      currentIndex === currentHistory.length - 1
-        ? [...currentHistory, move]
-        : [...currentHistory.slice(0, currentIndex + 1), move];
-    const newIndex = newHistory.length - 1;
-    setMoveHistory(newHistory);
-    setHistoryIndex(newIndex);
-    moveHistoryRef.current = newHistory;
-    historyIndexRef.current = newIndex;
-    setTimeout(() => {
-      addingToHistoryRef.current = false;
-    }, 100);
-  }, []);
-
-  const handleButtonMove = useCallback(
-    (move: string) => {
-      const now = Date.now();
-      if (
-        isAnimating ||
-        AnimationHelper.isLocked() ||
-        now - lastMoveTimeRef.current < 100
-      ) {
-        requestAnimationFrame(() => handleButtonMove(move));
-        return;
-      }
-      lastMoveTimeRef.current = now;
-      lastMoveSourceRef.current = "manual";
-      setPendingMove(move as CubeMove);
-    },
-    [isAnimating],
-  );
-
-  const handleMoveAnimationDone = useCallback(
-    (move: CubeMove) => {
-      const isWholeCubeRotation = ["x", "x'", "y", "y'", "z", "z'"].includes(
-        move,
-      );
-
-      if (!isWholeCubeRotation) {
-        cubeRef.current.move(move);
-        setCube3D(cubejsTo3D(cubeRef.current.getCube()));
-        const solved = cubeRef.current.isSolved();
-        setIsScrambled(!solved);
-
-        const isManualMove =
-          (window as CustomWindowType).__isManualDragMove ||
-          lastMoveSourceRef.current === "manual";
-        if (isTimerEnabled && !isTimerActive && isManualMove) startTimer();
-
-        if (solved && isTimerActive) {
-          const finalTime = stopTimer();
-          const waitForStableState = () => {
-            if (
-              isAnimatingRef.current ||
-              AnimationHelper.isLocked() ||
-              pendingMoveRef.current
-            ) {
-              setTimeout(waitForStableState, 50);
-              return;
-            }
-            handleSolveSuccess(finalTime);
-          };
-          setTimeout(waitForStableState, 200);
-        }
-
-        if (currentRunRef.current === "scramble") {
-          scrambleRemainingRef.current = Math.max(
-            0,
-            scrambleRemainingRef.current - 1,
-          );
-        }
-
-        if (isManualMove) {
-          if (solutionOverlaySourceRef.current === "solve") {
-            setSolution(null);
-            setLastSolvedState(null);
-            setSolutionIndex(-1);
-            setIsGenerating(false);
-            setShowSolutionGeneratedModal(false);
-            setShowSolutionAlreadyGeneratedModal(false);
-            solutionOverlaySourceRef.current = null;
-          }
-          setScrambleMoves(null);
-          setScrambleIndex(-1);
-          setShowScrambleOverlay(false);
-          addMoveToHistory(move);
-        }
-      }
-
-      setPendingMove(null);
-      pendingMoveRef.current = null;
-      setIsAnimating(false);
-      isAnimatingRef.current = false;
-      pumpQueueSoon();
-
-      if (moveQueueRef.current.length === 0) {
-        setQueueFast(false);
-        setQueueFastMs(null);
-        if (
-          currentRunRef.current === "scramble" &&
-          scrambleRemainingRef.current <= 0
-        ) {
-          setIsScramblingState(false);
-          currentRunRef.current = null;
-          setInputDisabled(false);
-          sessionPhaseRef.current = "idle";
-        }
-        if (currentRunRef.current === "solve") {
-          setIsSolving(false);
-          currentRunRef.current = null;
-        }
-        if (currentRunRef.current === "auto-orient") {
-          setIsAutoOrienting(false);
-          currentRunRef.current = null;
-        }
-        setTimeout(() => {
-          setScrambleIndex(-1);
-          setSolutionIndex(-1);
-        }, 0);
-      }
-    },
-    [
-      pumpQueueSoon,
-      isTimerEnabled,
-      isTimerActive,
-      startTimer,
-      stopTimer,
-      timerState,
-      formatTimerMs,
-    ],
-  );
-
-  const handleOrbitControlsChange = useCallback((enabled: boolean) => {
-    setOrbitControlsEnabled(enabled);
-    if (orbitControlsRef.current) {
-      orbitControlsRef.current.enabled = enabled;
-      if (typeof orbitControlsRef.current.update === "function")
-        orbitControlsRef.current.update();
-    }
-  }, []);
-
-  const handleStartAnimation = useCallback(() => {
-    setIsAnimating(true);
-    isAnimatingRef.current = true;
-  }, []);
-
-  const [confirmSolveOpen, setConfirmSolveOpen] = useState(false);
-
-  const handleGenerateSolution = useCallback(() => {
-    const currentState = cubeRef.current.getState();
-    if (solution && lastSolvedState === currentState && showSolutionOverlay) {
-      setShowSolutionAlreadyGeneratedModal(true);
-      return;
-    }
-    setIsGenerating(true);
-    setTimeout(() => {
-      const moves = cubeRef.current.solve();
-      const algo = moves.join(" ");
-      const steps = moves.map((m) => ({
-        move: m as CubeMove,
-        description: "",
-      }));
-      setSolution({ steps, moveCount: moves.length, algorithm: algo });
-      setLastSolvedState(cubeRef.current.getState());
-      setSolutionIndex(-1);
-      setShowSolutionOverlay(true);
-      solutionOverlaySourceRef.current = "generate";
-      setIsGenerating(false);
-      setShowSolutionGeneratedModal(true);
-    }, 1500);
-  }, [solution, lastSolvedState, showSolutionOverlay]);
-
-  const handleSolve = useCallback(() => {
-    if (isAnimating || AnimationHelper.isLocked()) return;
-    clearMoveHistory();
-    setIsSolving(true);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const currentState = cubeRef.current.getState();
-        let movesToRun: string[];
-        if (!solution || lastSolvedState !== currentState) {
-          const fresh = cubeRef.current.solve();
-          const algo = fresh.join(" ");
-          const steps = fresh.map((m) => ({
-            move: m as CubeMove,
-            description: "",
-          }));
-          setSolution({ steps, moveCount: fresh.length, algorithm: algo });
-          setLastSolvedState(currentState);
-          movesToRun = fresh;
-        } else {
-          movesToRun = solution.steps.map((s) => s.move);
-        }
-        setSolutionIndex(-1);
-        currentRunRef.current = "solve";
-        enqueueMoves(movesToRun);
-        setShowScrambleOverlay(false);
-        setScrambleMoves(null);
-        setScrambleIndex(-1);
-        setShowSolutionOverlay(true);
-        solutionOverlaySourceRef.current = "solve";
-        setConfirmSolveOpen(false);
-      }, 0);
-    });
-  }, [enqueueMoves, isAnimating, solution, lastSolvedState, clearMoveHistory]);
-
   const isScrambling = isScramblingState;
 
   const [touchHookKey, setTouchHookKey] = useState(0);
-  const [modalCloseCooldown, setModalCloseCooldown] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
 
   useEffect(() => {
@@ -1069,7 +687,7 @@ const App = () => {
 
   const isTouchDevice = useIsTouchDevice();
   const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } =
-    useDprManager(isTouchDevice);
+    useDprManager();
 
   const [infoOpen, setInfoOpen] = useState(false);
   if (tutorialLessonId) {
@@ -1085,6 +703,10 @@ const App = () => {
         className="min-h-[103.5dvh] flex flex-col pb-28"
         style={{
           background: `
+            radial-gradient(ellipse 80% 60% at 20% 10%, rgba(41,121,255,0.12) 0%, transparent 60%),
+            radial-gradient(ellipse 70% 50% at 85% 80%, rgba(255,23,68,0.1) 0%, transparent 55%),
+            radial-gradient(ellipse 50% 40% at 60% 90%, rgba(255,145,0,0.08) 0%, transparent 50%),
+            radial-gradient(ellipse 60% 50% at 10% 70%, rgba(0,230,118,0.06) 0%, transparent 50%),
             radial-gradient(
               circle at 50% 50%,
               rgba(0,0,0,0) 0%,
@@ -1108,8 +730,12 @@ const App = () => {
             key={tutorialLessonId ? "tutorial" : "main"}
             ref={cubeContainerRef}
             onDoubleClick={handleContainerDoubleClick}
-            className="w-full max-w-6xl mx-auto relative bg-black/20 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl flex items-center justify-center h-full min-h-[300px]"
-            style={{ pointerEvents: canvasReady ? "auto" : "none" }}
+            className="w-full max-w-6xl mx-auto relative bg-black/15 rounded-2xl overflow-hidden backdrop-blur-sm border border-white/[0.08] flex items-center justify-center h-full min-h-[300px]"
+            style={{
+              pointerEvents: canvasReady ? "auto" : "none",
+              boxShadow:
+                "0 25px 60px -12px rgba(0,0,0,0.4), 0 0 80px -20px rgba(41,121,255,0.06)",
+            }}
           >
             <StatusBadge
               isScrambling={isScrambling}
@@ -1213,8 +839,14 @@ const App = () => {
               }}
             >
               <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
-              <spotLight position={[-30, 20, 60]} intensity={0.3} />
-              <ambientLight intensity={1.2} color={"#fff"} />
+              <spotLight position={[-30, 20, 60]} intensity={0.35} />
+              <ambientLight intensity={1.25} color={"#fff"} />
+              <pointLight
+                position={[0, -8, 4]}
+                intensity={0.15}
+                color="#FF9100"
+                distance={20}
+              />
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
@@ -1301,6 +933,7 @@ const App = () => {
         onCancel={() => setConfirmSolveOpen(false)}
         onConfirm={handleSolve}
         isSolving={isSolving}
+        theme="green"
       />
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
 

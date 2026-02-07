@@ -31,7 +31,7 @@ export const getStickerGeometryForCorners = (
   size: number,
   rTrue: number,
   rFalse: number,
-  corners: [boolean, boolean, boolean, boolean]
+  corners: [boolean, boolean, boolean, boolean],
 ) => {
   const key = `v3_${size}_${rTrue}_${rFalse}_${corners
     .map((c) => (c ? 1 : 0))
@@ -40,7 +40,7 @@ export const getStickerGeometryForCorners = (
   if (cached) return cached;
 
   const radii = corners.map((flag) =>
-    Math.min(flag ? rTrue : rFalse, size * 0.49)
+    Math.min(flag ? rTrue : rFalse, size * 0.49),
   ) as [number, number, number, number];
 
   const half = size / 2;
@@ -84,7 +84,7 @@ export const getStickerGeometryForCorners = (
     if (geom.getAttribute("uv")) geom.deleteAttribute("uv");
     geom.setAttribute(
       "uv",
-      new THREE.BufferAttribute(new Float32Array(uvs), 2)
+      new THREE.BufferAttribute(new Float32Array(uvs), 2),
     );
   }
   stickerGeometryCache.set(key, geom);
@@ -93,7 +93,7 @@ export const getStickerGeometryForCorners = (
 
 export const getCubieGeometry = (
   size: number,
-  cornerStyles: string[]
+  cornerStyles: string[],
 ): THREE.BufferGeometry => {
   const segmentCount = 4;
   const key = cornerStyles.join(",") + ":" + segmentCount;
@@ -106,7 +106,7 @@ export const getCubieGeometry = (
     size,
     segmentCount,
     segmentCount,
-    segmentCount
+    segmentCount,
   );
   const corners = [
     [1, 1, 1],
@@ -122,7 +122,7 @@ export const getCubieGeometry = (
   const v = new THREE.Vector3();
   const colorAttr = new THREE.BufferAttribute(
     new Float32Array(pos.count * 3),
-    3
+    3,
   );
   for (let i = 0; i < pos.count; i++) {
     colorAttr.setXYZ(i, 1, 1, 1); // default white

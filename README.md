@@ -183,11 +183,9 @@ src/
 │   ├── CubeState.ts         # Cube state management
 │   ├── SessionState.ts      # Timer/session state management
 │   └── UIState.ts           # UI modal state management
-├── App.css
 ├── App.tsx                  # Main application component
 ├── index.css
 ├── main.tsx                 # Application entry point
-├── tw.css
 ├── vite-env.d.ts
 ├── assets/
 │   └── tiptons-solver.png
@@ -195,9 +193,9 @@ src/
 │   ├── ControlPanel.tsx
 │   ├── LessonContent.tsx
 │   ├── lessons/             # Lesson renderer components
-│   ├── MoveButtonsPanel.tsx
 │   ├── MoveOverlay.tsx
 │   ├── RubiksCube3D/        # 3D cube rendering components
+│   │   ├── borderMeshBuilder.ts
 │   │   ├── CubePiece.tsx
 │   │   ├── geometry.ts
 │   │   ├── index.tsx
@@ -222,7 +220,6 @@ src/
 │       │   ├── TrophyIcon.tsx
 │       │   ├── PartyIcon.tsx
 │       │   ├── StarIcon.tsx
-│       │   ├── SeedlingIcon.tsx
 │       │   ├── LightningIcon.tsx
 │       │   ├── LightbulbIcon.tsx
 │       │   ├── CheckIcon.tsx
@@ -258,16 +255,24 @@ src/
 │   ├── faceColors.ts
 │   └── moves.ts
 ├── hooks/
+│   ├── useAnimation.ts
 │   ├── useBestTimes.ts
 │   ├── useDprManager.ts
+│   ├── useDragLogic.ts
+│   ├── useFadeToSolved.ts
+│   ├── useHoverLogic.tsx
 │   ├── useIsTouchDevice.tsx
 │   ├── useLogoTexture.tsx
+│   ├── useMoveQueue.ts
 │   ├── usePrecisionMode.ts
-│   ├── useRoundedBoxGeometry.ts
 │   ├── useRubiksCube3DProps.ts
+│   ├── useScrambleLogic.ts
+│   ├── useSolveHandlers.ts
 │   ├── useTimer.ts
+│   ├── useTimerSessionHandlers.ts
 │   ├── useTrackpadHandlers.ts
 │   ├── useTwoFingerSpin.ts
+│   ├── useUndoRedo.ts
 │   └── useWhiteLogo.ts
 ├── types/
 │   ├── cube.ts

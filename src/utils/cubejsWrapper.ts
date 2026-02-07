@@ -1,8 +1,6 @@
 import Cube from "cubejs";
 import type { CubeInterface } from "@/types/CubeInterface";
 
-export type CubejsMove = string;
-
 export class CubeJSWrapper implements CubeInterface {
   private cube;
   private static solvedString: string | null = null;

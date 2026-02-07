@@ -98,20 +98,22 @@ const ControlPanel = ({
 
   return (
     <div className="fixed bottom-5 left-0 right-0 z-40">
-      <div className="w-full max-w-6xl mx-auto pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+      <div className="w-full max-w-6xl mx-auto pb-[calc(env(safe-area-inset-bottom,0px)+.9rem)]">
         <div className="flex flex-col items-center w-full">
           <div className="flex flex-row flex-wrap gap-2 md:gap-3 justify-center items-center w-full relative">
             {isTimerActive ? (
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <Button
-                  className="bg-gradient-to-r from-orange-400 to-orange-500 hover:opacity-90 cursor-pointer text-white font-bold py-2 px-3 md:py-2 md:px-4 rounded transition-all text-base md:text-sm shadow-md"
+                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ backgroundColor: "#FF9100" }}
                   onClick={onTimerReset}
                   disabled={!isTimerRunning || isSolving || isScrambling}
                 >
                   Reset
                 </Button>
                 <Button
-                  className="bg-gradient-to-r from-red-600 to-red-700 hover:opacity-90 text-white font-bold py-2 px-3 md:py-2 md:px-4 rounded transition-all text-base md:text-sm shadow-md"
+                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ backgroundColor: "#FF1744" }}
                   onClick={onTimerQuit}
                   disabled={isSolving || isScrambling || inputDisabled}
                 >
@@ -121,14 +123,16 @@ const ControlPanel = ({
             ) : (
               <>
                 <Button
-                  className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold py-2 px-3 md:py-2 md:px-4 rounded transition-all text-base md:text-sm shadow-md"
+                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ backgroundColor: "#2979FF" }}
                   onClick={onScramble}
                   disabled={isSolving || isScrambling}
                 >
                   Scramble
                 </Button>
                 <Button
-                  className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-bold py-2 px-3 md:py-2 md:px-4 rounded transition-all text-base md:text-sm shadow-md"
+                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ backgroundColor: "#0DB400" }}
                   onClick={onSolve}
                   disabled={isSolving || isScrambling || !isScrambled}
                 >
@@ -136,7 +140,7 @@ const ControlPanel = ({
                 </Button>
                 <div className="relative" ref={dropdownRef}>
                   <Button
-                    className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-bold py-2 px-3 md:py-2 md:px-4 rounded transition-all text-base md:text-sm shadow-md flex items-center gap-2"
+                    className="cursor-pointer bg-white/15 backdrop-blur-md text-white font-semibold py-2.5 px-3 rounded-xl transition-all duration-200 text-sm shadow-lg border border-white/20 hover:bg-white/25 hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
                     onClick={() => setShowDropdown(!showDropdown)}
                     disabled={isSolving || isScrambling}
                   >
@@ -169,33 +173,33 @@ const ControlPanel = ({
                         zIndex="z-40"
                       />
                       {/* Dropdown Content */}
-                      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[200px] z-50">
+                      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-white/10 backdrop-blur-xl rounded-xl shadow-2xl border border-white/20 py-1.5 min-w-[210px] z-50">
                         <Button
-                          className="w-full px-4 py-2 text-left hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700 cursor-pointer"
+                          className="w-full px-4 py-2.5 text-left hover:bg-white/15 transition-colors duration-150 flex items-center gap-2.5 text-white/90 cursor-pointer text-sm font-medium"
                           onClick={handleStartTimer}
                           disabled={isSolving || isScrambling}
                         >
-                          <TimerIcon className="text-lg w-5 h-5" size={20} />
+                          <TimerIcon className="w-5 h-5 opacity-70" size={20} />
                           Timer Session
                         </Button>
                         <Button
-                          className="w-full px-4 py-2 text-left hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700 cursor-pointer"
+                          className="w-full px-4 py-2.5 text-left hover:bg-white/15 transition-colors duration-150 flex items-center gap-2.5 text-white/90 cursor-pointer text-sm font-medium"
                           onClick={handleLearnToSolve}
                           disabled={isSolving || isScrambling}
                         >
-                          <BooksIcon className="text-lg w-5 h-5" size={20} />
+                          <BooksIcon className="w-5 h-5 opacity-70" size={20} />
                           Learn to Solve
                         </Button>
                         {/* Only show Generate Solution if cube is scrambled (not solved) */}
                         {isScrambled && (
                           <Button
-                            className="w-full px-4 py-2 text-left hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700 relative"
+                            className="w-full px-4 py-2.5 text-left hover:bg-white/15 transition-colors duration-150 flex items-center gap-2.5 text-white/90 relative text-sm font-medium"
                             onClick={handleGenerateSolution}
                             disabled={isGenerating || isSolving || isScrambling}
                           >
-                            <span className="text-lg flex items-center">
+                            <span className="flex items-center opacity-70">
                               {isGenerating ? (
-                                <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                               ) : (
                                 <BrainIcon className="w-5 h-5" size={20} />
                               )}

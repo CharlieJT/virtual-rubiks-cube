@@ -8,61 +8,52 @@ const getDevicePixelRatio = () => {
   return 1;
 };
 
-const useDprManager = (isTouchDevice: boolean) => {
+const useDprManager = () => {
   const setDprRef = useRef<((dpr: number) => void) | null>(null);
-  const dprTimerRef = useRef<number | null>(null);
   const currentDprRef = useRef<number>(0);
 
   // Calculate DPR config inside hook to ensure proper hydration
   const config = useMemo(() => {
     const dpr = getDevicePixelRatio();
     return {
-      // Full quality when idle
+      // Full quality (idle) - kept constant to avoid visual inconsistency
       idle: dpr,
-      // Slightly lower during interaction for smoother performance
-      interactive: isTouchDevice ? dpr : Math.max(1, dpr * 0.8),
       // Minimum when performance is struggling
       minimum: 1,
     };
-  }, [isTouchDevice]);
+  }, []);
 
   const canvasDpr: [number, number] = [config.idle, config.idle];
 
   const attachSetDpr = useCallback((setter: (dpr: number) => void) => {
     setDprRef.current = setter;
+    // Set initial DPR to idle
+    setter(config.idle);
     currentDprRef.current = config.idle;
   }, [config.idle]);
 
+  // No-op - kept for API compatibility but does nothing
+  // Interactive/idle switching disabled to keep borders consistent
   const setInteractiveDpr = useCallback(() => {
-    // Lower DPR during interaction for smoother dragging/animation
-    if (currentDprRef.current !== config.interactive) {
-      setDprRef.current?.(config.interactive);
-      currentDprRef.current = config.interactive;
-    }
-    
-    // Clear existing timer
-    if (dprTimerRef.current) window.clearTimeout(dprTimerRef.current);
-    
-    // Restore higher quality after interaction stops
-    dprTimerRef.current = window.setTimeout(() => {
-      if (currentDprRef.current !== config.idle) {
-        setDprRef.current?.(config.idle);
-        currentDprRef.current = config.idle;
-      }
-      dprTimerRef.current = null;
-    }, 600);
-  }, [config.interactive, config.idle]);
+    // No-op - DPR stays constant
+  }, []);
 
   // Called by PerformanceMonitor when FPS drops
+  // Only reduce DPR for severe performance issues
   const onDecline = useCallback(() => {
-    setDprRef.current?.(config.minimum);
-    currentDprRef.current = config.minimum;
+    if (setDprRef.current) {
+      setDprRef.current(config.minimum);
+      currentDprRef.current = config.minimum;
+    }
   }, [config.minimum]);
   
   // Called by PerformanceMonitor when FPS recovers
+  // Restore to idle DPR when performance improves
   const onIncline = useCallback(() => {
-    setDprRef.current?.(config.idle);
-    currentDprRef.current = config.idle;
+    if (setDprRef.current) {
+      setDprRef.current(config.idle);
+      currentDprRef.current = config.idle;
+    }
   }, [config.idle]);
 
   return {

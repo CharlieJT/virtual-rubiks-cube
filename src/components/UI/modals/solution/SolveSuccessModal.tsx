@@ -145,7 +145,7 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
         <div className="relative z-20">
           {/* Trophy Icon */}
           <div className="my-3 flex justify-center">
-            <TrophyIcon size={48} />
+            <TrophyIcon size={48} className="text-yellow-600" />
           </div>
 
           {/* Success Message */}
@@ -166,11 +166,11 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  <StarIcon size={18} className="flex-shrink-0" />
+                  <StarIcon size={18} className="flex-shrink-0 text-yellow-400" />
                   <span className="font-bold">
                     New #{bestTimeResult.position} Best Time!
                   </span>
-                  <StarIcon size={18} className="flex-shrink-0" />
+                  <StarIcon size={18} className="flex-shrink-0 text-yellow-400" />
                 </div>
               )}
             </div>

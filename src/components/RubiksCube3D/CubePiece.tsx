@@ -35,25 +35,15 @@ const CubePiece = React.memo(
     trackingStateRef,
     highlightIntensity = 0,
     isHighlighted = false,
-    pulse: _pulse = false,
-    pulseSpeed: _pulseSpeed = 1.2,
-    pulseMin: _pulseMin = 0.18,
-    pulseMax: _pulseMax = 0.28,
     dullOthersIntensity = 0,
-    roundedBoxGeometry,
     sharedLogoTexture,
     logoReady,
     hideLogo = false,
   }: CubePieceProps & {
-    roundedBoxGeometry: THREE.BufferGeometry;
     sharedLogoTexture: THREE.Texture | null;
     logoReady: boolean;
     hideLogo?: boolean;
     isHighlighted?: boolean;
-    pulse?: boolean;
-    pulseSpeed?: number;
-    pulseMin?: number;
-    pulseMax?: number;
     dullOthersIntensity?: number;
   }) => {
     // Track per-face materials and base colors - exposed to parent for centralized animation
@@ -81,19 +71,13 @@ const CubePiece = React.memo(
     
     
     const meshRef = useRef<THREE.Mesh>(null);
-    // Reference unused props to avoid TS warnings
-    void roundedBoxGeometry;
+    // These props are passed by the parent but consumed centrally in RubiksCube3D's
+    // useFrame loop for fade/dull animations rather than per-piece rendering.
     void _stickerGreyMap;
-    void _pulse;
-    void _pulseSpeed;
-    void _pulseMin;
-    void _pulseMax;
     void previousColors;
     void baselineColors;
     void colorFadeProgress;
     void dullOthersIntensity;
-    void isHighlighted;
-    void highlightIntensity;
 
     // New state for cubie geometry
     const [cubieGeometry, setCubieGeometry] =

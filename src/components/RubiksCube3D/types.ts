@@ -99,7 +99,6 @@ export interface CubePieceProps {
   highlightIntensity?: number;
   isHighlighted?: boolean;
   dullOthersIntensity?: number;
-  errorFlash?: boolean;
 }
 
 export interface RubiksCube3DProps {

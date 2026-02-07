@@ -22,6 +22,12 @@ import { useTutorialPointerHandler } from "@components/tutorials/hooks/useTutori
 import { useGhostPieceIndicator } from "@components/tutorials/hooks/useGhostPieceIndicator";
 import GhostPieceIndicator from "@components/tutorials/components/GhostPieceIndicator";
 import type { OrbitControlsInstance } from "@/types/orbitControls";
+import {
+  getGhostPieceMove,
+  shouldHideFace,
+  GHOST_PIECE_SLIDE_IDS,
+  HINT_BUTTON_SLIDE_IDS,
+} from "./tutorialCubeViewHelpers";
 
 interface TutorialCubeViewProps {
   cubeContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -385,202 +391,21 @@ const TutorialCubeView = ({
                 pieceChildren={combinedPieceChildren}
                 hideLogo={hideLogo}
                 errorFlash={fixErrorPulse}
-                hideRightFace={
-                  (activeSlideId === "notation-clockwise-r" ||
-                    activeSlideId === "notation-prime-r" ||
-                    ((activeSlideId === "notation-sequences" ||
-                      activeSlideId === "notation-sequences-longer") &&
-                      fixSequence[fixIndex] !== undefined &&
-                      (fixSequence[fixIndex] === "R" ||
-                        fixSequence[fixIndex] === "R'" ||
-                        fixSequence[fixIndex] === "R2"))) &&
-                  ghostOpacity > 0.9 &&
-                  ghostIsAnimatingMove
-                }
-                hideFrontFace={
-                  (activeSlideId === "notation-clockwise-f" ||
-                    activeSlideId === "notation-prime-f" ||
-                    activeSlideId === "notation-double" ||
-                    ((activeSlideId === "notation-sequences" ||
-                      activeSlideId === "notation-sequences-longer") &&
-                      fixSequence[fixIndex] !== undefined &&
-                      (fixSequence[fixIndex] === "F" ||
-                        fixSequence[fixIndex] === "F'" ||
-                        fixSequence[fixIndex] === "F2"))) &&
-                  ghostOpacity > 0.9 &&
-                  ghostIsAnimatingMove
-                }
-                hideLeftFace={
-                  (activeSlideId === "notation-clockwise-l" ||
-                    activeSlideId === "notation-prime-l" ||
-                    activeSlideId === "notation-double-l" ||
-                    ((activeSlideId === "notation-sequences" ||
-                      activeSlideId === "notation-sequences-longer") &&
-                      fixSequence[fixIndex] !== undefined &&
-                      (fixSequence[fixIndex] === "L" ||
-                        fixSequence[fixIndex] === "L'" ||
-                        fixSequence[fixIndex] === "L2"))) &&
-                  ghostOpacity > 0.9 &&
-                  ghostIsAnimatingMove
-                }
-                hideBackFace={
-                  (activeSlideId === "notation-clockwise-b" ||
-                    activeSlideId === "notation-prime-b" ||
-                    ((activeSlideId === "notation-sequences" ||
-                      activeSlideId === "notation-sequences-longer") &&
-                      fixSequence[fixIndex] !== undefined &&
-                      (fixSequence[fixIndex] === "B" ||
-                        fixSequence[fixIndex] === "B'" ||
-                        fixSequence[fixIndex] === "B2"))) &&
-                  ghostOpacity > 0.9 &&
-                  ghostIsAnimatingMove
-                }
-                hideTopFace={
-                  (activeSlideId === "notation-clockwise-u" ||
-                    activeSlideId === "notation-prime-u" ||
-                    ((activeSlideId === "notation-sequences" ||
-                      activeSlideId === "notation-sequences-longer") &&
-                      fixSequence[fixIndex] !== undefined &&
-                      (fixSequence[fixIndex] === "U" ||
-                        fixSequence[fixIndex] === "U'" ||
-                        fixSequence[fixIndex] === "U2"))) &&
-                  ghostOpacity > 0.9 &&
-                  ghostIsAnimatingMove
-                }
-                hideBottomFace={
-                  (activeSlideId === "notation-clockwise-d" ||
-                    activeSlideId === "notation-prime-d" ||
-                    activeSlideId === "notation-double-d" ||
-                    ((activeSlideId === "notation-sequences" ||
-                      activeSlideId === "notation-sequences-longer") &&
-                      fixSequence[fixIndex] !== undefined &&
-                      (fixSequence[fixIndex] === "D" ||
-                        fixSequence[fixIndex] === "D'" ||
-                        fixSequence[fixIndex] === "D2"))) &&
-                  ghostOpacity > 0.9 &&
-                  ghostIsAnimatingMove
-                }
+                hideRightFace={shouldHideFace("right", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
+                hideFrontFace={shouldHideFace("front", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
+                hideLeftFace={shouldHideFace("left", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
+                hideBackFace={shouldHideFace("back", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
+                hideTopFace={shouldHideFace("top", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
+                hideBottomFace={shouldHideFace("bottom", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
               />
-              {(activeSlideId === "notation-clockwise-f" ||
-                activeSlideId === "notation-prime-f" ||
-                activeSlideId === "notation-clockwise-r" ||
-                activeSlideId === "notation-prime-r" ||
-                activeSlideId === "notation-clockwise-l" ||
-                activeSlideId === "notation-prime-l" ||
-                activeSlideId === "notation-clockwise-u" ||
-                activeSlideId === "notation-prime-u" ||
-                activeSlideId === "notation-clockwise-d" ||
-                activeSlideId === "notation-prime-d" ||
-                activeSlideId === "notation-clockwise-b" ||
-                activeSlideId === "notation-prime-b" ||
-                activeSlideId === "notation-double" ||
-                activeSlideId === "notation-double-l" ||
-                activeSlideId === "notation-double-d" ||
-                activeSlideId === "notation-sequences" ||
-                activeSlideId === "notation-sequences-longer") && (
+              {activeSlideId && GHOST_PIECE_SLIDE_IDS.includes(activeSlideId) && (
                 <GhostPieceIndicator
                   cubeState={tutorialCube3D}
                   opacity={ghostOpacity}
                   rotationProgress={ghostRotationProgress}
                   isAnimatingMove={ghostIsAnimatingMove}
                   cubeViewRef={cubeViewRef}
-                  move={
-                    activeSlideId === "notation-clockwise-f"
-                      ? "F"
-                      : activeSlideId === "notation-prime-f"
-                      ? "F'"
-                      : activeSlideId === "notation-clockwise-r"
-                      ? "R"
-                      : activeSlideId === "notation-prime-r"
-                      ? "R'"
-                      : activeSlideId === "notation-clockwise-l"
-                      ? "L"
-                      : activeSlideId === "notation-prime-l"
-                      ? "L'"
-                      : activeSlideId === "notation-clockwise-u"
-                      ? "U"
-                      : activeSlideId === "notation-prime-u"
-                      ? "U'"
-                      : activeSlideId === "notation-clockwise-d"
-                      ? "D"
-                      : activeSlideId === "notation-prime-d"
-                      ? "D'"
-                      : activeSlideId === "notation-clockwise-b"
-                      ? "B"
-                      : activeSlideId === "notation-prime-b"
-                      ? "B'"
-                      : activeSlideId === "notation-double"
-                      ? fixDoublePartialDir === 1
-                        ? "F"
-                        : fixDoublePartialDir === -1
-                        ? "F'"
-                        : "F2"
-                      : activeSlideId === "notation-double-l"
-                      ? fixDoublePartialDir === 1
-                        ? "L"
-                        : fixDoublePartialDir === -1
-                        ? "L'"
-                        : "L2"
-                      : activeSlideId === "notation-double-d"
-                      ? fixDoublePartialDir === 1
-                        ? "D"
-                        : fixDoublePartialDir === -1
-                        ? "D'"
-                        : "D2"
-                      : activeSlideId === "notation-sequences" ||
-                        activeSlideId === "notation-sequences-longer"
-                      ? (() => {
-                          // Get the next move from the sequence based on fixIndex
-                          const nextMove = fixSequence[fixIndex];
-                          if (!nextMove) return "F";
-
-                          // If it's a double move (U2, D2, etc.) and we're partway through
-                          if (
-                            nextMove.includes("2") &&
-                            fixDoublePartialDir !== 0
-                          ) {
-                            const baseMove = nextMove.replace("2", "");
-                            if (fixDoublePartialDir === 1) {
-                              if (baseMove === "F") return "F";
-                              if (baseMove === "R") return "R";
-                              if (baseMove === "L") return "L";
-                              if (baseMove === "U") return "U";
-                              if (baseMove === "D") return "D";
-                              if (baseMove === "B") return "B";
-                            } else {
-                              if (baseMove === "F") return "F'";
-                              if (baseMove === "R") return "R'";
-                              if (baseMove === "L") return "L'";
-                              if (baseMove === "U") return "U'";
-                              if (baseMove === "D") return "D'";
-                              if (baseMove === "B") return "B'";
-                            }
-                          }
-
-                          // Map the move to a valid type
-                          if (nextMove === "F") return "F";
-                          if (nextMove === "F'") return "F'";
-                          if (nextMove === "R") return "R";
-                          if (nextMove === "R'") return "R'";
-                          if (nextMove === "L") return "L";
-                          if (nextMove === "L'") return "L'";
-                          if (nextMove === "U") return "U";
-                          if (nextMove === "U'") return "U'";
-                          if (nextMove === "D") return "D";
-                          if (nextMove === "D'") return "D'";
-                          if (nextMove === "B") return "B";
-                          if (nextMove === "B'") return "B'";
-                          if (nextMove === "F2") return "F2";
-                          if (nextMove === "R2") return "R2";
-                          if (nextMove === "L2") return "L2";
-                          if (nextMove === "U2") return "U2";
-                          if (nextMove === "D2") return "D2";
-                          if (nextMove === "B2") return "B2";
-
-                          return "F";
-                        })()
-                      : "F"
-                  }
+                  move={getGhostPieceMove(activeSlideId, fixSequence, fixIndex, fixDoublePartialDir)}
                 />
               )}
             </Canvas>
@@ -657,25 +482,7 @@ const TutorialCubeView = ({
                 );
               }}
               onShowHint={showHint}
-              showHintButton={
-                activeSlideId === "notation-clockwise-f" ||
-                activeSlideId === "notation-prime-f" ||
-                activeSlideId === "notation-clockwise-r" ||
-                activeSlideId === "notation-prime-r" ||
-                activeSlideId === "notation-clockwise-l" ||
-                activeSlideId === "notation-prime-l" ||
-                activeSlideId === "notation-clockwise-u" ||
-                activeSlideId === "notation-prime-u" ||
-                activeSlideId === "notation-clockwise-d" ||
-                activeSlideId === "notation-prime-d" ||
-                activeSlideId === "notation-clockwise-b" ||
-                activeSlideId === "notation-prime-b" ||
-                activeSlideId === "notation-double" ||
-                activeSlideId === "notation-double-l" ||
-                activeSlideId === "notation-double-d" ||
-                activeSlideId === "notation-sequences" ||
-                activeSlideId === "notation-sequences-longer"
-              }
+              showHintButton={!!activeSlideId && HINT_BUTTON_SLIDE_IDS.includes(activeSlideId)}
               fixCompleted={fixCompleted}
             />
             {!isTouchDevice && activeSlideId !== "find-green-white" && (
