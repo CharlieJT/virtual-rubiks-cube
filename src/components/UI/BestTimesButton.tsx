@@ -8,7 +8,7 @@ interface BestTimesButtonProps {
 const BestTimesButton: React.FC<BestTimesButtonProps> = ({ onClick }) => (
   <Button
     onClick={onClick}
-    className="fixed top-[.9rem] left-4 z-30 p-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg group"
+    className="absolute top-4 left-4 z-30 p-2 bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg group"
     title="Best Times"
   >
     <svg

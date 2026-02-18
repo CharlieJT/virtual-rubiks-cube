@@ -98,7 +98,7 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
             key={`initial-confetti-${id}-${Date.now()}`}
             className="confetti"
             style={style}
-          />
+          />,
         );
       }
 
@@ -161,16 +161,24 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
               {bestTimeResult.wasPersonalBest ? (
                 <div className="flex items-center justify-center gap-1">
                   <PartyIcon size={20} className="flex-shrink-0" />
-                  <span className="font-bold text-black">NEW PERSONAL BEST!</span>
+                  <span className="font-bold text-black">
+                    NEW PERSONAL BEST!
+                  </span>
                   <PartyIcon size={20} className="flex-shrink-0" />
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  <StarIcon size={18} className="flex-shrink-0 text-yellow-400" />
+                  <StarIcon
+                    size={18}
+                    className="flex-shrink-0 text-yellow-400"
+                  />
                   <span className="font-bold">
                     New #{bestTimeResult.position} Best Time!
                   </span>
-                  <StarIcon size={18} className="flex-shrink-0 text-yellow-400" />
+                  <StarIcon
+                    size={18}
+                    className="flex-shrink-0 text-yellow-400"
+                  />
                 </div>
               )}
             </div>
@@ -190,13 +198,13 @@ const SolveSuccessModal: React.FC<SolveSuccessModalProps> = ({
           <div className="flex gap-3 justify-center">
             <Button
               onClick={onTryAgain}
-              className="px-4 py-1 rounded-lg font-bold w-[125px] text-white border-none transition-opacity bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 hover:opacity-90 cursor-pointer"
+              className="px-4 py-1 rounded-lg font-bold w-[125px] text-white border-none transition-opacity bg-blue-500 hover:opacity-90 cursor-pointer"
             >
               Try Again!
             </Button>
             <Button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg font-bold bg-cyan-50 text-blue-900 border-2 border-cyan-400 hover:bg-cyan-100 transition-colors"
+              className="px-4 py-2 rounded-lg font-bold bg-cyan-50 text-blue-900 hover:bg-cyan-100 transition-colors"
             >
               Finish Session
             </Button>

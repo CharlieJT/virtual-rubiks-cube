@@ -326,15 +326,11 @@ const TutorialCubeView = ({
                     state.gl.resetState();
                   } catch {}
                 };
-                canvas.addEventListener(
-                  "webglcontextlost",
-                  onLost,
-                  false
-                );
+                canvas.addEventListener("webglcontextlost", onLost, false);
                 canvas.addEventListener(
                   "webglcontextrestored",
                   onRestored,
-                  false
+                  false,
                 );
               }}
               onPointerDownCapture={handlePointerDown}
@@ -391,23 +387,71 @@ const TutorialCubeView = ({
                 pieceChildren={combinedPieceChildren}
                 hideLogo={hideLogo}
                 errorFlash={fixErrorPulse}
-                hideRightFace={shouldHideFace("right", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
-                hideFrontFace={shouldHideFace("front", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
-                hideLeftFace={shouldHideFace("left", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
-                hideBackFace={shouldHideFace("back", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
-                hideTopFace={shouldHideFace("top", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
-                hideBottomFace={shouldHideFace("bottom", activeSlideId, fixSequence, fixIndex, ghostOpacity, ghostIsAnimatingMove)}
+                hideRightFace={shouldHideFace(
+                  "right",
+                  activeSlideId,
+                  fixSequence,
+                  fixIndex,
+                  ghostOpacity,
+                  ghostIsAnimatingMove,
+                )}
+                hideFrontFace={shouldHideFace(
+                  "front",
+                  activeSlideId,
+                  fixSequence,
+                  fixIndex,
+                  ghostOpacity,
+                  ghostIsAnimatingMove,
+                )}
+                hideLeftFace={shouldHideFace(
+                  "left",
+                  activeSlideId,
+                  fixSequence,
+                  fixIndex,
+                  ghostOpacity,
+                  ghostIsAnimatingMove,
+                )}
+                hideBackFace={shouldHideFace(
+                  "back",
+                  activeSlideId,
+                  fixSequence,
+                  fixIndex,
+                  ghostOpacity,
+                  ghostIsAnimatingMove,
+                )}
+                hideTopFace={shouldHideFace(
+                  "top",
+                  activeSlideId,
+                  fixSequence,
+                  fixIndex,
+                  ghostOpacity,
+                  ghostIsAnimatingMove,
+                )}
+                hideBottomFace={shouldHideFace(
+                  "bottom",
+                  activeSlideId,
+                  fixSequence,
+                  fixIndex,
+                  ghostOpacity,
+                  ghostIsAnimatingMove,
+                )}
               />
-              {activeSlideId && GHOST_PIECE_SLIDE_IDS.includes(activeSlideId) && (
-                <GhostPieceIndicator
-                  cubeState={tutorialCube3D}
-                  opacity={ghostOpacity}
-                  rotationProgress={ghostRotationProgress}
-                  isAnimatingMove={ghostIsAnimatingMove}
-                  cubeViewRef={cubeViewRef}
-                  move={getGhostPieceMove(activeSlideId, fixSequence, fixIndex, fixDoublePartialDir)}
-                />
-              )}
+              {activeSlideId &&
+                GHOST_PIECE_SLIDE_IDS.includes(activeSlideId) && (
+                  <GhostPieceIndicator
+                    cubeState={tutorialCube3D}
+                    opacity={ghostOpacity}
+                    rotationProgress={ghostRotationProgress}
+                    isAnimatingMove={ghostIsAnimatingMove}
+                    cubeViewRef={cubeViewRef}
+                    move={getGhostPieceMove(
+                      activeSlideId,
+                      fixSequence,
+                      fixIndex,
+                      fixDoublePartialDir,
+                    )}
+                  />
+                )}
             </Canvas>
           </div>
         </div>
@@ -478,11 +522,13 @@ const TutorialCubeView = ({
                   orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance>,
                   cubeRef,
                   undefined,
-                  false
+                  false,
                 );
               }}
               onShowHint={showHint}
-              showHintButton={!!activeSlideId && HINT_BUTTON_SLIDE_IDS.includes(activeSlideId)}
+              showHintButton={
+                !!activeSlideId && HINT_BUTTON_SLIDE_IDS.includes(activeSlideId)
+              }
               fixCompleted={fixCompleted}
             />
             {!isTouchDevice && activeSlideId !== "find-green-white" && (

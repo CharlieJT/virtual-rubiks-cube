@@ -2,8 +2,8 @@
 
 /* Apply Inter globally */
 :root {
-  --app-font-sans: "Inter", "Quicksand", system-ui, Avenir, Helvetica, Arial,
-    sans-serif;
+  --app-font-sans:
+    "Inter", "Quicksand", system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
 body {

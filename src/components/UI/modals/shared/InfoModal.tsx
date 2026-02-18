@@ -15,7 +15,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => (
     <div className="space-y-4 text-gray-800 text-base">
       <p className="text-md text-slate-700">
         Hi, I’m Charlie Tipton. A developer who built this interactive 3D
-        Virtual Rubik’s Cube (Tipton's Solver) to explore smooth animations,
+        Virtual Rubik’s Cube (Solvz) to explore smooth animations,
         multi-touch gestures, and smart cube logic in the browser. Enjoy
         scrambling & solving!
       </p>
@@ -62,7 +62,7 @@ const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => (
           text editor. Undo/Redo is disabled during timer sessions.
         </li>
         <li>
-          White Logo Tracking: Tipton's Solver logo maintains proper orientation
+          White Logo Tracking: Solvz logo maintains proper orientation
         </li>
         <li>
           Faster Timer Animations: Reduced animation times during timed solves

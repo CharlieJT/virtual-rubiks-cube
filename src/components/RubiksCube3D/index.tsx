@@ -251,7 +251,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
     const { whiteLogoAngle, applyMoveToWhiteLogoAngle, resetLogo } =
       useWhiteLogo(cubeState);
-    const { logoReady, tiptonsTexture } = useLogoTexture();
+    const { logoReady, solvzTexture } = useLogoTexture();
     const { handlePreciseHover, handleLeaveCube } = useHoverLogic(
       cubeState,
       groupRef,
@@ -401,12 +401,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     // Update logo texture rotation synchronously in useLayoutEffect
     // This prevents flash when the logo rotates
     useLayoutEffect(() => {
-      if (!tiptonsTexture) return;
-      tiptonsTexture.rotation = whiteLogoAngle;
-      tiptonsTexture.needsUpdate = true;
-    }, [whiteLogoAngle, tiptonsTexture]);
+      if (!solvzTexture) return;
+      solvzTexture.rotation = whiteLogoAngle;
+      solvzTexture.needsUpdate = true;
+    }, [whiteLogoAngle, solvzTexture]);
 
-    const logoTextureReady = logoReady && !!tiptonsTexture;
+    const logoTextureReady = logoReady && !!solvzTexture;
 
     useEffect(() => {
       if (!pendingMove) {
@@ -667,7 +667,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 baselineColors={baselineColors}
                 stickerGreyMap={stickerGreyMap}
                 colorFadeProgress={colorFadeProgress}
-                sharedLogoTexture={tiptonsTexture}
+                sharedLogoTexture={solvzTexture}
                 logoReady={logoReady}
                 hideLogo={hideLogo}
                 touchCount={touchCount}
@@ -728,7 +728,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       hideBottomFace,
       highlightSet,
       dullOthersIntensity,
-      tiptonsTexture,
+      solvzTexture,
       logoReady,
       hideLogo,
       touchCount,

@@ -170,7 +170,7 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 - **Multi-Touch Gestures**: Two-finger pinch/rotate for camera control
 - **Smart Drag Locking**: First touch commits to a move direction
 - **Visual Feedback**: Moves snap to 90° with smooth easing
-- **White Logo Tracking**: Watch the Tipton's Solver logo maintain proper orientation
+- **White Logo Tracking**: Watch the Solvz logo maintain proper orientation
 
 ## Project Architecture
 
@@ -188,7 +188,7 @@ src/
 ├── main.tsx                 # Application entry point
 ├── vite-env.d.ts
 ├── assets/
-│   └── tiptons-solver.png
+│   └── solvz-logo.png
 ├── components/
 │   ├── ControlPanel.tsx
 │   ├── LessonContent.tsx
