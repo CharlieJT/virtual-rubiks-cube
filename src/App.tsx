@@ -42,6 +42,7 @@ import useSolveHandlers from "@/hooks/useSolveHandlers";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import InfoButton from "@components/UI/InfoButton";
 import type { OrbitControlsInstance } from "./types/orbitControls";
+import type { TrackballControls as TrackballControlsInstance } from "three-stdlib";
 import type { CustomWindowType } from "./types/window";
 import useAppState from "./App/AppState";
 
@@ -852,8 +853,8 @@ const App = () => {
               {canvasReady && (
                 <TrackballControls
                   ref={
-                    orbitControlsRef as unknown as React.ComponentRef<
-                      typeof TrackballControls
+                    orbitControlsRef as unknown as React.RefObject<
+                      TrackballControlsInstance | null
                     >
                   }
                   enabled={orbitControlsEnabled && !modalCloseCooldown}

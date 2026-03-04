@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
+import type { TrackballControls as TrackballControlsInstance } from "three-stdlib";
 import RubiksCube3D from "@components/RubiksCube3D";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import type { CubeMove, CubeState } from "@/types/cube";
@@ -342,8 +343,8 @@ const TutorialCubeView = ({
               />
               <TrackballControls
                 ref={
-                  orbitControlsRef as unknown as React.ComponentRef<
-                    typeof TrackballControls
+                  orbitControlsRef as unknown as React.RefObject<
+                    TrackballControlsInstance | null
                   >
                 }
                 enabled={orbitControlsEnabled}
