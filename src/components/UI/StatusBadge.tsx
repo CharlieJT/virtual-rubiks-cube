@@ -18,24 +18,24 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   isAutoOrienting = false,
   isScrambled = false,
 }) => {
-  let colorClass = "bg-green-400 text-green-900";
+  let colorClass = "bg-green-500/15 text-green-400 border-green-500/30";
   let Icon = CheckIcon;
   let label = "Solved";
 
   if (isScrambling) {
-    colorClass = "bg-blue-400 text-blue-900";
+    colorClass = "bg-blue-500/15 text-blue-400 border-blue-500/30";
     Icon = HourglassIcon;
     label = "Scrambling";
   } else if (isSolving) {
-    colorClass = "bg-yellow-400 text-yellow-900";
+    colorClass = "bg-yellow-500/15 text-yellow-400 border-yellow-500/30";
     Icon = LightningIcon;
     label = "Solving";
   } else if (isAutoOrienting) {
-    colorClass = "bg-orange-400 text-orange-900";
+    colorClass = "bg-orange-500/15 text-orange-400 border-orange-500/30";
     Icon = CompassIcon;
     label = "Orienting";
   } else if (isScrambled) {
-    colorClass = "bg-red-400 text-red-900";
+    colorClass = "bg-red-500/15 text-red-400 border-red-500/30";
     Icon = ShuffleIcon;
     label = "Scrambled";
   }
@@ -43,9 +43,9 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   return (
     <div className="absolute left-4 bottom-4 z-30 pointer-events-none">
       <div
-        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-semibold text-base md:text-sm ${colorClass}`}
+        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold text-sm border backdrop-blur-sm ${colorClass}`}
       >
-        <Icon size={18} className="flex-shrink-0" />
+        <Icon size={16} className="flex-shrink-0" />
         {label}
       </div>
     </div>

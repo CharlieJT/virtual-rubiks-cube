@@ -12,18 +12,24 @@ import CUBE_COLORS from "@/consts/cubeColours";
 
 const { WHITE } = CUBE_COLORS;
 
+const _basisNormal = new THREE.Vector3();
+const _basisUp = new THREE.Vector3();
+const _basisRight = new THREE.Vector3();
+const _transferV = new THREE.Vector3();
+const _candDir0 = new THREE.Vector3();
+const _candDir1 = new THREE.Vector3();
+const _candDir2 = new THREE.Vector3();
+const _candDir3 = new THREE.Vector3();
+
 const useWhiteLogo = (cubeState: CubeState[][][]) => {
   // Track white logo rotation (in radians). Positive values rotate CCW in texture space.
   const [whiteLogoAngle, setWhiteLogoAngle] = useState<number>(0);
   const lastAppliedMoveRef = useRef<{ move: string; t: number } | null>(null);
-  // Track the white center's logo orientation as a quaternion in cube-local space
   const whiteQuatRef = useRef<THREE.Quaternion>(new THREE.Quaternion());
-  // Track the previous face holding the white center (pre-move)
   const prevWhiteFaceRef = useRef<keyof CubeState["colors"] | null>(null);
-  // Keep a ref of the last displayed angle to accumulate face-turn deltas without projection jump
+  // Accumulates face-turn deltas without projection jump
   const displayedAngleRef = useRef<number>(0);
 
-  // Helper to normalize and check white color
   const isWhiteColor = useCallback((c: string) => {
     if (!c) return false;
     let s = c.toLowerCase();
@@ -33,11 +39,9 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     return s === WHITE || s === "white";
   }, []);
 
-  // Determine which face currently has the white center
   const getWhiteCenterFaceFromState = useCallback(():
     | keyof CubeState["colors"]
     | null => {
-    // Indices: 0..2. Visible faces for centers: right(2,1,1), left(0,1,1), top(1,2,1), bottom(1,0,1), front(1,1,2), back(1,1,0)
     const candidates: Array<{
       idx: [number, number, number];
       face: keyof CubeState["colors"];
@@ -56,55 +60,46 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     return null;
   }, [cubeState, isWhiteColor]);
 
-  // Canonical face basis used to compute in-plane texture angle (must match UV orientation)
+  // Canonical face basis used to compute in-plane texture angle (must match UV orientation).
+  // Returns references to module-scope vectors — callers must clone before a subsequent call.
   const getLogoFaceBasis = (
     face: keyof CubeState["colors"]
   ): { normal: THREE.Vector3; up: THREE.Vector3; right: THREE.Vector3 } => {
-    const normal =
-      face === "front"
-        ? new THREE.Vector3(0, 0, 1)
-        : face === "back"
-        ? new THREE.Vector3(0, 0, -1)
-        : face === "right"
-        ? new THREE.Vector3(1, 0, 0)
-        : face === "left"
-        ? new THREE.Vector3(-1, 0, 0)
-        : face === "top"
-        ? new THREE.Vector3(0, 1, 0)
-        : new THREE.Vector3(0, -1, 0);
-
-    let up: THREE.Vector3;
-    let right: THREE.Vector3;
     switch (face) {
       case "front":
-        up = new THREE.Vector3(0, 1, 0);
-        right = new THREE.Vector3(-1, 0, 0);
+        _basisNormal.set(0, 0, 1);
+        _basisUp.set(0, 1, 0);
+        _basisRight.set(-1, 0, 0);
         break;
       case "back":
-        up = new THREE.Vector3(0, 1, 0);
-        right = new THREE.Vector3(1, 0, 0);
+        _basisNormal.set(0, 0, -1);
+        _basisUp.set(0, 1, 0);
+        _basisRight.set(1, 0, 0);
         break;
       case "right":
-        up = new THREE.Vector3(0, 1, 0);
-        right = new THREE.Vector3(0, 0, 1);
+        _basisNormal.set(1, 0, 0);
+        _basisUp.set(0, 1, 0);
+        _basisRight.set(0, 0, 1);
         break;
       case "left":
-        up = new THREE.Vector3(0, 1, 0);
-        right = new THREE.Vector3(0, 0, -1);
+        _basisNormal.set(-1, 0, 0);
+        _basisUp.set(0, 1, 0);
+        _basisRight.set(0, 0, -1);
         break;
       case "top":
-        up = new THREE.Vector3(0, 0, 1);
-        right = new THREE.Vector3(1, 0, 0);
+        _basisNormal.set(0, 1, 0);
+        _basisUp.set(0, 0, 1);
+        _basisRight.set(1, 0, 0);
         break;
-      case "bottom":
-        up = new THREE.Vector3(0, 0, -1);
-        right = new THREE.Vector3(1, 0, 0);
+      default: // bottom
+        _basisNormal.set(0, -1, 0);
+        _basisUp.set(0, 0, -1);
+        _basisRight.set(1, 0, 0);
         break;
     }
-    return { normal, up, right };
+    return { normal: _basisNormal, up: _basisUp, right: _basisRight };
   };
 
-  // Helper: pick the nearest canonical face for a given direction vector
   const getNearestFaceFromVector = (
     v: THREE.Vector3
   ): keyof CubeState["colors"] => {
@@ -136,44 +131,44 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     to: keyof CubeState["colors"],
     prevAngleRad: number
   ): number => {
-    // Map prevAngle bucket to a direction vector v expressed in cube local axes
     const { up: upF, right: rightF } = getLogoFaceBasis(from);
     const quarter = Math.PI / 2;
-    const k = Math.round(prevAngleRad / quarter) % 4; // -2..2 -> clamp to 0..3
+    const k = Math.round(prevAngleRad / quarter) % 4;
     const kk = ((k % 4) + 4) % 4;
-    let v = new THREE.Vector3();
     switch (kk) {
       case 0: // 0° => up
-        v = upF.clone();
+        _transferV.copy(upF);
         break;
       case 1: // +90° (CCW) => left = -right
-        v = rightF.clone().multiplyScalar(-1);
+        _transferV.copy(rightF).multiplyScalar(-1);
         break;
       case 2: // 180° => -up
-        v = upF.clone().multiplyScalar(-1);
+        _transferV.copy(upF).multiplyScalar(-1);
         break;
       case 3: // 270° => right
-        v = rightF.clone();
+        _transferV.copy(rightF);
         break;
     }
-    // Determine which of to-face's cardinal directions best matches v
     const { up: upT, right: rightT } = getLogoFaceBasis(to);
+    _candDir0.copy(upT);
+    _candDir1.copy(rightT).multiplyScalar(-1);
+    _candDir2.copy(upT).multiplyScalar(-1);
+    _candDir3.copy(rightT);
     const candidates = [
-      { angle: 0, dir: upT.clone() },
-      { angle: quarter, dir: rightT.clone().multiplyScalar(-1) }, // left
-      { angle: Math.PI, dir: upT.clone().multiplyScalar(-1) },
-      { angle: -quarter, dir: rightT.clone() }, // 270° == -90°
+      { angle: 0, dir: _candDir0 },
+      { angle: quarter, dir: _candDir1 },
+      { angle: Math.PI, dir: _candDir2 },
+      { angle: -quarter, dir: _candDir3 },
     ];
     let best = candidates[0].angle;
     let bestDot = -Infinity;
     for (const c of candidates) {
-      const d = v.dot(c.dir);
+      const d = _transferV.dot(c.dir);
       if (d > bestDot) {
         bestDot = d;
         best = c.angle;
       }
     }
-    // Normalize to [-π, π]
     const twoPi = Math.PI * 2;
     let n = best % twoPi;
     if (n > Math.PI) n -= twoPi;
@@ -181,7 +176,6 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     return n;
   };
 
-  // Initialize prev face and quaternion once
   useEffect(() => {
     if (prevWhiteFaceRef.current == null) {
       const face = getWhiteCenterFaceFromState();
@@ -194,7 +188,6 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     }
   }, [getWhiteCenterFaceFromState]);
 
-  // Update white logo angle based on a completed move (quaternion-based, consistent with animation)
   const applyMoveToWhiteLogoAngle = useCallback(
     (move: CubeMove, groupRef: React.RefObject<THREE.Group | null>, isFastSequence: boolean = false) => {
       const moveStr = (move as string).toUpperCase();
@@ -218,7 +211,6 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
       const isWhole = base === "X" || base === "Y" || base === "Z";
       const isSliceMove = base === "M" || base === "E" || base === "S";
 
-      // Map base face letter to face key used in state/colors
       const baseToFaceKey: Record<string, keyof CubeState["colors"]> = {
         R: "right",
         L: "left",
@@ -240,7 +232,6 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
         // M → x visual rotation (cube rotates opposite to slice direction)
         // E → y visual rotation
         // S → z' visual rotation
-        // NOTE: Group rotation is now applied in useLayoutEffect for better synchronization
         // Group rotation is handled in RubiksCube3D's useLayoutEffect to prevent flash
         const coordinateRotationMap: Record<string, [THREE.Vector3, number]> = {
           M: [new THREE.Vector3(1, 0, 0), Math.PI / 2], // x rotation (opposite of slice direction)
@@ -259,7 +250,6 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
           const [axis, angle] = rotation;
           const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
 
-          // Always update white quaternion tracking
           whiteQuatRef.current.multiply(q);
           
           // Only apply group rotation for fast sequences (performance optimization)
@@ -344,14 +334,11 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
             const quarter = Math.PI / 2;
             const k = Math.round((displayedAngleRef.current || 0) / quarter);
             const bucketDeg = ((((k % 4) + 4) % 4) * 90) as 0 | 90 | 180 | 270;
-            // Determine slice parameter for slice-aware orientation mapping
             const sliceParam: SliceKey = isSliceMove
               ? (base as SliceKey)
               : "none";
 
-            // Use enhanced function that includes E move specific logic
             if (isSliceMove) {
-              // For slice moves, use the enhanced function with cube state and move string
               const additionalDelta = getWhiteLogoDeltaRad(
                 prevWhiteFaceRef.current,
                 resolvedAfter,
@@ -362,7 +349,6 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
               );
               thetaDesired += additionalDelta;
             } else {
-              // For regular moves, use the bucket-based function
               thetaDesired += getWhiteLogoDeltaByBucketDeg(
                 prevWhiteFaceRef.current,
                 resolvedAfter,
@@ -455,7 +441,6 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     [getWhiteCenterFaceFromState, cubeState]
   );
 
-  // Reset logo to default position
   const resetLogo = useCallback(() => {
     setWhiteLogoAngle(0);
     displayedAngleRef.current = 0;

@@ -128,7 +128,7 @@ npm run tw:build
 - If you undo moves and then make a new move, the redo history is cleared.
 - Undo/Redo is disabled during timer sessions.
 
-Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to explore smooth animations, multi-touch gestures, and smart cube logic in the browser. Have fun scrambling, solving, and experimenting with the controls!
+Solvz is an interactive 3D Rubik's cube: drag faces to move, use the timer for speedcubing, or follow the built-in tutorials to learn the beginner method.
 
 ### Basic Controls
 
@@ -164,13 +164,14 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 - **Personal Records**: Get notified when you achieve new personal bests
 - **View Leaderboard**: Click the list icon (top-left) to view your top 10 times
 - **Session Management**: Cancel, reset, or continue timer sessions as needed
+- **Try Again**: After a solve, use Try Again to reset the timer and start another attempt
 
 ### Advanced Features
 
 - **Multi-Touch Gestures**: Two-finger pinch/rotate for camera control
 - **Smart Drag Locking**: First touch commits to a move direction
 - **Visual Feedback**: Moves snap to 90° with smooth easing
-- **White Logo Tracking**: Watch the Tipton's Solver logo maintain proper orientation
+- **White Logo Tracking**: Watch the Solvz logo maintain proper orientation
 
 ## Project Architecture
 
@@ -183,21 +184,19 @@ src/
 │   ├── CubeState.ts         # Cube state management
 │   ├── SessionState.ts      # Timer/session state management
 │   └── UIState.ts           # UI modal state management
-├── App.css
 ├── App.tsx                  # Main application component
 ├── index.css
 ├── main.tsx                 # Application entry point
-├── tw.css
 ├── vite-env.d.ts
 ├── assets/
-│   └── tiptons-solver.png
+│   └── solvz-logo.png
 ├── components/
 │   ├── ControlPanel.tsx
 │   ├── LessonContent.tsx
 │   ├── lessons/             # Lesson renderer components
-│   ├── MoveButtonsPanel.tsx
 │   ├── MoveOverlay.tsx
 │   ├── RubiksCube3D/        # 3D cube rendering components
+│   │   ├── borderMeshBuilder.ts
 │   │   ├── CubePiece.tsx
 │   │   ├── geometry.ts
 │   │   ├── index.tsx
@@ -222,7 +221,6 @@ src/
 │       │   ├── TrophyIcon.tsx
 │       │   ├── PartyIcon.tsx
 │       │   ├── StarIcon.tsx
-│       │   ├── SeedlingIcon.tsx
 │       │   ├── LightningIcon.tsx
 │       │   ├── LightbulbIcon.tsx
 │       │   ├── CheckIcon.tsx
@@ -258,16 +256,24 @@ src/
 │   ├── faceColors.ts
 │   └── moves.ts
 ├── hooks/
+│   ├── useAnimation.ts
 │   ├── useBestTimes.ts
 │   ├── useDprManager.ts
+│   ├── useDragLogic.ts
+│   ├── useFadeToSolved.ts
+│   ├── useHoverLogic.tsx
 │   ├── useIsTouchDevice.tsx
 │   ├── useLogoTexture.tsx
+│   ├── useMoveQueue.ts
 │   ├── usePrecisionMode.ts
-│   ├── useRoundedBoxGeometry.ts
 │   ├── useRubiksCube3DProps.ts
+│   ├── useScrambleLogic.ts
+│   ├── useSolveHandlers.ts
 │   ├── useTimer.ts
+│   ├── useTimerSessionHandlers.ts
 │   ├── useTrackpadHandlers.ts
 │   ├── useTwoFingerSpin.ts
+│   ├── useUndoRedo.ts
 │   └── useWhiteLogo.ts
 ├── types/
 │   ├── cube.ts

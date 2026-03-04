@@ -11,7 +11,7 @@ interface UseSlideInteractionRulesParams {
   handleOrbitControlsChange: (enabled: boolean) => void;
 }
 
-export const useSlideInteractionRules = ({
+const useSlideInteractionRules = ({
   activeSlide,
   isResetting,
   practiceCompleted,
@@ -68,4 +68,6 @@ export const useSlideInteractionRules = ({
     }
   }, [activeSlide?.id, isResetting, practiceCompleted, setInputDisabled, setOrbitControlsEnabled, handleOrbitControlsChange]);
 };
+
+export default useSlideInteractionRules;
 

@@ -165,7 +165,6 @@ const getNotationSlides = (): Slide[] => [
       allowFaceMoves: true,
       setup: (cube: CubeInterface) => {
         cube.reset();
-        // Apply R U2 D' F' to scramble the cube
         cube.applyMoves(["R", "U2", "D'", "F'"]);
       },
     },
@@ -177,7 +176,6 @@ const getNotationSlides = (): Slide[] => [
       allowFaceMoves: true,
       setup: (cube: CubeInterface) => {
         cube.reset();
-        // Apply L' D2 F U B' R2 D to scramble the cube
         cube.applyMoves(["L'", "D2", "F", "U", "B'", "R2", "D"]);
       },
     },

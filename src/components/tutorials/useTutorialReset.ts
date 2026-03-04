@@ -45,7 +45,7 @@ interface UseTutorialResetParams {
   showErrorFade: (wrongMove: CubeMove | null) => void;
 }
 
-export const useTutorialReset = ({
+const useTutorialReset = ({
   slides,
   currentSlide,
   disableOrbitTemporarily,
@@ -177,3 +177,5 @@ export const useTutorialReset = ({
 
   return { resetToSlideBaseline };
 };
+
+export default useTutorialReset;

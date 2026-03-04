@@ -21,7 +21,7 @@ interface UseSlideSetupParams {
   isTransitioningRef: React.RefObject<boolean>;
 }
 
-export const useSlideSetup = ({
+const useSlideSetup = ({
   activeSlide,
   cubeRef,
   setCube3D,
@@ -80,3 +80,5 @@ export const useSlideSetup = ({
     isTransitioningRef,
   ]);
 };
+
+export default useSlideSetup;

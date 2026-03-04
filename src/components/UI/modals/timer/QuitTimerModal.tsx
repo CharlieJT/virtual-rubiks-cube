@@ -31,11 +31,12 @@ const QuitTimerModal: React.FC<QuitTimerModalProps> = ({
         <Button
           onClick={onConfirm}
           disabled={isQuitting}
-          className={`px-4 py-1 rounded-lg font-bold w-[80px] text-white border-none transition-opacity ${
+          className={`px-5 py-2.5 rounded-xl font-semibold w-[80px] text-white border-none transition-all duration-200 hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] ${
             isQuitting
-              ? "bg-red-300 opacity-70 cursor-not-allowed"
-              : "bg-gradient-to-r from-red-600 to-red-700 hover:opacity-90 cursor-pointer"
+              ? "opacity-70 cursor-not-allowed"
+              : "cursor-pointer"
           }`}
+          style={{ backgroundColor: isQuitting ? "#ef9a9a" : "#FF1744" }}
         >
           {isQuitting ? (
             <span className="inline-flex pt-1 items-center gap-2">
@@ -47,7 +48,7 @@ const QuitTimerModal: React.FC<QuitTimerModalProps> = ({
         </Button>
         <Button
           onClick={onClose}
-          className="px-4 py-2 rounded-lg font-bold bg-red-50 text-red-900 border-2 border-red-400 hover:bg-red-100 transition-colors"
+          className="px-5 py-2.5 rounded-xl font-semibold bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-all duration-200"
         >
           Cancel
         </Button>

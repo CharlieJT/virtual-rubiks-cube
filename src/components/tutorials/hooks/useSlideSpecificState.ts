@@ -24,7 +24,7 @@ export interface UseSlideSpecificStateReturn {
   resetSlideSpecificState: () => void;
 }
 
-export const useSlideSpecificState = (activeSlideId: string | undefined): UseSlideSpecificStateReturn => {
+const useSlideSpecificState = (activeSlideId: string | undefined): UseSlideSpecificStateReturn => {
   const [showSecondSequenceYellowEdges2, setShowSecondSequenceYellowEdges2] =
     useState(false);
   const [
@@ -115,3 +115,5 @@ export const useSlideSpecificState = (activeSlideId: string | undefined): UseSli
     resetSlideSpecificState,
   };
 };
+
+export default useSlideSpecificState;

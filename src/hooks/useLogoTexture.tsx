@@ -1,7 +1,7 @@
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useEffect, useMemo, useState } from "react";
-import tiptonsSolverImg from "@/assets/tiptons-solver.png";
+import solvzLogoImg from "@/assets/solvz-logo.png";
 import CUBE_COLORS from "@/consts/cubeColours";
 
 const { WHITE } = CUBE_COLORS;
@@ -21,9 +21,7 @@ const useLogoTexture = () => {
 
   // Reliable white-center logo texture with retries & fallback
   const [logoReady, setLogoReady] = useState(false);
-  const [tiptonsTexture, setTiptonsTexture] = useState<THREE.Texture | null>(
-    null
-  );
+  const [solvzTexture, setSolvzTexture] = useState<THREE.Texture | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,11 +31,11 @@ const useLogoTexture = () => {
     const load = () => {
       const loader = new THREE.TextureLoader();
       loader.load(
-        tiptonsSolverImg,
+        solvzLogoImg,
         (tex) => {
           if (cancelled) return;
-          if ((THREE).SRGBColorSpace) {
-            (tex).colorSpace = (THREE).SRGBColorSpace;
+          if (THREE.SRGBColorSpace) {
+            tex.colorSpace = THREE.SRGBColorSpace;
           }
           tex.wrapS = THREE.ClampToEdgeWrapping;
           tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -49,7 +47,7 @@ const useLogoTexture = () => {
           tex.minFilter = THREE.LinearMipmapLinearFilter;
           tex.magFilter = THREE.LinearFilter;
           tex.needsUpdate = true;
-          setTiptonsTexture(tex);
+          setSolvzTexture(tex);
           setLogoReady(true);
         },
         undefined,
@@ -72,10 +70,10 @@ const useLogoTexture = () => {
               ctx.strokeRect(3, 3, 58, 58);
             }
             const fallback = new THREE.CanvasTexture(canvas);
-            setTiptonsTexture(fallback);
+            setSolvzTexture(fallback);
             setLogoReady(true);
           }
-        }
+        },
       );
     };
     load();
@@ -86,7 +84,7 @@ const useLogoTexture = () => {
 
   return {
     logoReady,
-    tiptonsTexture,
+    solvzTexture,
   };
 };
 

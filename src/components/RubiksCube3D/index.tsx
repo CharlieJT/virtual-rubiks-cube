@@ -1,217 +1,29 @@
 import React, { useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { flushSync } from "react-dom";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CubeMove, CubeState } from "@/types/cube";
 import { AnimationHelper, type AnimatedCubie } from "@utils/animationHelper";
 import CUBIE_STYLE_MAP from "@/config/cube/cubieStyleMap";
-import CUBE_COLORS from "@/consts/cubeColours";
-import {
-  BORDER_RADIUS,
-  BORDER_DEPTH,
-  CUBIE_DISTANCE,
-  BORDER_LENGTH,
-} from "./geometry";
+import { CUBIE_DISTANCE } from "./geometry";
+import initBorderMeshes from "./borderMeshBuilder";
 import useWhiteLogo from "@/hooks/useWhiteLogo";
 import useDragLogic from "@/hooks/useDragLogic";
 import useAnimation, { useImperativeHandle3D } from "@/hooks/useAnimation";
 import CubePiece from "./CubePiece";
 import type { RubiksCube3DProps, RubiksCube3DHandle, PieceMaterialData } from "./types";
 import useLogoTexture from "@/hooks/useLogoTexture";
-import useRoundedBoxGeometry from "@/hooks/useRoundedBoxGeometry";
+import useMaterialUpdates from "@/hooks/useMaterialUpdates";
+import useCubeFrameLoop from "@/hooks/useCubeFrameLoop";
+
 import useHoverLogic from "@/hooks/useHoverLogic";
 import type { CustomWindowType } from "@/types/window";
 import type { Tween } from "@tweenjs/tween.js";
 
 THREE.Cache.enabled = true;
 
-Object.entries(CUBIE_STYLE_MAP).forEach(([key, entry]) => {
-  if (!entry) return;
-
-  if (!entry.borderMeshes) {
-    entry.borderMeshes = [];
-  }
-
-  if (entry.borderMeshes.length > 0) return;
-  const [x, y, z] = key.split(",").map(Number);
-  const extremes = [x, y, z].filter((c) => c === 0 || c === 2).length;
-  const isCorner = extremes === 3;
-  const isEdge = extremes === 2 && (x === 1 || y === 1 || z === 1);
-
-  if (isCorner) {
-    if (x === 0 && y === 0 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 0 && y === 0 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 0 && y === 2 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 0 && y === 2 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [-BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 0 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 0 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, -BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, -BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 2 && z === 0) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, -BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, -BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    } else if (x === 2 && y === 2 && z === 2) {
-      entry.borderMeshes.push(
-        {
-          position: [0, BORDER_DEPTH, BORDER_DEPTH],
-          rotation: [0, 0, Math.PI / 2],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, 0, BORDER_DEPTH],
-          rotation: [0, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        },
-        {
-          position: [BORDER_DEPTH, BORDER_DEPTH, 0],
-          rotation: [Math.PI / 2, 0, 0],
-          cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-        }
-      );
-    }
-  } else if (isEdge) {
-    if (x === 1) {
-      const yOff = y === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      const zOff = z === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      entry.borderMeshes.push({
-        position: [0, yOff, zOff],
-        rotation: [0, 0, Math.PI / 2],
-        cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-      });
-    } else if (y === 1) {
-      const xOff = x === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      const zOff = z === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      entry.borderMeshes.push({
-        position: [xOff, 0, zOff],
-        rotation: [0, 0, 0],
-        cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-      });
-    } else if (z === 1) {
-      const xOff = x === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      const yOff = y === 2 ? BORDER_DEPTH : -BORDER_DEPTH;
-      entry.borderMeshes.push({
-        position: [xOff, yOff, 0],
-        rotation: [Math.PI / 2, 0, 0],
-        cylinder: { radius: BORDER_RADIUS, length: BORDER_LENGTH },
-      });
-    }
-  }
-});
+// Populate border mesh descriptors on each cubie style entry (runs once)
+initBorderMeshes();
 
 const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
   (
@@ -262,161 +74,28 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const shakeTimeRef = useRef(0);
     const previousErrorFlashRef = useRef(false);
     
-    // Pre-allocated vectors for shake animation (avoid GC pressure)
     const shakeVectorRef = useRef(new THREE.Vector3());
     
-    // Centralized material storage for all 27 pieces (single useFrame animation)
     const pieceMaterialsRef = useRef<Map<string, PieceMaterialData>>(new Map());
-    // Map from mesh to pieceData for fast lookup after rotations (mesh positions change but meshes don't)
     const meshToPieceDataRef = useRef<Map<THREE.Mesh, PieceMaterialData>>(new Map());
     const wasAnimatingRef = useRef(false);
     const cubeStateRef = useRef(cubeState);
     const lastCompletedMoveRef = useRef<CubeMove | null>(null);
     const lastMoveSourceRef = useRef<string | null>(null);
     
-    // Material update function for fast sequences
-    const updateMaterialsForFastSequence = useCallback(() => {
-      const currentState = cubeStateRef.current;
-      
-      // First, rebuild mesh-to-pieceData mapping for all cubies
-      for (const cubie of cubiesRef.current) {
-        const key = `${cubie.x},${cubie.y},${cubie.z}`;
-        const pieceData = pieceMaterialsRef.current.get(key);
-        if (pieceData) {
-          meshToPieceDataRef.current.set(cubie.mesh, pieceData);
-        }
-      }
-      
-      // Update materials by iterating through cubies
-      for (const cubie of cubiesRef.current) {
-        const newPiece = currentState[cubie.x]?.[cubie.y]?.[cubie.z];
-        if (!newPiece) continue;
-        
-        let pieceData = meshToPieceDataRef.current.get(cubie.mesh);
-        
-        if (!pieceData) {
-          const key = `${cubie.x},${cubie.y},${cubie.z}`;
-          pieceData = pieceMaterialsRef.current.get(key);
-          if (pieceData) {
-            meshToPieceDataRef.current.set(cubie.mesh, pieceData);
-          } else {
-            if (!(cubie.x === 1 && cubie.y === 1 && cubie.z === 1)) {
-              continue;
-            }
-            continue;
-          }
-        }
-        
-        if (pieceData) {
-          for (const face in pieceData.materials) {
-            const mat = pieceData.materials[face];
-            const newColor = newPiece.colors[face as keyof CubeState["colors"]];
-            if (mat && newColor) {
-              mat.color.set(newColor);
-              mat.needsUpdate = true;
-              pieceData.baseColors[face] = new THREE.Color(newColor);
-            }
-          }
-        }
-      }
-    }, []);
+    const updateMaterialsForFastSequence = useMaterialUpdates({
+      cubeState,
+      queueFast,
+      queueFastMs,
+      groupRef,
+      cubiesRef,
+      pieceMaterialsRef,
+      meshToPieceDataRef,
+      lastCompletedMoveRef,
+      lastMoveSourceRef,
+      cubeStateRef,
+    });
     
-    // Keep ref in sync with latest cubeState AND update materials synchronously
-    // This runs before browser paint, preventing flash
-    useLayoutEffect(() => {
-      const prevState = cubeStateRef.current;
-      cubeStateRef.current = cubeState;
-      
-      // For slice moves, apply group rotation synchronously here to prevent flash
-      // This ensures rotation happens at the same time as material updates
-      // Only do this for manual moves - skip during fast sequences to avoid lag
-      const lastMove = lastCompletedMoveRef.current;
-      const moveSource = lastMoveSourceRef.current;
-      const isFastSequence = moveSource === "queue" && (queueFast || typeof queueFastMs === "number");
-      
-      
-      if (lastMove && !isFastSequence) {
-        const moveStr = String(lastMove).toUpperCase();
-        const base = moveStr.replace(/['2]/g, "")[0];
-        const isSliceMove = base === "M" || base === "E" || base === "S";
-        
-        if (isSliceMove && groupRef.current) {
-          const coordinateRotationMap: Record<string, [THREE.Vector3, number]> = {
-            M: [new THREE.Vector3(1, 0, 0), Math.PI / 2],
-            "M'": [new THREE.Vector3(1, 0, 0), -Math.PI / 2],
-            M2: [new THREE.Vector3(1, 0, 0), Math.PI],
-            E: [new THREE.Vector3(0, 1, 0), Math.PI / 2],
-            "E'": [new THREE.Vector3(0, 1, 0), -Math.PI / 2],
-            E2: [new THREE.Vector3(0, 1, 0), Math.PI],
-            S: [new THREE.Vector3(0, 0, 1), -Math.PI / 2],
-            "S'": [new THREE.Vector3(0, 0, 1), Math.PI / 2],
-            S2: [new THREE.Vector3(0, 0, 1), Math.PI],
-          };
-          
-          const rotation = coordinateRotationMap[moveStr];
-          if (rotation) {
-            const [axis, angle] = rotation;
-            const q = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-            groupRef.current.quaternion.multiply(q);
-          }
-        }
-      }
-      
-      // Clear after processing
-      if (lastMove) {
-        lastCompletedMoveRef.current = null;
-        lastMoveSourceRef.current = null;
-      }
-      
-      // Update materials synchronously when cubeState changes
-      // This happens before React Three Fiber applies props, preventing flash
-      // Skip material updates for fast sequences - they're handled by updateMaterialsForFastSequence
-      if (!isFastSequence) {
-        // Only update materials for manual moves (fast sequences handle it themselves)
-        // Find pieceData by mesh (which persists) and use cubie's current grid position
-        for (const cubie of cubiesRef.current) {
-          const pieceData = meshToPieceDataRef.current.get(cubie.mesh);
-          if (!pieceData) continue;
-          
-          // Use cubie's CURRENT grid position (updated after move)
-          const newPiece = cubeState[cubie.x]?.[cubie.y]?.[cubie.z];
-          const oldPiece = prevState[cubie.x]?.[cubie.y]?.[cubie.z];
-          
-          if (!newPiece) continue;
-          
-          // Update pieceData.gridIndex to reflect new position
-          pieceData.gridIndex = [cubie.x, cubie.y, cubie.z];
-          
-          // Only update if colors actually changed
-          let colorsChanged = false;
-          if (!oldPiece) {
-            colorsChanged = true;
-          } else {
-            for (const face in newPiece.colors) {
-              if (newPiece.colors[face as keyof CubeState["colors"]] !== 
-                  oldPiece.colors[face as keyof CubeState["colors"]]) {
-                colorsChanged = true;
-                break;
-              }
-            }
-          }
-          
-          if (colorsChanged) {
-            for (const face in pieceData.materials) {
-              const mat = pieceData.materials[face];
-              const newColor = newPiece.colors[face as keyof CubeState["colors"]];
-              if (mat && newColor) {
-                mat.color.set(newColor);
-                mat.needsUpdate = true;
-                pieceData.baseColors[face] = new THREE.Color(newColor);
-              }
-            }
-          }
-        }
-      }
-    }, [cubeState]);
-    
-    // Pre-allocated colors for centralized animation (shared across all pieces)
     const animColorRef = useRef({
       grey: new THREE.Color("#808080"),
       white: new THREE.Color(0xffffff),
@@ -426,11 +105,8 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       emissive: new THREE.Color(),
     });
     
-    // Callback for pieces to register their materials
     const handleMaterialsReady = useCallback((key: string, data: PieceMaterialData) => {
       pieceMaterialsRef.current.set(key, data);
-      // Also find the mesh for this pieceData and store the mapping
-      // We'll find it by matching gridIndex to cubie coordinates
       const [gx, gy, gz] = data.gridIndex;
       const cubie = cubiesRef.current.find((c) => c.x === gx && c.y === gy && c.z === gz);
       if (cubie) {
@@ -440,8 +116,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
     const { whiteLogoAngle, applyMoveToWhiteLogoAngle, resetLogo } =
       useWhiteLogo(cubeState);
-    const { logoReady, tiptonsTexture } = useLogoTexture();
-    const roundedBoxGeometry = useRoundedBoxGeometry();
+    const { logoReady, solvzTexture } = useLogoTexture();
     const { handlePreciseHover, handleLeaveCube } = useHoverLogic(
       cubeState,
       groupRef,
@@ -449,7 +124,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       cubiesRef
     );
     
-    // Stable callback for mesh registration (avoids recreating 27 callbacks on each render)
     const handleMeshReady = useCallback((mesh: THREE.Mesh, gridX: number, gridY: number, gridZ: number) => {
       if (!cubiesRef.current.some((c) => c.mesh === mesh)) {
         cubiesRef.current.push({
@@ -477,13 +151,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
         commitGuardRef.current = { move: key, t: now };
         
-        // Store the move and source for useLayoutEffect to apply group rotation synchronously for slice moves
         lastCompletedMoveRef.current = move;
         lastMoveSourceRef.current = moveSource || null;
         
         const isFastSequence = moveSource === "queue" && (queueFast || typeof queueFastMs === "number");
         
-        // Force synchronous state update using flushSync
         if (onMoveAnimationDone) {
           flushSync(() => {
             onMoveAnimationDone(move);
@@ -539,12 +211,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         pos: [number, number, number],
         intersectionPoint: THREE.Vector3
       ) => {
-        e.stopPropagation();
-
-        if (inputDisabled) {
-          onOrbitControlsChange && onOrbitControlsChange(false);
+        if (inputDisabled || isAnimating) {
+          onOrbitControlsChange?.(true);
           return;
         }
+        e.stopPropagation();
 
         if (disableSliceDrag) {
           onOrbitControlsChange && onOrbitControlsChange(true);
@@ -582,6 +253,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       },
       [
         inputDisabled,
+        isAnimating,
         disableSliceDrag,
         onOrbitControlsChange,
         processPointerDown,
@@ -591,16 +263,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     // Update logo texture rotation synchronously in useLayoutEffect
     // This prevents flash when the logo rotates
     useLayoutEffect(() => {
-      if (!tiptonsTexture) return;
-      tiptonsTexture.rotation = whiteLogoAngle;
-      tiptonsTexture.needsUpdate = true;
-    }, [whiteLogoAngle, tiptonsTexture]);
+      if (!solvzTexture) return;
+      solvzTexture.rotation = whiteLogoAngle;
+      solvzTexture.needsUpdate = true;
+    }, [whiteLogoAngle, solvzTexture]);
 
-    useEffect(() => {
-      // intentionally no orbit toggle on inputDisabled changes
-    }, [inputDisabled]);
-
-    const logoTextureReady = logoReady && !!tiptonsTexture;
+    const logoTextureReady = logoReady && !!solvzTexture;
 
     useEffect(() => {
       if (!pendingMove) {
@@ -651,10 +319,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
 
         onStartAnimation && onStartAnimation();
         
-        // Store the move for material update
         const currentMove = pendingMove;
-        
-        // Determine if this is a fast sequence
         const isFastSequence = moveSource === "queue" && (queueFast || typeof queueFastMs === "number");
         
         currentTweenRef.current = AnimationHelper.animate(
@@ -669,11 +334,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
           },
           animationDuration,
           isFastSequence,
-          isFastSequence ? updateMaterialsForFastSequence : () => {
-            // For manual moves, update materials after state update
-            // useLayoutEffect will handle this, but we call it here to ensure it runs synchronously
-            // The materials will be updated in useLayoutEffect based on the new cubeState
-          }
+          isFastSequence ? updateMaterialsForFastSequence : () => {}
         );
       };
 
@@ -695,109 +356,6 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       updateMaterialsForFastSequence,
     ]);
 
-    useFrame((_, delta) => {
-      AnimationHelper.update();
-
-      if (!disableSliceDrag) {
-        updateDragRotation();
-        updateSnappingAnimation();
-      }
-
-      // Shake animation when errorFlash is active
-      if (errorFlash) {
-        if (!previousErrorFlashRef.current) {
-          shakeTimeRef.current = 0;
-        }
-
-        shakeTimeRef.current += delta;
-
-        if (shakeTimeRef.current < 0.6 && groupRef.current) {
-          const shakeIntensity = 0.07;
-          const shakeSpeed = 1000;
-          const decay = 1 - shakeTimeRef.current / 0.6;
-
-          const cameraRight = shakeVectorRef.current;
-          cameraRight.setFromMatrixColumn(camera.matrixWorld, 0);
-          cameraRight.normalize();
-
-          const shakeAmount = shakeIntensity * decay * Math.sin(shakeTimeRef.current * shakeSpeed);
-          cameraRight.multiplyScalar(shakeAmount);
-
-          groupRef.current.position.copy(cameraRight);
-        } else if (groupRef.current) {
-          groupRef.current.position.set(0, 0, 0);
-        }
-      } else if (groupRef.current && previousErrorFlashRef.current) {
-        groupRef.current.position.set(0, 0, 0);
-      }
-
-      previousErrorFlashRef.current = errorFlash;
-      
-      // === CENTRALIZED PIECE ANIMATION (only for tutorials) ===
-      // Skip if no tutorial-specific animations are needed
-      const needsFade = !!(previousCube3D && baselineCube3D && colorFadeProgress > 0);
-      const needsDulling = (dullOthersIntensity ?? 0) > 0;
-      const needsAnimation = needsFade || needsDulling;
-      
-      // Skip entirely during normal cube usage (no fade/dull)
-      if (!needsAnimation) {
-        wasAnimatingRef.current = false;
-        return;
-      }
-      
-      const temps = animColorRef.current;
-      
-      for (const [key, pieceData] of pieceMaterialsRef.current) {
-        const [x, y, z] = pieceData.gridIndex;
-        const isHighlighted = highlightSet.has(key);
-        
-        for (const face in pieceData.materials) {
-          const mat = pieceData.materials[face];
-          const base = pieceData.baseColors[face];
-          if (!mat || !base) continue;
-          
-          if (needsFade) {
-            const faceKey = `${x},${y},${z},${face}`;
-            const needsGreyFade = stickerGreyMap?.get(faceKey) ?? false;
-            const prevColors = previousCube3D?.[x]?.[y]?.[z]?.colors;
-            const baseColors = baselineCube3D?.[x]?.[y]?.[z]?.colors;
-            
-            if (prevColors && baseColors) {
-              temps.previous.set(prevColors[face as keyof CubeState["colors"]] || CUBE_COLORS.BLACK);
-              temps.baseline.set(baseColors[face as keyof CubeState["colors"]] || CUBE_COLORS.BLACK);
-              
-              if (colorFadeProgress <= 0.5) {
-                const phase1Progress = Math.min(1, colorFadeProgress / 0.5);
-                if (needsGreyFade) {
-                  temps.lerped.copy(temps.previous).lerp(temps.grey, phase1Progress);
-                  mat.color.copy(temps.lerped);
-                } else {
-                  mat.color.copy(temps.previous);
-                }
-              } else {
-                const phase2Progress = Math.min(1, (colorFadeProgress - 0.5) / 0.5);
-                const colorsDiffer = temps.previous.getHex() !== temps.baseline.getHex();
-                if (needsGreyFade || colorsDiffer) {
-                  temps.lerped.copy(needsGreyFade ? temps.grey : temps.previous).lerp(temps.baseline, phase2Progress);
-                  mat.color.copy(temps.lerped);
-                } else {
-                  mat.color.copy(temps.previous);
-                }
-              }
-              mat.needsUpdate = true;
-            }
-          } else if (needsDulling && !isHighlighted) {
-            temps.lerped.copy(base).lerp(temps.grey, dullOthersIntensity ?? 0);
-            mat.color.copy(temps.lerped);
-            mat.needsUpdate = true;
-          }
-        }
-      }
-      
-      wasAnimatingRef.current = needsAnimation;
-    });
-
-    // Create a Set for O(1) highlight lookups instead of O(n) array.some()
     const highlightSet = useMemo(() => {
       if (!highlightPositions || highlightPositions.length === 0) {
         return new Set<string>();
@@ -805,45 +363,89 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       return new Set(highlightPositions.map(([x, y, z]) => `${x},${y},${z}`));
     }, [highlightPositions]);
 
-    // Memoize the entire cube rendering to avoid recreating all 27 pieces on every render
+    useCubeFrameLoop({
+      groupRef,
+      camera,
+      disableSliceDrag,
+      updateDragRotation,
+      updateSnappingAnimation,
+      errorFlash,
+      shakeTimeRef,
+      previousErrorFlashRef,
+      shakeVectorRef,
+      previousCube3D,
+      baselineCube3D,
+      colorFadeProgress,
+      stickerGreyMap,
+      dullOthersIntensity,
+      highlightSet,
+      pieceMaterialsRef,
+      wasAnimatingRef,
+      animColorRef,
+    });
+
+    const handlePointerDownRef = useRef(handlePointerDown);
+    handlePointerDownRef.current = handlePointerDown;
+    const stableHandlePointerDown = useCallback(
+      (e: React.PointerEvent, pos: [number, number, number], intersectionPoint: THREE.Vector3) =>
+        handlePointerDownRef.current(e, pos, intersectionPoint),
+      []
+    );
+
+    const handleMeshReadyRef = useRef(handleMeshReady);
+    handleMeshReadyRef.current = handleMeshReady;
+    const stableHandleMeshReady = useCallback(
+      (mesh: THREE.Mesh, gridX: number, gridY: number, gridZ: number) =>
+        handleMeshReadyRef.current(mesh, gridX, gridY, gridZ),
+      []
+    );
+
+    const handleMaterialsReadyRef = useRef(handleMaterialsReady);
+    handleMaterialsReadyRef.current = handleMaterialsReady;
+    const stableHandleMaterialsReady = useCallback(
+      (key: string, data: PieceMaterialData) =>
+        handleMaterialsReadyRef.current(key, data),
+      []
+    );
+
+    const pieceChildrenRef = useRef(pieceChildren);
+    pieceChildrenRef.current = pieceChildren;
+    const stablePieceChildren = useCallback(
+      (x: number, y: number, z: number, piece: CubeState) =>
+        pieceChildrenRef.current?.(x, y, z, piece),
+      []
+    );
+
     const cubePieces = useMemo(() => {
       if (!logoTextureReady) return null;
 
       const nodes: React.ReactNode[] = [];
       cubeState.forEach((plane, x) => {
-        // Hide right face pieces (x === 2) when hideRightFace is true
         if (hideRightFace && x === 2) {
           return;
         }
-        // Hide left face pieces (x === 0) when hideLeftFace is true
         if (hideLeftFace && x === 0) {
           return;
         }
         plane.forEach((row, y) => {
-          // Hide top face pieces (y === 2) when hideTopFace is true
           if (hideTopFace && y === 2) {
             return;
           }
-          // Hide bottom face pieces (y === 0) when hideBottomFace is true
           if (hideBottomFace && y === 0) {
             return;
           }
           row.forEach((cubie, z) => {
-            // Hide front face pieces (z === 2) when hideFrontFace is true
             if (hideFrontFace && z === 2) {
               return;
             }
-            // Hide back face pieces (z === 0) when hideBackFace is true
             if (hideBackFace && z === 0) {
               return;
             }
             const cubieKey = `${x},${y},${z}`;
             const styleEntry = CUBIE_STYLE_MAP[cubieKey];
             const cornerStyles = styleEntry?.cornerBuilder || [];
-            // O(1) lookup instead of O(n) array.some()
             const isHighlighted = highlightSet.has(cubieKey);
             
-            // Get previous colors if available
             const previousColors = previousCube3D?.[x]?.[y]?.[z]?.colors || null;
             const baselineColors = baselineCube3D?.[x]?.[y]?.[z]?.colors || null;
             
@@ -861,8 +463,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 baselineColors={baselineColors}
                 stickerGreyMap={stickerGreyMap}
                 colorFadeProgress={colorFadeProgress}
-                roundedBoxGeometry={roundedBoxGeometry}
-                sharedLogoTexture={tiptonsTexture}
+                sharedLogoTexture={solvzTexture}
                 logoReady={logoReady}
                 hideLogo={hideLogo}
                 touchCount={touchCount}
@@ -871,9 +472,9 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 highlightIntensity={0}
                 dullOthersIntensity={!isHighlighted ? (dullOthersIntensity ?? 0) : 0}
                 trackingStateRef={trackingStateRef}
-                onPointerDown={handlePointerDown}
-                onMeshReady={handleMeshReady}
-                onMaterialsReady={handleMaterialsReady}
+                onPointerDown={stableHandlePointerDown}
+                onMeshReady={stableHandleMeshReady}
+                onMaterialsReady={stableHandleMaterialsReady}
                 onPointerMove={undefined}
               >
                 {styleEntry?.borderMeshes?.map((bm, idx) => {
@@ -901,7 +502,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                     </mesh>
                   );
                 })}
-                {pieceChildren?.(x, y, z, cubie)}
+                {stablePieceChildren(x, y, z, cubie)}
               </CubePiece>
             );
           });
@@ -923,23 +524,22 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       hideBottomFace,
       highlightSet,
       dullOthersIntensity,
-      roundedBoxGeometry,
-      tiptonsTexture,
+      solvzTexture,
       logoReady,
       hideLogo,
       touchCount,
-      handlePointerDown,
-      handleMeshReady,
-      handleMaterialsReady,
-      pieceChildren,
+      stableHandlePointerDown,
+      stableHandleMeshReady,
+      stableHandleMaterialsReady,
+      stablePieceChildren,
     ]);
 
     return (
       <group
         ref={groupRef}
         onPointerLeave={handleLeaveCube}
-        onPointerMove={inputDisabled ? undefined : handlePreciseHover}
-        onPointerDown={inputDisabled ? undefined : handleBoundaryPointerDown}
+        onPointerMove={handlePreciseHover}
+        onPointerDown={handleBoundaryPointerDown}
       >
         {children}
         {cubePieces}

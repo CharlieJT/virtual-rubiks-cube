@@ -16,7 +16,7 @@ interface UseTutorialPointerHandlerParams {
   cubeViewRef: React.RefObject<RubiksCube3DHandle | null>;
 }
 
-export const useTutorialPointerHandler = ({
+const useTutorialPointerHandler = ({
   isTouchDevice,
   setInteractiveDpr,
   hasInteractedGloballyRef,
@@ -70,4 +70,6 @@ export const useTutorialPointerHandler = ({
     handlePointerUp,
   };
 };
+
+export default useTutorialPointerHandler;
 

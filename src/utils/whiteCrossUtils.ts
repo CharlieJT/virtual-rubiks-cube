@@ -13,15 +13,6 @@ export const getCubieColorSet = (piece: CubeState) => {
   return colors;
 };
 
-// Standard filter for white cross lessons - shows centers and white edges
-export const whiteCrossFilter = (piece: CubeState) => {
-  const { x, y, z } = piece.position;
-  const isCenter = [x === 1, y === 1, z === 1].filter(Boolean).length === 2;
-  if (isCenter) return true;
-  const set = getCubieColorSet(piece);
-  return set.size === 2 && set.has(CUBE_COLORS.WHITE);
-};
-
 // White cross detection logic
 export const isWhiteCrossSolved = (cubeWrapper: CubeJSWrapper) => {
   const currentCube = cubeWrapper.getCube();

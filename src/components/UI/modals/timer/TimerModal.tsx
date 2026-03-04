@@ -43,15 +43,14 @@ const TimerModal: React.FC<TimerModalProps> = ({
         <Button
           onClick={onStartTimer}
           disabled={isStarting}
-          className={`px-4 py-1 rounded-lg font-bold w-[140px] text-white border-none relative transition-opacity ${
-            isStarting
-              ? "bg-indigo-300 opacity-70 cursor-not-allowed"
-              : "bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 hover:opacity-90 cursor-pointer"
+          className={`px-5 py-2.5 rounded-xl font-semibold w-[150px] text-white border-none relative transition-all duration-200 hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] ${
+            isStarting ? "opacity-70 cursor-not-allowed" : "cursor-pointer"
           }`}
+          style={{ backgroundColor: isStarting ? "#90a4ae" : "#2979FF" }}
         >
           {isStarting ? (
             <span className="inline-flex pt-1 items-center gap-2">
-              <span className="w-6 h-6 mr-1 border-4 border-gray-200 border-t-4 border-t-cyan-400 rounded-full animate-spin"></span>
+              <span className="w-8 h-6 mr-1 border-4 border-gray-200 border-t-4 border-t-blue-400 rounded-full animate-spin"></span>
             </span>
           ) : (
             "Start Session"
@@ -59,7 +58,7 @@ const TimerModal: React.FC<TimerModalProps> = ({
         </Button>
         <Button
           onClick={onSkip}
-          className="px-4 py-2 rounded-lg font-bold bg-cyan-50 text-blue-900 border-2 border-cyan-400 hover:bg-cyan-100 transition-colors"
+          className="px-5 py-2.5 rounded-xl font-semibold bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-all duration-200"
         >
           Cancel
         </Button>

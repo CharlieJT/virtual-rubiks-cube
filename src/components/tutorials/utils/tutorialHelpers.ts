@@ -76,7 +76,7 @@ export const getSlideCameraConfig = (
     return { extraYawRad: 0, slideId: slideIdForLogging };
   }
 
-  if (slideId === "practice-setup-solution") {
+  if (slideId === "corner-white-facing-right") {
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -99,7 +99,7 @@ export const getSlideCameraConfig = (
     };
   }
 
-  if (slideId === "practice-setup-solution-2") {
+  if (slideId === "corner-white-facing-left") {
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -124,7 +124,7 @@ export const getSlideCameraConfig = (
     return config;
   }
 
-  if (slideId === "practice-setup-solution-6") {
+  if (slideId === "corner-move-to-correct") {
     return {
       extraYawRad: (Math.PI / 180) * -30,
       flipUpsideDown: true,
@@ -133,9 +133,9 @@ export const getSlideCameraConfig = (
     };
   }
 
-  if (slideId === "practice-setup-solution-9") {
+  if (slideId === "corner-insert-two-pieces") {
     return {
-      extraYawRad: (Math.PI / 180) * -240, // Initial yaw -240
+      extraYawRad: (Math.PI / 180) * -240,
       flipUpsideDown: true,
       extraPitchDeg: -10,
       slideId: slideIdForLogging,
@@ -143,11 +143,11 @@ export const getSlideCameraConfig = (
   }
 
   if (
-    slideId === "practice-setup-solution-3" ||
-    slideId === "practice-setup-solution-4" ||
-    slideId === "practice-setup-solution-5" ||
-    slideId === "second-layer-setup-solution-2" ||
-    slideId === "second-layer-setup-solution-4"
+    slideId === "corner-white-facing-up" ||
+    slideId === "corner-remove-reinsert" ||
+    slideId === "corner-remove-reinsert-alt" ||
+    slideId === "edge-insert-right" ||
+    slideId === "edge-flipped-in-position"
   ) {
     return {
       extraYawRad: 0,
@@ -158,7 +158,7 @@ export const getSlideCameraConfig = (
     };
   }
 
-  if (slideId === "second-layer-setup-solution") {
+  if (slideId === "edge-insert-left") {
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -168,7 +168,7 @@ export const getSlideCameraConfig = (
     };
   }
 
-  if (slideId === "second-layer-setup-solution-3") {
+  if (slideId === "edge-remove-reinsert") {
     return {
       extraYawRad: (Math.PI / 180) * -90,
       flipUpsideDown: true,
@@ -178,14 +178,14 @@ export const getSlideCameraConfig = (
     };
   }
 
-  if (slideId === "recap-white-cross") {
+  if (slideId === "white-cross-recap") {
     return {
       extraYawRad: 0,
       slideId: slideIdForLogging,
     };
   }
 
-  if (slideId === "recap-white-corners") {
+  if (slideId === "white-corners-recap") {
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -209,26 +209,26 @@ export const getSlideCameraConfig = (
     slideId === "yellow-cross-triangle" ||
     slideId === "yellow-cross-dot" ||
     (slideId === "intro" && lessonId === "yellow-edges") ||
-    slideId === "yellow-edges-solution" ||
-    slideId === "yellow-edges-solution-2" ||
-    slideId === "yellow-edges-solution-3" ||
-    slideId === "yellow-edges-solution-4" ||
-    slideId === "yellow-corners-solution" ||
-    slideId === "yellow-corners-solution-2" ||
-    slideId === "yellow-corners-solution-3" ||
+    slideId === "yellow-edges-algorithm" ||
+    slideId === "yellow-edges-one-correct" ||
+    slideId === "yellow-edges-zero-correct" ||
+    slideId === "yellow-edges-two-opposite" ||
+    slideId === "yellow-corners-one-correct" ||
+    slideId === "yellow-corners-zero-correct" ||
+    slideId === "yellow-corners-zero-repeated" ||
     (slideId === "intro" && lessonId === "yellow-corners")
   ) {
     const extraYaw =
       slideId === "yellow-cross-line" ||
       slideId === "yellow-cross-triangle" ||
       slideId === "yellow-cross-dot" ||
-      slideId === "yellow-edges-solution" ||
-      slideId === "yellow-edges-solution-2" ||
-      slideId === "yellow-edges-solution-3" ||
-      slideId === "yellow-edges-solution-4" ||
-      slideId === "yellow-corners-solution" ||
-      slideId === "yellow-corners-solution-2" ||
-      slideId === "yellow-corners-solution-3"
+      slideId === "yellow-edges-algorithm" ||
+      slideId === "yellow-edges-one-correct" ||
+      slideId === "yellow-edges-zero-correct" ||
+      slideId === "yellow-edges-two-opposite" ||
+      slideId === "yellow-corners-one-correct" ||
+      slideId === "yellow-corners-zero-correct" ||
+      slideId === "yellow-corners-zero-repeated"
         ? (Math.PI / 180) * 45
         : 0;
     return {
@@ -240,9 +240,9 @@ export const getSlideCameraConfig = (
   }
 
   if (
-    slideId === "practice-white-corners" ||
-    slideId === "practice-white-corners-2" ||
-    slideId === "practice-white-corners-3"
+    slideId === "practice-two-corners" ||
+    slideId === "practice-three-corners" ||
+    slideId === "practice-four-corners"
   ) {
     return {
       extraYawRad: 0,
@@ -264,9 +264,9 @@ export const getSlideCameraConfig = (
   }
 
   if (
-    slideId === "practice-second-layer" ||
-    slideId === "practice-second-layer-2" ||
-    slideId === "practice-second-layer-3"
+    slideId === "practice-two-second-edges" ||
+    slideId === "practice-three-second-edges" ||
+    slideId === "practice-four-second-edges"
   ) {
     return {
       extraYawRad: 0,
@@ -1007,69 +1007,6 @@ export const isCubeFullySolved = (cube3D: CubeState[][][]) => {
     }
   }
   return true;
-};
-
-/**
- * Find all white edge cubie indices (WHITE + GREEN|RED|BLUE|ORANGE)
- */
-export const findWhiteEdgeIndices = (
-  cube3D: CubeState[][][]
-): Array<[number, number, number]> => {
-  const allowed = new Set([
-    CUBE_COLORS.GREEN,
-    CUBE_COLORS.RED,
-    CUBE_COLORS.BLUE,
-    CUBE_COLORS.ORANGE,
-  ]);
-  const out: Array<[number, number, number]> = [];
-  for (let x = 0; x < 3; x++) {
-    for (let y = 0; y < 3; y++) {
-      for (let z = 0; z < 3; z++) {
-        const piece = cube3D[x][y][z];
-        const colors = getCubieColorSet(piece);
-        if (
-          colors.size === 2 &&
-          colors.has(CUBE_COLORS.WHITE) &&
-          [...colors].some((c) => allowed.has(c) && c !== CUBE_COLORS.WHITE)
-        ) {
-          out.push([x, y, z]);
-        }
-      }
-    }
-  }
-  return out;
-};
-
-/**
- * Find all white corner cubie indices
- */
-export const findWhiteCornerIndices = (
-  cube3D: CubeState[][][]
-): Array<[number, number, number]> => {
-  const allowed = new Set([
-    CUBE_COLORS.GREEN,
-    CUBE_COLORS.RED,
-    CUBE_COLORS.BLUE,
-    CUBE_COLORS.ORANGE,
-  ]);
-  const out: Array<[number, number, number]> = [];
-  for (let x = 0; x < 3; x++) {
-    for (let y = 0; y < 3; y++) {
-      for (let z = 0; z < 3; z++) {
-        const piece = cube3D[x][y][z];
-        const colors = getCubieColorSet(piece);
-        if (
-          colors.size === 3 &&
-          colors.has(CUBE_COLORS.WHITE) &&
-          [...colors].filter((c) => allowed.has(c) && c !== CUBE_COLORS.WHITE)
-            .length === 2
-        ) {
-          out.push([x, y, z]);
-        }
-      }
-    }
-  }
-  return out;
 };
 
 /**

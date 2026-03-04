@@ -19,7 +19,7 @@ import {
   getSliceRotationMove,
   getSliceLayerChecker,
 } from "@components/tutorials/utils/sliceMoveHelpers";
-import { resetYawRefsForSlide } from "@components/tutorials/utils/yawResetHelpers";
+import resetYawRefsForSlide from "@components/tutorials/utils/yawResetHelpers";
 import type { UseSlideSpecificStateReturn } from "@components/tutorials/hooks/useSlideSpecificState";
 
 interface UseTutorialErrorFadeParams {
@@ -42,10 +42,10 @@ interface UseTutorialErrorFadeParams {
   setOrbitControlsEnabled: (value: boolean) => void;
   disableOrbitTemporarily: () => void;
   clearControlsInternal: () => void;
-  orbitPrevRef: React.RefObject<{ x: number; y: number } | null>;
+  orbitPrevRef: React.RefObject<Record<string, unknown> | null>;
 }
 
-export const useTutorialErrorFade = ({
+const useTutorialErrorFade = ({
   lessonId,
   activeSlide,
   slides,
@@ -100,10 +100,15 @@ export const useTutorialErrorFade = ({
         }
       }
 
-      const currentCubeStateWithWrongMove = cubejsTo3D(cubeRef.current.getCube());
+      const currentCubeStateWithWrongMove = cubejsTo3D(
+        cubeRef.current.getCube(),
+      );
       const currentCubeStateForComparison = currentCubeStateWithWrongMove;
 
-      const base = createTutorialCubeState(lessonId, currentCubeStateWithWrongMove);
+      const base = createTutorialCubeState(
+        lessonId,
+        currentCubeStateWithWrongMove,
+      );
       const grey = "#808080";
 
       let filtered = base;
@@ -126,8 +131,8 @@ export const useTutorialErrorFade = ({
                   bottom: grey,
                 },
               };
-            })
-          )
+            }),
+          ),
         );
       }
 
@@ -160,14 +165,15 @@ export const useTutorialErrorFade = ({
                 return { ...piece, colors: newColors };
               }
               return piece;
-            })
-          )
+            }),
+          ),
         );
       }
 
       const finalFiltered =
         lessonId === "rubiks-cube-introduction" &&
-        (activeSlide?.id === "edge-pieces" || activeSlide?.id === "corner-pieces")
+        (activeSlide?.id === "edge-pieces" ||
+          activeSlide?.id === "corner-pieces")
           ? makeCentersGrey(filtered)
           : filtered;
 
@@ -203,8 +209,8 @@ export const useTutorialErrorFade = ({
                   bottom: grey,
                 },
               };
-            })
-          )
+            }),
+          ),
         );
       }
 
@@ -237,20 +243,23 @@ export const useTutorialErrorFade = ({
                 return { ...piece, colors: newColors };
               }
               return piece;
-            })
-          )
+            }),
+          ),
         );
       }
 
       const finalBaselineFiltered =
         lessonId === "rubiks-cube-introduction" &&
-        (activeSlide?.id === "edge-pieces" || activeSlide?.id === "corner-pieces")
+        (activeSlide?.id === "edge-pieces" ||
+          activeSlide?.id === "corner-pieces")
           ? makeCentersGrey(baselineFiltered)
           : baselineFiltered;
 
       const greyMap = new Map<string, boolean>();
 
-      let isInSliceLayer: ((x: number, y: number, z: number) => boolean) | null = null;
+      let isInSliceLayer:
+        | ((x: number, y: number, z: number) => boolean)
+        | null = null;
 
       if (wrongMoveIsSlice && wrongMove) {
         isInSliceLayer = getSliceLayerChecker(wrongMove);
@@ -266,7 +275,7 @@ export const useTutorialErrorFade = ({
       if (wrongMoveIsSlice) {
         const comparisonBase = createTutorialCubeState(
           lessonId,
-          currentCubeStateForComparison
+          currentCubeStateForComparison,
         );
         let comparisonFilteredTemp = comparisonBase;
         if (activeSlide?.filter) {
@@ -289,8 +298,8 @@ export const useTutorialErrorFade = ({
                     bottom: grey,
                   },
                 };
-              })
-            )
+              }),
+            ),
           );
         }
         if (lessonId === "yellow-cross") {
@@ -322,13 +331,14 @@ export const useTutorialErrorFade = ({
                   return { ...piece, colors: newColors };
                 }
                 return piece;
-              })
-            )
+              }),
+            ),
           );
         }
         comparisonFiltered =
           lessonId === "rubiks-cube-introduction" &&
-          (activeSlide?.id === "edge-pieces" || activeSlide?.id === "corner-pieces")
+          (activeSlide?.id === "edge-pieces" ||
+            activeSlide?.id === "corner-pieces")
             ? makeCentersGrey(comparisonFilteredTemp)
             : comparisonFilteredTemp;
       }
@@ -412,7 +422,7 @@ export const useTutorialErrorFade = ({
           }
           orbitPrevRef.current = null;
           isTransitioningRef.current = false;
-        }
+        },
       );
 
       const phase1Duration = 120;
@@ -479,8 +489,10 @@ export const useTutorialErrorFade = ({
       disableOrbitTemporarily,
       clearControlsInternal,
       orbitPrevRef,
-    ]
+    ],
   );
 
   return { showErrorFade };
 };
+
+export default useTutorialErrorFade;

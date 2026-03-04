@@ -6,7 +6,7 @@ interface UseSequencePortalPositionParams {
   cubeContainerRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export const useSequencePortalPosition = ({
+const useSequencePortalPosition = ({
   fixSequenceLength,
   activeSlideId,
   cubeContainerRef,
@@ -57,4 +57,6 @@ export const useSequencePortalPosition = ({
 
   return sequencePortalPosition;
 };
+
+export default useSequencePortalPosition;
 

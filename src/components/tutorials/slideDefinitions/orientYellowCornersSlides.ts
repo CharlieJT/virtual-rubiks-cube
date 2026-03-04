@@ -209,7 +209,6 @@ const getOrientYellowCornersSlides = (): Slide[] => [
       allowFaceMoves: true,
       setup: (cube: CubeInterface) => {
         cube.reset();
-        // Fixed solvable scramble (approx. 20 moves)
         cube.applyMoves([
           "R",
           "U2",
