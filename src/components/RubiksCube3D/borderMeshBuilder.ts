@@ -7,7 +7,7 @@ import { BORDER_RADIUS, BORDER_DEPTH, BORDER_LENGTH } from "./geometry";
  * and each edge piece gets 1 cylinder descriptor.
  * Runs once at module load time.
  */
-export const initBorderMeshes = () => {
+const initBorderMeshes = () => {
   Object.entries(CUBIE_STYLE_MAP).forEach(([key, entry]) => {
     if (!entry) return;
 
@@ -196,3 +196,5 @@ export const initBorderMeshes = () => {
     }
   });
 };
+
+export default initBorderMeshes;

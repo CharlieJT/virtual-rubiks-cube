@@ -136,7 +136,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
   return (
     <div className="sticky bottom-0 w-full bg-white/70 backdrop-blur-2xl border-t border-gray-200/30 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] z-40">
       <div
-        className="max-w-screen-2xl mx-auto px-3 pt-1 pb-3"
+        className="max-w-screen-2xl mx-auto p-3"
         style={{ minHeight: "4em" }}
       >
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-6">

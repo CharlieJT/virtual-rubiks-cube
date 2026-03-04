@@ -97,14 +97,14 @@ const ControlPanel = ({
   }, []);
 
   return (
-    <div className="fixed bottom-5 left-0 right-0 z-40">
-      <div className="w-full max-w-6xl mx-auto pb-[calc(env(safe-area-inset-bottom,0px)+.9rem)]">
+    <div className="w-full py-2 z-40 shrink-0">
+      <div className="w-full max-w-6xl mx-auto">
         <div className="flex flex-col items-center w-full">
-          <div className="flex flex-row flex-wrap gap-2 md:gap-3 justify-center items-center w-full relative">
+          <div className="flex flex-row flex-wrap gap-2 justify-center items-center w-full relative">
             {isTimerActive ? (
-              <div className="flex gap-2.5">
+              <>
                 <Button
-                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  className="cursor-pointer text-white font-semibold py-2 px-3 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
                   style={{ backgroundColor: "#FF9100" }}
                   onClick={onTimerReset}
                   disabled={!isTimerRunning || isSolving || isScrambling}
@@ -112,18 +112,18 @@ const ControlPanel = ({
                   Reset
                 </Button>
                 <Button
-                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  className="cursor-pointer text-white font-semibold py-2 px-3 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
                   style={{ backgroundColor: "#FF1744" }}
                   onClick={onTimerQuit}
                   disabled={isSolving || isScrambling || inputDisabled}
                 >
                   Quit Session
                 </Button>
-              </div>
+              </>
             ) : (
               <>
                 <Button
-                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  className="cursor-pointer text-white font-semibold py-2 px-3 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
                   style={{ backgroundColor: "#2979FF" }}
                   onClick={onScramble}
                   disabled={isSolving || isScrambling}
@@ -131,7 +131,7 @@ const ControlPanel = ({
                   Scramble
                 </Button>
                 <Button
-                  className="cursor-pointer text-white font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
+                  className="cursor-pointer text-white font-semibold py-2 px-3 rounded-xl transition-all duration-200 text-sm shadow-lg hover:brightness-110 hover:scale-[1.02] active:scale-[0.98]"
                   style={{ backgroundColor: "#0DB400" }}
                   onClick={onSolve}
                   disabled={isSolving || isScrambling || !isScrambled}
@@ -140,7 +140,7 @@ const ControlPanel = ({
                 </Button>
                 <div className="relative" ref={dropdownRef}>
                   <Button
-                    className="cursor-pointer bg-white/15 backdrop-blur-md text-white font-semibold py-2.5 px-3 rounded-xl transition-all duration-200 text-sm shadow-lg border border-white/20 hover:bg-white/25 hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+                    className="cursor-pointer bg-white/15 backdrop-blur-md text-white font-semibold py-2 px-3 rounded-xl transition-all duration-200 text-sm shadow-lg border border-white/20 hover:bg-white/25 hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
                     onClick={() => setShowDropdown(!showDropdown)}
                     disabled={isSolving || isScrambling}
                   >

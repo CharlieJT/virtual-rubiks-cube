@@ -151,7 +151,7 @@ export type RubiksCube3DHandle = {
   celebratorySpin: (onComplete?: () => void) => void;
   resetToInitialPosition: (
     orbitControlsRef?: React.RefObject<OrbitControlsInstance | null>,
-    cubeRef?: React.RefObject<CubeJSWrapper>,
+    cubeRef?: React.RefObject<CubeJSWrapper | null>,
     onComplete?: () => void,
     instant?: boolean
   ) => void;

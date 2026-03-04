@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { CubeMove } from "@/types/cube";
+import type { CubeMove, Solution } from "@/types/cube";
 import { AnimationHelper } from "@utils/animationHelper";
 import type { CubeJSWrapper } from "@utils/cubejsWrapper";
 import type { OrbitControlsInstance } from "@/types/orbitControls";
@@ -24,7 +24,7 @@ interface UseScrambleLogicParams {
   setSolutionIndex: React.Dispatch<React.SetStateAction<number>>;
   setIsScramblingState: React.Dispatch<React.SetStateAction<boolean>>;
   setIsScrambled: React.Dispatch<React.SetStateAction<boolean>>;
-  setSolution: React.Dispatch<React.SetStateAction<any>>;
+  setSolution: React.Dispatch<React.SetStateAction<Solution | null>>;
   setLastSolvedState: React.Dispatch<React.SetStateAction<string | null>>;
   setIsGenerating: React.Dispatch<React.SetStateAction<boolean>>;
   setShowSolutionGeneratedModal: React.Dispatch<React.SetStateAction<boolean>>;

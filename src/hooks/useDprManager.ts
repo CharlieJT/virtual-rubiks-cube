@@ -1,6 +1,5 @@
 import { useCallback, useRef, useMemo } from "react";
 
-// Get device pixel ratio safely (works in SSR and browser)
 const getDevicePixelRatio = () => {
   if (typeof window !== "undefined") {
     return Math.min(window.devicePixelRatio || 1, 2);
@@ -18,7 +17,6 @@ const useDprManager = () => {
     return {
       // Full quality (idle) - kept constant to avoid visual inconsistency
       idle: dpr,
-      // Minimum when performance is struggling
       minimum: 1,
     };
   }, []);
@@ -27,19 +25,15 @@ const useDprManager = () => {
 
   const attachSetDpr = useCallback((setter: (dpr: number) => void) => {
     setDprRef.current = setter;
-    // Set initial DPR to idle
     setter(config.idle);
     currentDprRef.current = config.idle;
   }, [config.idle]);
 
   // No-op - kept for API compatibility but does nothing
   // Interactive/idle switching disabled to keep borders consistent
-  const setInteractiveDpr = useCallback(() => {
-    // No-op - DPR stays constant
-  }, []);
+  const setInteractiveDpr = useCallback(() => {}, []);
 
   // Called by PerformanceMonitor when FPS drops
-  // Only reduce DPR for severe performance issues
   const onDecline = useCallback(() => {
     if (setDprRef.current) {
       setDprRef.current(config.minimum);
@@ -48,7 +42,6 @@ const useDprManager = () => {
   }, [config.minimum]);
   
   // Called by PerformanceMonitor when FPS recovers
-  // Restore to idle DPR when performance improves
   const onIncline = useCallback(() => {
     if (setDprRef.current) {
       setDprRef.current(config.idle);

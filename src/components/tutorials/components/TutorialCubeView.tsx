@@ -4,6 +4,7 @@ import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
 import RubiksCube3D from "@components/RubiksCube3D";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import type { CubeMove, CubeState } from "@/types/cube";
+import type { CubeJSWrapper } from "@utils/cubejsWrapper";
 import CUBE_COLORS from "@/consts/cubeColours";
 import PracticeStatusIndicator from "@components/tutorials/components/PracticeStatusIndicator";
 import SlideControls from "@components/tutorials/components/SlideControls";
@@ -17,9 +18,9 @@ import {
 import { getSlideCameraConfig } from "@components/tutorials/utils/tutorialHelpers";
 import BeginnersMethodGrid from "@components/tutorials/components/BeginnersMethodGrid";
 import YellowCrossCasesGrid from "@components/tutorials/components/YellowCrossCasesGrid";
-import { useRubiksCube3DProps } from "@/hooks/useRubiksCube3DProps";
-import { useTutorialPointerHandler } from "@components/tutorials/hooks/useTutorialPointerHandler";
-import { useGhostPieceIndicator } from "@components/tutorials/hooks/useGhostPieceIndicator";
+import useRubiksCube3DProps from "@/hooks/useRubiksCube3DProps";
+import useTutorialPointerHandler from "@components/tutorials/hooks/useTutorialPointerHandler";
+import useGhostPieceIndicator from "@components/tutorials/hooks/useGhostPieceIndicator";
 import GhostPieceIndicator from "@components/tutorials/components/GhostPieceIndicator";
 import type { OrbitControlsInstance } from "@/types/orbitControls";
 import {
@@ -81,7 +82,7 @@ interface TutorialCubeViewProps {
   isResettingOrbit: boolean;
   isTransitioning: boolean;
   resetToSlideBaseline: () => Promise<void>;
-  cubeRef: React.RefObject<any>;
+  cubeRef: React.RefObject<CubeJSWrapper | null>;
   handleTrackpadPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   handleTrackpadPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
   handleTrackpadPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -242,8 +243,6 @@ const TutorialCubeView = ({
   };
 
   const handlePracticeOrbitChangeWithGhost = (enabled: boolean) => {
-    // When orbit is disabled, it means user is interacting with cube
-    // When orbit is enabled, user is not interacting (just orbiting)
     setIsInteractingWithCube(!enabled);
     if (!enabled) {
       handleCubeInteraction();
@@ -271,7 +270,6 @@ const TutorialCubeView = ({
     inputDisabled: inputDisabled || ghostIsVisible,
   });
 
-  // Show overlay when cube is animating, resetting (including orbit), transitioning between slides, error pulsing, or ghost piece is animating
   const showOverlay =
     isAnimating ||
     isResetting ||
@@ -282,7 +280,6 @@ const TutorialCubeView = ({
 
   return (
     <div className="flex-1 relative min-h-0">
-      {/* Overlay to block interactions during transitions */}
       {showOverlay && (
         <div className="absolute inset-0 bg-black/0 z-40 pointer-events-auto" />
       )}
@@ -344,7 +341,7 @@ const TutorialCubeView = ({
                 color={CUBE_COLORS.WHITE}
               />
               <TrackballControls
-                ref={orbitControlsRef as unknown as React.RefObject<any>}
+                ref={orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance | null>}
                 enabled={orbitControlsEnabled}
                 noRotate={isRecapSlide ? true : !orbitControlsEnabled}
                 noZoom={true}

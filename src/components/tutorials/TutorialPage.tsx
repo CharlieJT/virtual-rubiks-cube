@@ -2,20 +2,23 @@ import { useRef, useCallback, useMemo, useEffect } from "react";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
 import useTrackpadHandlers from "@/hooks/useTrackpadHandlers";
-import { useTutorialOrbitControls } from "@components/tutorials/hooks/useTutorialOrbitControls";
+import useTutorialOrbitControls from "@components/tutorials/hooks/useTutorialOrbitControls";
 import { getFixSequenceDisplay } from "@components/tutorials/utils/fixSequenceHelpers";
-import { isRecapSlide as checkIsRecapSlide, isPracticeSlide as checkIsPracticeSlide } from "@components/tutorials/consts/tutorialSlideConfig";
+import {
+  isRecapSlide as checkIsRecapSlide,
+  isPracticeSlide as checkIsPracticeSlide,
+} from "@components/tutorials/consts/tutorialSlideConfig";
 import { hasActiveHighlightBorder } from "@components/tutorials/consts/tutorialSlideConstants";
-import { useSlideTransition } from "@components/tutorials/hooks/useSlideTransition";
-import { useFixSequenceValidation } from "@components/tutorials/hooks/useFixSequenceValidation";
-import { useYellowIndicators } from "@components/tutorials/hooks/useYellowIndicators";
-import { useSequencePortalPosition } from "@components/tutorials/hooks/useSequencePortalPosition";
-import { useSlideInteractionRules } from "@components/tutorials/hooks/useSlideInteractionRules";
-import { useSlideSetup } from "@components/tutorials/hooks/useSlideSetup";
-import { useTutorialPageState } from "@components/tutorials/TutorialPageState";
-import { useTutorialErrorFade } from "@components/tutorials/useTutorialErrorFade";
-import { useTutorialReset } from "@components/tutorials/useTutorialReset";
-import { useTutorialMoveHandlers } from "@components/tutorials/useTutorialMoveHandlers";
+import useSlideTransition from "@components/tutorials/hooks/useSlideTransition";
+import useFixSequenceValidation from "@components/tutorials/hooks/useFixSequenceValidation";
+import useYellowIndicators from "@components/tutorials/hooks/useYellowIndicators";
+import useSequencePortalPosition from "@components/tutorials/hooks/useSequencePortalPosition";
+import useSlideInteractionRules from "@components/tutorials/hooks/useSlideInteractionRules";
+import useSlideSetup from "@components/tutorials/hooks/useSlideSetup";
+import useTutorialPageState from "@components/tutorials/TutorialPageState";
+import useTutorialErrorFade from "@components/tutorials/useTutorialErrorFade";
+import useTutorialReset from "@components/tutorials/useTutorialReset";
+import useTutorialMoveHandlers from "@components/tutorials/useTutorialMoveHandlers";
 import TutorialCubeView from "@components/tutorials/components/TutorialCubeView";
 import SlideFooter from "@components/tutorials/components/SlideFooter";
 import SlideSidePanel from "@components/tutorials/components/SlideSidePanel";
@@ -216,7 +219,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       practiceSetupSolution9YawChangedRef,
       resetSlideSpecificState,
       showSecondSequenceYellowEdges2: false,
-      secondSequenceYellowEdges2Locked: false
+      secondSequenceYellowEdges2Locked: false,
     },
     setCube3D,
     setPreviousTutorialCube3D,
@@ -228,7 +231,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setOrbitControlsEnabled,
     disableOrbitTemporarily,
     clearControlsInternal,
-    orbitPrevRef: orbitPrevRef as React.RefObject<{ x: number; y: number } | null>,
+    orbitPrevRef,
   });
 
   const { resetToSlideBaseline } = useTutorialReset({
@@ -314,43 +317,45 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setSecondSequenceYellowEdges2Locked,
   });
 
-  const { handleButtonMove, handleMoveAnimationDone } = useTutorialMoveHandlers({
-    fixSequence,
-    fixIndex,
-    fixDoublePartialDir,
-    activeSlide,
-    isAnimating,
-    isAnimatingRef,
-    lastMoveTimeRef,
-    lastMoveSourceRef,
-    moveHistoryRef,
-    historyIndexRef,
-    resetQueue,
-    resetIndexRef,
-    fixCompleted,
-    practiceCompleted,
-    cubeRef,
-    setCube3D,
-    setPendingMove,
-    setIsAnimating,
-    setMoveHistory,
-    setHistoryIndex,
-    setResetQueue,
-    setIsResetting,
-    setInputDisabled,
-    forceOrbitDisabledRef,
-    handleOrbitControlsChange,
-    validateMove,
-    isResettingRef,
-  });
+  const { handleButtonMove, handleMoveAnimationDone } = useTutorialMoveHandlers(
+    {
+      fixSequence,
+      fixIndex,
+      fixDoublePartialDir,
+      activeSlide,
+      isAnimating,
+      isAnimatingRef,
+      lastMoveTimeRef,
+      lastMoveSourceRef,
+      moveHistoryRef,
+      historyIndexRef,
+      resetQueue,
+      resetIndexRef,
+      fixCompleted,
+      practiceCompleted,
+      cubeRef,
+      setCube3D,
+      setPendingMove,
+      setIsAnimating,
+      setMoveHistory,
+      setHistoryIndex,
+      setResetQueue,
+      setIsResetting,
+      setInputDisabled,
+      forceOrbitDisabledRef,
+      handleOrbitControlsChange,
+      validateMove,
+      isResettingRef,
+    },
+  );
 
   const fixSequenceDisplay: string[] = useMemo(
     () => getFixSequenceDisplay(activeSlide?.id, fixSequence),
-    [activeSlide?.id, fixSequence]
+    [activeSlide?.id, fixSequence],
   );
 
   const isInitializingRef = useRef(false);
-  
+
   useSlideTransition({
     currentSlide,
     slides,
@@ -374,7 +379,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     cubeContainerRef as React.RefObject<HTMLDivElement>,
     cubeViewRef as React.RefObject<RubiksCube3DHandle>,
     precisionActive,
-    (enabled) => handleOrbitControlsChange(enabled)
+    (enabled) => handleOrbitControlsChange(enabled),
   );
   const {
     onPointerDown: handleTrackpadPointerDown,
@@ -382,7 +387,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     onPointerUp: handleTrackpadPointerUp,
   } = useTrackpadHandlers(
     cubeViewRef as React.RefObject<RubiksCube3DHandle>,
-    precisionActive
+    precisionActive,
   );
 
   useSlideInteractionRules({
@@ -414,7 +419,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   const handlePracticeOrbitChange = useCallback(
     (enabled: boolean) => {
       const isPracticeSlide10_11_12 = checkIsPracticeSlide(activeSlide?.id);
-      
+
       if (activeSlide?.allowFaceMoves === false && enabled) {
         return;
       }
@@ -450,7 +455,14 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
         handleOrbitControlsChange(enabled);
       }
     },
-    [activeSlide?.id, activeSlide?.allowFaceMoves, practiceCompleted, handleOrbitControlsChange, forceOrbitDisabledRef, isTransitioningRef]
+    [
+      activeSlide?.id,
+      activeSlide?.allowFaceMoves,
+      practiceCompleted,
+      handleOrbitControlsChange,
+      forceOrbitDisabledRef,
+      isTransitioningRef,
+    ],
   );
 
   const handleStartAnimation = useCallback(() => {
@@ -458,7 +470,12 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     isAnimatingRef.current = true;
     forceOrbitDisabledRef.current = true;
     handleOrbitControlsChange(false);
-  }, [handleOrbitControlsChange, setIsAnimating, isAnimatingRef, forceOrbitDisabledRef]);
+  }, [
+    handleOrbitControlsChange,
+    setIsAnimating,
+    isAnimatingRef,
+    forceOrbitDisabledRef,
+  ]);
 
   // Removed old showErrorFade - now provided by useTutorialErrorFade hook
   // Removed old resetToSlideBaseline - now provided by useTutorialReset hook

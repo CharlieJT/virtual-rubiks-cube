@@ -1,9 +1,12 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import CUBE_COLORS from "@/consts/cubeColours";
 import type { CubeState } from "@/types/cube";
 import type { AnimatedCubie } from "@/utils/animationHelper";
+
+const _cubieCenter = new THREE.Vector3();
+const _relative = new THREE.Vector3();
 
 const useHoverLogic = (
   cubeState: CubeState[][][],
@@ -15,6 +18,8 @@ const useHoverLogic = (
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const lastHoveredPieceRef = useRef<string | null>(null);
+  const cubeStateRef = useRef(cubeState);
+  useEffect(() => { cubeStateRef.current = cubeState; }, [cubeState]);
 
   const handlePreciseHover = useCallback(
     (e: React.PointerEvent) => {
@@ -60,37 +65,36 @@ const useHoverLogic = (
       const intersectedMesh = intersects[0].object as THREE.Mesh;
       const intersectionPoint = intersects[0].point;
 
-      // Find the corresponding cubie
       const cubie = cubiesRef.current?.find((c) => c.mesh === intersectedMesh);
       if (!cubie) return;
 
-      const cubieCenter = new THREE.Vector3(
+      _cubieCenter.set(
         (cubie.x - 1) * 1.05,
         (cubie.y - 1) * 1.05,
         (cubie.z - 1) * 1.05
       );
 
       const halfSize = 0.4655;
-      const relative = intersectionPoint.clone().sub(cubieCenter);
+      _relative.copy(intersectionPoint).sub(_cubieCenter);
       const withinBounds =
-        Math.abs(relative.x) <= halfSize &&
-        Math.abs(relative.y) <= halfSize &&
-        Math.abs(relative.z) <= halfSize;
+        Math.abs(_relative.x) <= halfSize &&
+        Math.abs(_relative.y) <= halfSize &&
+        Math.abs(_relative.z) <= halfSize;
 
       if (!withinBounds) return;
 
-      const absX = Math.abs(relative.x);
-      const absY = Math.abs(relative.y);
-      const absZ = Math.abs(relative.z);
+      const absX = Math.abs(_relative.x);
+      const absY = Math.abs(_relative.y);
+      const absZ = Math.abs(_relative.z);
       const faceThreshold = 0.4;
 
       let faceName = "";
       if (absX > faceThreshold && absX >= absY && absX >= absZ) {
-        faceName = relative.x > 0 ? "right" : "left";
+        faceName = _relative.x > 0 ? "right" : "left";
       } else if (absY > faceThreshold && absY >= absX && absY >= absZ) {
-        faceName = relative.y > 0 ? "top" : "bottom";
+        faceName = _relative.y > 0 ? "top" : "bottom";
       } else if (absZ > faceThreshold && absZ >= absX && absZ >= absY) {
-        faceName = relative.z > 0 ? "front" : "back";
+        faceName = _relative.z > 0 ? "front" : "back";
       }
 
       if (!faceName) return;
@@ -111,7 +115,7 @@ const useHoverLogic = (
 
       if (!isOuterFace) return;
 
-      const cubieState = cubeState[cubie.x]?.[cubie.y]?.[cubie.z];
+      const cubieState = cubeStateRef.current[cubie.x]?.[cubie.y]?.[cubie.z];
       if (!cubieState) return;
 
       const faceColors = {
@@ -132,7 +136,7 @@ const useHoverLogic = (
 
       lastHoveredPieceRef.current = pieceId;
     },
-    [cubeState, camera, groupRef, raycastTargetsRef, cubiesRef]
+    [camera, groupRef, raycastTargetsRef, cubiesRef]
   );
 
   const handleLeaveCube = useCallback(() => {

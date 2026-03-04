@@ -12,7 +12,7 @@ interface UseTutorialCube3DParams {
   activeSlideFilter?: ((piece: CubeState) => boolean) | undefined;
 }
 
-export const useTutorialCube3D = ({
+const useTutorialCube3D = ({
   lessonId,
   cube3D,
   activeSlideFilter,
@@ -92,3 +92,5 @@ export const useTutorialCube3D = ({
 
   return tutorialCube3D;
 };
+
+export default useTutorialCube3D;

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import cubejsTo3D from "@utils/cubejsTo3D";
-import type { CubeMove, CubeState } from "@/types/cube";
+import type { CubeMove, CubeState, Solution } from "@/types/cube";
 import CUBE_COLORS from "@/consts/cubeColours";
 import type { CubeJSWrapper } from "@utils/cubejsWrapper";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
@@ -28,7 +28,7 @@ interface UseFadeToSolvedParams {
   setScrambleMoves: React.Dispatch<React.SetStateAction<string[] | null>>;
   setShowScrambleOverlay: React.Dispatch<React.SetStateAction<boolean>>;
   setScrambleIndex: React.Dispatch<React.SetStateAction<number>>;
-  setSolution: React.Dispatch<React.SetStateAction<any>>;
+  setSolution: React.Dispatch<React.SetStateAction<Solution | null>>;
   setShowSolutionOverlay: React.Dispatch<React.SetStateAction<boolean>>;
   setSolutionIndex: React.Dispatch<React.SetStateAction<number>>;
   setIsSolving: React.Dispatch<React.SetStateAction<boolean>>;

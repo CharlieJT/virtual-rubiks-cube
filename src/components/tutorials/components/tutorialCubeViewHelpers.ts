@@ -54,7 +54,6 @@ export const getGhostPieceMove = (
     return slideToMove[activeSlideId];
   }
 
-  // Double move slides
   const doubleMoveMap: Record<string, "F" | "L" | "D"> = {
     "notation-double": "F",
     "notation-double-l": "L",
@@ -68,7 +67,6 @@ export const getGhostPieceMove = (
     return `${base}2`;
   }
 
-  // Sequence slides - derive from current fix sequence position
   if (
     activeSlideId === "notation-sequences" ||
     activeSlideId === "notation-sequences-longer"
@@ -76,7 +74,6 @@ export const getGhostPieceMove = (
     const nextMove = fixSequence[fixIndex];
     if (!nextMove) return "F";
 
-    // Handle double moves mid-execution
     if (nextMove.includes("2") && fixDoublePartialDir !== 0) {
       const baseMove = nextMove.replace("2", "");
       const partial = fixDoublePartialDir === 1 ? baseMove : `${baseMove}'`;
@@ -124,7 +121,6 @@ export const shouldHideFace = (
   const slideIds = faceToClockwiseSlides[face] || [];
   if (activeSlideId && slideIds.includes(activeSlideId)) return true;
 
-  // Sequence slides - check if current move affects this face
   if (
     activeSlideId === "notation-sequences" ||
     activeSlideId === "notation-sequences-longer"

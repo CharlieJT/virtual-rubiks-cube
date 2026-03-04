@@ -18,7 +18,7 @@ import SpinTrackpad from "@components/UI/SpinTrackpad";
 import TimerModal from "@components/UI/modals/timer/TimerModal";
 import QuitTimerModal from "@components/UI/modals/timer/QuitTimerModal";
 import ResetTimerModal from "@components/UI/modals/timer/ResetTimerModal";
-import TimerDisplay from "@components/TimerDisplay";
+import TimerDisplayContainer from "@components/TimerDisplayContainer";
 import SolveSuccessModal from "@components/UI/modals/solution/SolveSuccessModal";
 import SolutionGeneratedModal from "@components/UI/modals/solution/SolutionGeneratedModal";
 import SolutionAlreadyGeneratedModal from "@components/UI/modals/solution/SolutionAlreadyGeneratedModal";
@@ -28,7 +28,7 @@ import renderLesson from "@components/lessons";
 import BestTimesButton from "@components/UI/BestTimesButton";
 import useIsTouchDevice from "@/hooks/useIsTouchDevice";
 import useTimer from "@/hooks/useTimer";
-import { useBestTimes } from "@/hooks/useBestTimes";
+import useBestTimes from "@/hooks/useBestTimes";
 import useDprManager from "@/hooks/useDprManager";
 import usePrecisionMode from "@/hooks/usePrecisionMode";
 import useTwoFingerSpin from "@/hooks/useTwoFingerSpin";
@@ -176,8 +176,6 @@ const App = () => {
   useEffect(() => {
     solutionRef.current = solution;
   }, [solution]);
-
-  // --- Extracted hooks (composed in dependency order) ---
 
   const { pumpQueueSoon, enqueueMoves } = useMoveQueue({
     isAnimatingRef,
@@ -355,8 +353,6 @@ const App = () => {
       setConfirmSolveOpen,
     });
 
-  // --- Remaining inline handlers ---
-
   const handleButtonMove = useCallback(
     (move: string) => {
       const now = Date.now();
@@ -459,12 +455,6 @@ const App = () => {
         container.style.userSelect = "none";
         container.style.webkitUserSelect = "none";
       }
-      const lockedOverlay = cubeContainerRef.current.querySelector(
-        '[data-locked-overlay="true"]',
-      );
-      if (lockedOverlay) {
-        (lockedOverlay as HTMLElement).remove();
-      }
     }
     if (cubeViewRef.current) {
       cubeViewRef.current.resetToInitialPosition(
@@ -526,12 +516,6 @@ const App = () => {
             container.style.userSelect = "none";
             container.style.webkitUserSelect = "none";
           }
-          const lockedOverlay = cubeContainerRef.current.querySelector(
-            '[data-locked-overlay="true"]',
-          );
-          if (lockedOverlay) {
-            (lockedOverlay as HTMLElement).remove();
-          }
         }
       };
       restoreTouchEvents();
@@ -576,12 +560,6 @@ const App = () => {
             container.style.touchAction = "none";
             container.style.userSelect = "none";
             container.style.webkitUserSelect = "none";
-          }
-          const lockedOverlay = cubeContainerRef.current.querySelector(
-            '[data-locked-overlay="true"]',
-          );
-          if (lockedOverlay) {
-            (lockedOverlay as HTMLElement).remove();
           }
         }
       };
@@ -639,12 +617,6 @@ const App = () => {
         }
         container.style.pointerEvents = "auto";
         container.style.touchAction = "none";
-        const lockedOverlay = container.querySelector(
-          '[data-locked-overlay="true"]',
-        );
-        if (lockedOverlay) {
-          (lockedOverlay as HTMLElement).remove();
-        }
       };
       const timeout1 = setTimeout(ensureTouchEvents, 50);
       const timeout2 = setTimeout(ensureTouchEvents, 200);
@@ -700,7 +672,7 @@ const App = () => {
   return (
     <>
       <div
-        className="min-h-[103.5dvh] flex flex-col pb-28"
+        className="min-h-[100dvh] flex flex-col"
         style={{
           background: `
             radial-gradient(ellipse 80% 60% at 20% 10%, rgba(41,121,255,0.12) 0%, transparent 60%),
@@ -737,6 +709,17 @@ const App = () => {
                 "0 25px 60px -12px rgba(0,0,0,0.4), 0 0 80px -20px rgba(41,121,255,0.06)",
             }}
           >
+            {/* Transparent overlay during timer session transitions (start/quit/reset) and fade — blocks interaction like in lessons */}
+            {(isStartingSession ||
+              isQuittingSession ||
+              isResettingSession ||
+              inputDisabled) && (
+              <div
+                className="absolute inset-0 z-40 pointer-events-auto"
+                data-locked-overlay="true"
+                aria-hidden
+              />
+            )}
             <StatusBadge
               isScrambling={isScrambling}
               isSolving={isSolving}
@@ -745,10 +728,9 @@ const App = () => {
             />
             {isTimerEnabled ? (
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
-                <TimerDisplay
-                  time={getCurrentTime()}
-                  isActive={isTimerActive}
-                  hasStarted={isTimerActive}
+                <TimerDisplayContainer
+                  getCurrentTime={getCurrentTime}
+                  isTimerActive={isTimerActive}
                   isScrambling={isScrambling}
                 />
               </div>
@@ -869,7 +851,9 @@ const App = () => {
               />
               {canvasReady && (
                 <TrackballControls
-                  ref={orbitControlsRef as unknown as React.RefObject<any>}
+                  ref={
+                    orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance | null>
+                  }
                   enabled={orbitControlsEnabled && !modalCloseCooldown}
                   noRotate={false}
                   noZoom={true}
@@ -895,34 +879,36 @@ const App = () => {
             )}
           </div>
         </div>
-      </div>
 
-      <ControlPanel
-        onScramble={handleScramble}
-        onSolve={() => setConfirmSolveOpen(true)}
-        onGenerateSolution={handleGenerateSolution}
-        onStartTimer={handleStartTimer}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        canUndo={moveHistory.length > 0 && historyIndex >= 0}
-        canRedo={historyIndex < moveHistory.length - 1}
-        onTimerQuit={handleTimerQuit}
-        onTimerReset={handleTimerResetNew}
-        isTimerRunning={isTimerActive}
-        solution={solution}
-        isScrambled={isScrambled}
-        isSolving={isSolving}
-        isScrambling={isScrambling}
-        scrambleMoves={scrambleMoves}
-        scrambleIndex={scrambleIndex}
-        solutionIndex={solutionIndex}
-        isTimerActive={isTimerEnabled}
-        isGenerating={isGenerating}
-        showSolutionGeneratedModal={showSolutionGeneratedModal}
-        showSolutionAlreadyGeneratedModal={showSolutionAlreadyGeneratedModal}
-        inputDisabled={inputDisabled}
-        onLearnToSolve={handleLearnToSolveOpen}
-      />
+        <ControlPanel
+          onScramble={handleScramble}
+          onSolve={() => setConfirmSolveOpen(true)}
+          onGenerateSolution={handleGenerateSolution}
+          onStartTimer={handleStartTimer}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={moveHistory.length > 0 && historyIndex >= 0}
+          canRedo={historyIndex < moveHistory.length - 1}
+          onTimerQuit={handleTimerQuit}
+          onTimerReset={handleTimerResetNew}
+          isTimerRunning={isTimerActive}
+          solution={solution}
+          isScrambled={isScrambled}
+          isSolving={isSolving}
+          isScrambling={isScrambling}
+          scrambleMoves={scrambleMoves}
+          scrambleIndex={scrambleIndex}
+          solutionIndex={solutionIndex}
+          isTimerActive={isTimerEnabled}
+          isGenerating={isGenerating}
+          showSolutionGeneratedModal={showSolutionGeneratedModal}
+          showSolutionAlreadyGeneratedModal={showSolutionAlreadyGeneratedModal}
+          inputDisabled={inputDisabled}
+          onLearnToSolve={handleLearnToSolveOpen}
+        />
+
+        <Footer />
+      </div>
 
       <ConfirmModal
         isOpen={confirmSolveOpen}
@@ -986,8 +972,6 @@ const App = () => {
           (window as CustomWindowType).__tutorialBackLessonId || undefined
         }
       />
-
-      <Footer />
     </>
   );
 };
