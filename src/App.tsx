@@ -852,7 +852,9 @@ const App = () => {
               {canvasReady && (
                 <TrackballControls
                   ref={
-                    orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance | null>
+                    orbitControlsRef as unknown as React.ComponentRef<
+                      typeof TrackballControls
+                    >
                   }
                   enabled={orbitControlsEnabled && !modalCloseCooldown}
                   noRotate={false}

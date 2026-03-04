@@ -341,7 +341,11 @@ const TutorialCubeView = ({
                 color={CUBE_COLORS.WHITE}
               />
               <TrackballControls
-                ref={orbitControlsRef as unknown as React.RefObject<OrbitControlsInstance | null>}
+                ref={
+                  orbitControlsRef as unknown as React.ComponentRef<
+                    typeof TrackballControls
+                  >
+                }
                 enabled={orbitControlsEnabled}
                 noRotate={isRecapSlide ? true : !orbitControlsEnabled}
                 noZoom={true}
