@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import CUBE_COLORS from "@/consts/cubeColours";
@@ -19,7 +19,7 @@ const useHoverLogic = (
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const lastHoveredPieceRef = useRef<string | null>(null);
   const cubeStateRef = useRef(cubeState);
-  useEffect(() => { cubeStateRef.current = cubeState; }, [cubeState]);
+  cubeStateRef.current = cubeState;
 
   const handlePreciseHover = useCallback(
     (e: React.PointerEvent) => {

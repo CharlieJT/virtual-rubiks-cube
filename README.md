@@ -128,7 +128,7 @@ npm run tw:build
 - If you undo moves and then make a new move, the redo history is cleared.
 - Undo/Redo is disabled during timer sessions.
 
-Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to explore smooth animations, multi-touch gestures, and smart cube logic in the browser. Have fun scrambling, solving, and experimenting with the controls!
+Solvz is an interactive 3D Rubik's cube: drag faces to move, use the timer for speedcubing, or follow the built-in tutorials to learn the beginner method.
 
 ### Basic Controls
 
@@ -164,6 +164,7 @@ Hi, I’m Charlie Tipton. I built this interactive 3D Virtual Rubik’s Cube to 
 - **Personal Records**: Get notified when you achieve new personal bests
 - **View Leaderboard**: Click the list icon (top-left) to view your top 10 times
 - **Session Management**: Cancel, reset, or continue timer sessions as needed
+- **Try Again**: After a solve, use Try Again to reset the timer and start another attempt
 
 ### Advanced Features
 
