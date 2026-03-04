@@ -9,7 +9,7 @@ interface UseSequenceMeasurementsProps {
   slideKey?: string | number;
 }
 
-export const useSequenceMeasurements = ({
+const useSequenceMeasurements = ({
   parts,
   currentIndex,
   deferMeasurements = false,
@@ -150,3 +150,5 @@ export const useSequenceMeasurements = ({
     disableTransitions,
   };
 };
+
+export default useSequenceMeasurements;

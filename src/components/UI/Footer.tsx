@@ -1,10 +1,10 @@
 import React from "react";
 
 const Footer: React.FC = () => (
-  <footer className="fixed bottom-0 left-0 right-0 z-40 w-full py-1 bg-gray-900/80 text-gray-400 text-center text-xs backdrop-blur-sm border-t border-white/10">
+  <footer className="w-full shrink-0 py-1 bg-black/30 text-white/25 text-center text-[10px] font-medium tracking-wide backdrop-blur-md">
     <span>
-      Tipton's Solver &copy; {new Date().getFullYear()} &mdash; Built with
-      React, Three.js, & Tailwind
+      Solvz &copy; {new Date().getFullYear()} &mdash; Built with React, Three.js
+      & Tailwind
     </span>
   </footer>
 );

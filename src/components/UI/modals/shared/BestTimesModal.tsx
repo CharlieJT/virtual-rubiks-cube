@@ -29,7 +29,7 @@ const BestTimesModal: React.FC<BestTimesModalProps> = ({
         {/* Info Icon */}
         <div className="flex items-center justify-between mb-0">
           <h2 className="text-2xl font-bold text-black flex items-center gap-2">
-            <TrophyIcon size={28} />
+            <TrophyIcon size={28} className="text-yellow-600" />
           </h2>
         </div>
       </div>

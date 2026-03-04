@@ -16,7 +16,7 @@ interface UseYellowIndicatorsParams {
   fixIndex?: number;
 }
 
-export const useYellowIndicators = ({
+const useYellowIndicators = ({
   lessonId,
   activeSlideId,
   cube3D,
@@ -26,10 +26,10 @@ export const useYellowIndicators = ({
   const shouldShowYellowEdgeIndicators = useMemo(() => {
     return (
       lessonId === "yellow-edges" &&
-      (activeSlideId === "yellow-edges-solution" ||
-        activeSlideId === "yellow-edges-solution-2" ||
-        activeSlideId === "yellow-edges-solution-3" ||
-        activeSlideId === "yellow-edges-solution-4") &&
+      (activeSlideId === "yellow-edges-algorithm" ||
+        activeSlideId === "yellow-edges-one-correct" ||
+        activeSlideId === "yellow-edges-zero-correct" ||
+        activeSlideId === "yellow-edges-two-opposite") &&
       checkSecondLayerSolved(cube3D) &&
       isYellowCrossSolved(cube3D)
     );
@@ -58,9 +58,9 @@ export const useYellowIndicators = ({
   const shouldShowYellowCornerIndicators = useMemo(() => {
     return (
       lessonId === "yellow-corners" &&
-      (activeSlideId === "yellow-corners-solution" ||
-        activeSlideId === "yellow-corners-solution-2" ||
-        activeSlideId === "yellow-corners-solution-3") &&
+      (activeSlideId === "yellow-corners-one-correct" ||
+        activeSlideId === "yellow-corners-zero-correct" ||
+        activeSlideId === "yellow-corners-zero-repeated") &&
       checkSecondLayerSolved(cube3D) &&
       allYellowEdgesMatchCenters
     );
@@ -128,3 +128,5 @@ export const useYellowIndicators = ({
     combinedPieceChildren,
   };
 };
+
+export default useYellowIndicators;

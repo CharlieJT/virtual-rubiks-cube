@@ -53,7 +53,6 @@ export const shouldChangeYawForMidlayerGreenWhiteExtraction = (
     return null;
   }
 
-  // After first sequence (R' D' R) completes, reach index 3: change to -45 degrees
   if (nextIndex === 3 && slide8WhiteCrossYawStateRef.current === 0) {
     slide8WhiteCrossYawStateRef.current = 1;
     return {
@@ -64,7 +63,6 @@ export const shouldChangeYawForMidlayerGreenWhiteExtraction = (
     };
   }
 
-  // After second sequence (D') completes, reach index 4: change to 0 degrees
   if (nextIndex === 4 && slide8WhiteCrossYawStateRef.current === 1) {
     slide8WhiteCrossYawStateRef.current = 2;
     return {
@@ -131,7 +129,7 @@ export const shouldChangeYawForPracticeSetupSolution6 = (
   slide8YawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "practice-setup-solution-6" ||
+    slideId !== "corner-move-to-correct" ||
     nextIndex !== 5 ||
     slide8YawChangedRef.current
   ) {
@@ -156,15 +154,14 @@ export const shouldChangeYawForPracticeSetupSolution9 = (
   nextIndex: number,
   yawStateRef: MutableRefObject<number>
 ): YawChangeConfig | null => {
-  if (slideId !== "practice-setup-solution-9") {
+  if (slideId !== "corner-insert-two-pieces") {
     return null;
   }
 
-  // After U2 completes (nextIndex 1, start of Righty Algorithm): yaw 120
   if (nextIndex === 1 && yawStateRef.current === 0) {
     yawStateRef.current = 1;
     return {
-      extraYawRad: (Math.PI / 180) * (-30 + 120), // Initial -30 + 120 = 90
+      extraYawRad: (Math.PI / 180) * (-30 + 120),
       flipUpsideDown: true,
       extraERotationDeg: 120,
       extraPitchDeg: -10,
@@ -172,11 +169,10 @@ export const shouldChangeYawForPracticeSetupSolution9 = (
     };
   }
 
-  // After U completes (nextIndex 6, start of Lefty Algorithm): yaw 60
   if (nextIndex === 6 && yawStateRef.current === 1) {
     yawStateRef.current = 2;
     return {
-      extraYawRad: (Math.PI / 180) * 210, // Initial 210
+      extraYawRad: (Math.PI / 180) * 210,
       flipUpsideDown: true,
       extraERotationDeg: 180,
       extraPitchDeg: -10,
@@ -196,7 +192,7 @@ export const shouldChangeYawForSecondLayerSetupSolution = (
   secondLayerSetupYawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "second-layer-setup-solution" ||
+    slideId !== "edge-insert-left" ||
     nextIndex !== 5 ||
     secondLayerSetupYawChangedRef.current
   ) {
@@ -222,7 +218,7 @@ export const shouldChangeYawForSecondLayerSetupSolution2 = (
   secondLayerSetup2YawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "second-layer-setup-solution-2" ||
+    slideId !== "edge-insert-right" ||
     nextIndex !== 5 ||
     secondLayerSetup2YawChangedRef.current
   ) {
@@ -247,7 +243,7 @@ export const shouldChangeYawForSecondLayerSetupSolution3 = (
   nextIndex: number,
   secondLayerSetup3YawChangedRef: MutableRefObject<number>
 ): YawChangeConfig | null => {
-  if (slideId !== "second-layer-setup-solution-3") {
+  if (slideId !== "edge-remove-reinsert") {
     return null;
   }
 
@@ -295,11 +291,10 @@ export const shouldChangeYawForSecondLayerSetupSolution4 = (
   nextIndex: number,
   secondLayerSetup4YawChangedRef: MutableRefObject<number>
 ): YawChangeConfig | null => {
-  if (slideId !== "second-layer-setup-solution-4") {
+  if (slideId !== "edge-flipped-in-position") {
     return null;
   }
 
-  // Yaw changes at indices 5, 10, and 15
   if (nextIndex === 5 && secondLayerSetup4YawChangedRef.current < 5) {
     secondLayerSetup4YawChangedRef.current = 5;
     return {
@@ -345,7 +340,7 @@ export const shouldChangeYawForYellowEdgesSolution2 = (
   yellowEdges2YawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "yellow-edges-solution-2" ||
+    slideId !== "yellow-edges-one-correct" ||
     nextIndex !== 1 ||
     yellowEdges2YawChangedRef.current
   ) {
@@ -354,7 +349,7 @@ export const shouldChangeYawForYellowEdgesSolution2 = (
 
   yellowEdges2YawChangedRef.current = true;
   return {
-    extraYawRad: (Math.PI / 180) * -45, // 45 degrees to the left (negative)
+    extraYawRad: (Math.PI / 180) * -45,
     flipUpsideDown: true,
     extraERotationDeg: -45,
     slideId: slideId,
@@ -370,7 +365,7 @@ export const shouldChangeYawForYellowEdgesSolution3 = (
   yellowEdges3YawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "yellow-edges-solution-3" ||
+    slideId !== "yellow-edges-zero-correct" ||
     nextIndex !== 1 ||
     yellowEdges3YawChangedRef.current
   ) {
@@ -379,7 +374,7 @@ export const shouldChangeYawForYellowEdgesSolution3 = (
 
   yellowEdges3YawChangedRef.current = true;
   return {
-    extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
+    extraYawRad: (Math.PI / 180) * 135,
     flipUpsideDown: true,
     extraERotationDeg: -45,
     slideId: slideId,
@@ -395,7 +390,7 @@ export const shouldChangeYawForYellowEdgesSolution4 = (
   yellowEdges4YawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "yellow-edges-solution-4" ||
+    slideId !== "yellow-edges-two-opposite" ||
     nextIndex !== 7 ||
     yellowEdges4YawChangedRef.current
   ) {
@@ -404,7 +399,7 @@ export const shouldChangeYawForYellowEdgesSolution4 = (
 
   yellowEdges4YawChangedRef.current = true;
   return {
-    extraYawRad: (Math.PI / 180) * -90, // -90 degrees (to the left)
+    extraYawRad: (Math.PI / 180) * -90,
     flipUpsideDown: true,
     extraERotationDeg: 90,
     slideId: slideId,
@@ -420,7 +415,7 @@ export const shouldChangeYawForYellowCornersSolution2 = (
   yellowCorners2YawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "yellow-corners-solution-2" ||
+    slideId !== "yellow-corners-zero-correct" ||
     nextIndex !== 8 ||
     yellowCorners2YawChangedRef.current
   ) {
@@ -429,7 +424,7 @@ export const shouldChangeYawForYellowCornersSolution2 = (
 
   yellowCorners2YawChangedRef.current = true;
   return {
-    extraYawRad: (Math.PI / 180) * 135, // 135 degrees to the right (positive)
+    extraYawRad: (Math.PI / 180) * 135,
     flipUpsideDown: true,
     extraERotationDeg: -45,
     slideId: slideId,
@@ -445,7 +440,7 @@ export const shouldChangeYawForYellowCornersSolution3 = (
   yellowCorners3YawChangedRef: MutableRefObject<boolean>
 ): YawChangeConfig | null => {
   if (
-    slideId !== "yellow-corners-solution-3" ||
+    slideId !== "yellow-corners-zero-repeated" ||
     nextIndex !== 8 ||
     yellowCorners3YawChangedRef.current
   ) {
@@ -454,7 +449,7 @@ export const shouldChangeYawForYellowCornersSolution3 = (
 
   yellowCorners3YawChangedRef.current = true;
   return {
-    extraYawRad: (Math.PI / 180) * 225, // 225 degrees to the right (positive)
+    extraYawRad: (Math.PI / 180) * 225,
     flipUpsideDown: true,
     extraERotationDeg: -45,
     slideId: slideId,
@@ -473,7 +468,6 @@ export const shouldChangeYawForOrientTwoCorners = (
     return null;
   }
 
-  // After first 4 R U R' U' parts (16 moves, index 16): change to -10
   if (nextIndex === 16 && orientTwoCornersYawChangedRef.current < 16) {
     orientTwoCornersYawChangedRef.current = 16;
     return {
@@ -485,7 +479,6 @@ export const shouldChangeYawForOrientTwoCorners = (
     };
   }
 
-  // After D move (index 17): change to -60
   if (nextIndex === 17 && orientTwoCornersYawChangedRef.current < 17) {
     orientTwoCornersYawChangedRef.current = 17;
     return {
@@ -497,7 +490,6 @@ export const shouldChangeYawForOrientTwoCorners = (
     };
   }
 
-  // After next 2 R U R' U' parts (index 25): change to -10
   if (nextIndex === 25 && orientTwoCornersYawChangedRef.current < 25) {
     orientTwoCornersYawChangedRef.current = 25;
     return {
@@ -509,7 +501,6 @@ export const shouldChangeYawForOrientTwoCorners = (
     };
   }
 
-  // After D' move (index 26, sequence complete): change to -45
   if (nextIndex === 26 && orientTwoCornersYawChangedRef.current < 26) {
     orientTwoCornersYawChangedRef.current = 26;
     return {
@@ -536,7 +527,6 @@ export const shouldChangeYawForOrientThreeCorners = (
     return null;
   }
 
-  // After first 2 R U R' U' parts (8 moves, index 8): change to -10
   if (nextIndex === 8 && orientThreeCornersYawChangedRef.current < 8) {
     orientThreeCornersYawChangedRef.current = 8;
     return {
@@ -548,7 +538,6 @@ export const shouldChangeYawForOrientThreeCorners = (
     };
   }
 
-  // After D move (index 9): change to -30
   if (nextIndex === 9 && orientThreeCornersYawChangedRef.current < 9) {
     orientThreeCornersYawChangedRef.current = 9;
     return {
@@ -560,7 +549,6 @@ export const shouldChangeYawForOrientThreeCorners = (
     };
   }
 
-  // After next 2 R U R' U' parts (index 17): change to -10
   if (nextIndex === 17 && orientThreeCornersYawChangedRef.current < 17) {
     orientThreeCornersYawChangedRef.current = 17;
     return {
@@ -572,7 +560,6 @@ export const shouldChangeYawForOrientThreeCorners = (
     };
   }
 
-  // After D move (index 18): change to -30
   if (nextIndex === 18 && orientThreeCornersYawChangedRef.current < 18) {
     orientThreeCornersYawChangedRef.current = 18;
     return {
@@ -584,7 +571,6 @@ export const shouldChangeYawForOrientThreeCorners = (
     };
   }
 
-  // After next 2 R U R' U' parts (index 26): change to -10
   if (nextIndex === 26 && orientThreeCornersYawChangedRef.current < 26) {
     orientThreeCornersYawChangedRef.current = 26;
     return {
@@ -596,7 +582,6 @@ export const shouldChangeYawForOrientThreeCorners = (
     };
   }
 
-  // After D2 move (index 27, sequence complete): change to -45, pitch 0
   if (nextIndex === 27 && orientThreeCornersYawChangedRef.current < 27) {
     orientThreeCornersYawChangedRef.current = 27;
     return {
@@ -623,7 +608,6 @@ export const shouldChangeYawForOrientFourCorners = (
     return null;
   }
 
-  // After first 4 R U R' U' parts (16 moves, index 16): change to -10
   if (nextIndex === 16 && orientFourCornersYawChangedRef.current < 16) {
     orientFourCornersYawChangedRef.current = 16;
     return {
@@ -635,7 +619,6 @@ export const shouldChangeYawForOrientFourCorners = (
     };
   }
 
-  // After D move (index 17): change to -30
   if (nextIndex === 17 && orientFourCornersYawChangedRef.current < 17) {
     orientFourCornersYawChangedRef.current = 17;
     return {
@@ -647,7 +630,6 @@ export const shouldChangeYawForOrientFourCorners = (
     };
   }
 
-  // After next 2 R U R' U' parts (index 25): change to -10
   if (nextIndex === 25 && orientFourCornersYawChangedRef.current < 25) {
     orientFourCornersYawChangedRef.current = 25;
     return {
@@ -659,7 +641,6 @@ export const shouldChangeYawForOrientFourCorners = (
     };
   }
 
-  // After D move (index 26): change to -30
   if (nextIndex === 26 && orientFourCornersYawChangedRef.current < 26) {
     orientFourCornersYawChangedRef.current = 26;
     return {
@@ -671,7 +652,6 @@ export const shouldChangeYawForOrientFourCorners = (
     };
   }
 
-  // After next 2 R U R' U' parts (index 34): change to -10
   if (nextIndex === 34 && orientFourCornersYawChangedRef.current < 34) {
     orientFourCornersYawChangedRef.current = 34;
     return {
@@ -683,7 +663,6 @@ export const shouldChangeYawForOrientFourCorners = (
     };
   }
 
-  // After D move (index 35): change to -30
   if (nextIndex === 35 && orientFourCornersYawChangedRef.current < 35) {
     orientFourCornersYawChangedRef.current = 35;
     return {
@@ -695,7 +674,6 @@ export const shouldChangeYawForOrientFourCorners = (
     };
   }
 
-  // After next 4 R U R' U' parts (index 51): change to -10
   if (nextIndex === 51 && orientFourCornersYawChangedRef.current < 51) {
     orientFourCornersYawChangedRef.current = 51;
     return {
@@ -707,7 +685,6 @@ export const shouldChangeYawForOrientFourCorners = (
     };
   }
 
-  // After D move (index 52, sequence complete): change to -45, pitch 0
   if (nextIndex === 52 && orientFourCornersYawChangedRef.current < 52) {
     orientFourCornersYawChangedRef.current = 52;
     return {
@@ -755,7 +732,6 @@ export const checkAndApplyYawChange = (
 
   let config: YawChangeConfig | null = null;
 
-  // Try each yaw change condition
   config =
     shouldChangeYawForMidlayerGreenWhiteExtraction(
       slideId,

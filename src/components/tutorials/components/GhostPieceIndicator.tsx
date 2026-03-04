@@ -48,7 +48,7 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
   const rotationGroupRef = useRef<THREE.Group>(null);
 
   // Get logo texture for white center piece
-  const { logoReady, tiptonsTexture } = useLogoTexture();
+  const { logoReady, solvzTexture } = useLogoTexture();
 
   // Sync rotation with cube group (only when visible)
   useFrame(() => {
@@ -302,7 +302,7 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
               cornerStyles={piece.cornerStyles}
               opacity={opacity}
               gridPosition={piece.position}
-              sharedLogoTexture={tiptonsTexture}
+              sharedLogoTexture={solvzTexture}
               logoReady={logoReady}
               move={move}
             />

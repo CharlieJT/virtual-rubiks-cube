@@ -58,7 +58,7 @@ interface UseFixSequenceValidationProps {
   setSecondSequenceYellowEdges2Locked?: (locked: boolean) => void;
 }
 
-export const useFixSequenceValidation = ({
+const useFixSequenceValidation = ({
   fixSequence,
   fixIndex,
   fixDoublePartialDir,
@@ -127,38 +127,30 @@ export const useFixSequenceValidation = ({
       const got = parseMove(mappedMove);
 
       const resetWithError = async () => {
-        // Store the wrong move index so we can show error on it
         const wrongMoveIndex = fixIndex;
-        // Get the wrong move that was attempted (the move parameter passed to validateMove)
         const wrongMoveAttempted = move;
-        // Reset cube state and orbit immediately
         setFixDoublePartialDir(0);
         setFixShowTick(false);
-        if (activeSlideId === "yellow-edges-solution-2") {
+        if (activeSlideId === "yellow-edges-one-correct") {
           setShowSecondSequenceYellowEdges2?.(false);
           setSecondSequenceYellowEdges2Locked?.(false);
           yellowEdges2YawChangedRef.current = false;
         }
-        if (activeSlideId === "yellow-edges-solution-3") {
+        if (activeSlideId === "yellow-edges-zero-correct") {
           yellowEdges3YawChangedRef.current = false;
         }
-        if (activeSlideId === "yellow-edges-solution-4") {
+        if (activeSlideId === "yellow-edges-two-opposite") {
           yellowEdges4YawChangedRef.current = false;
         }
-        if (activeSlideId === "yellow-corners-solution-2") {
+        if (activeSlideId === "yellow-corners-zero-correct") {
           yellowCorners2YawChangedRef.current = false;
         }
-        // Set error pulse BEFORE reset so it's visible during reset
         setFixErrorPulse(true);
-        // Show error fade (grey fade on mismatched stickers) WITHOUT resetting the cube
-        // Pass the wrong move, fixSequence, and fixIndex so showErrorFade can compute the correct baseline
         showErrorFade(wrongMoveAttempted, fixSequence, fixIndex);
-        // Restore fixIndex and error pulse
         flushSync(() => {
           setFixIndex(wrongMoveIndex);
           setFixErrorPulse(true);
         });
-        // After flash duration, reset fixIndex and turn off error flash
         setTimeout(() => {
           setFixIndex(0);
           setFixErrorPulse(false);
@@ -176,49 +168,49 @@ export const useFixSequenceValidation = ({
           animateMidlayerStage(nextIndex === 3 ? 1 : nextIndex === 4 ? 2 : 3);
         }
         if (
-          activeSlideId === "practice-setup-solution-3" &&
+          activeSlideId === "corner-white-facing-up" &&
           (nextIndex === 4 || nextIndex === 7)
         ) {
           animateMidlayerStage(nextIndex === 4 ? 1 : 2);
         }
         if (
-          activeSlideId === "practice-setup-solution-4" &&
+          activeSlideId === "corner-remove-reinsert" &&
           (nextIndex === 4 || nextIndex === 7)
         ) {
           animateMidlayerStage(nextIndex === 4 ? 1 : 2);
         }
         if (
-          activeSlideId === "practice-setup-solution-5" &&
+          activeSlideId === "corner-remove-reinsert-alt" &&
           (nextIndex === 4 || nextIndex === 8 || nextIndex === 11)
         ) {
           animateMidlayerStage(nextIndex === 4 ? 1 : nextIndex === 8 ? 2 : 3);
         }
         if (
-          activeSlideId === "practice-setup-solution-6" &&
+          activeSlideId === "corner-move-to-correct" &&
           (nextIndex === 4 || nextIndex === 5 || nextIndex === 8)
         ) {
           animateMidlayerStage(nextIndex === 4 ? 1 : nextIndex === 5 ? 2 : 3);
         }
         if (
-          activeSlideId === "second-layer-setup-solution" &&
+          activeSlideId === "edge-insert-left" &&
           (nextIndex === 5 || nextIndex === 8)
         ) {
           animateMidlayerStage(nextIndex === 5 ? 1 : 2);
         }
         if (
-          activeSlideId === "second-layer-setup-solution-2" &&
+          activeSlideId === "edge-insert-right" &&
           (nextIndex === 5 || nextIndex === 8)
         ) {
           animateMidlayerStage(nextIndex === 5 ? 1 : 2);
         }
         if (
-          activeSlideId === "second-layer-setup-solution-3" &&
+          activeSlideId === "edge-remove-reinsert" &&
           (nextIndex === 5 || nextIndex === 8)
         ) {
           animateMidlayerStage(nextIndex === 5 ? 1 : 2);
         }
         if (
-          activeSlideId === "second-layer-setup-solution-4" &&
+          activeSlideId === "edge-flipped-in-position" &&
           (nextIndex === 5 || nextIndex === 8 || nextIndex === 9)
         ) {
           if (nextIndex === 9) {
@@ -228,7 +220,7 @@ export const useFixSequenceValidation = ({
           }
         }
         if (
-          activeSlideId === "second-layer-setup-solution-4" &&
+          activeSlideId === "edge-flipped-in-position" &&
           (nextIndex === 14 || nextIndex === 17)
         ) {
           animateMidlayerStage(nextIndex === 14 ? 4 : 5);
@@ -255,7 +247,7 @@ export const useFixSequenceValidation = ({
           }
         }
         if (
-          activeSlideId === "yellow-edges-solution-2" &&
+          activeSlideId === "yellow-edges-one-correct" &&
           (nextIndex === 1 || nextIndex === 9)
         ) {
           animateMidlayerStage(nextIndex === 1 ? 1 : 2);
@@ -263,7 +255,7 @@ export const useFixSequenceValidation = ({
             setSecondSequenceYellowEdges2Locked?.(true);
           }
         }
-        if (activeSlideId === "yellow-edges-solution-3") {
+        if (activeSlideId === "yellow-edges-zero-correct") {
           if (nextIndex === 1) {
             animateMidlayerStage(1);
           } else if (nextIndex === 9) {
@@ -271,13 +263,13 @@ export const useFixSequenceValidation = ({
           }
         }
         if (
-          activeSlideId === "yellow-corners-solution-2" &&
+          activeSlideId === "yellow-corners-zero-correct" &&
           (nextIndex === 8 || nextIndex === 16)
         ) {
           animateMidlayerStage(nextIndex === 8 ? 1 : 2);
         }
         if (
-          activeSlideId === "yellow-corners-solution-3" &&
+          activeSlideId === "yellow-corners-zero-repeated" &&
           (nextIndex === 8 || nextIndex === 16 || nextIndex === 24)
         ) {
           if (nextIndex === 8) {
@@ -368,29 +360,22 @@ export const useFixSequenceValidation = ({
 
       if (exp.mod === "2") {
         if (fixDoublePartialDir !== 0) {
-          // We're in the middle of a double move - check if this move completes it
           const expectedDir = fixDoublePartialDir;
           const gotDir = got.mod === "'" ? -1 : got.mod === "2" ? 0 : 1;
           if (got.base === exp.base && gotDir !== 0 && gotDir === expectedDir) {
-            // Complete the double move - increment fixIndex by 1
             const nextIndex = fixIndex + 1;
             handleMoveSuccess(nextIndex);
           } else {
             resetWithError();
           }
         } else {
-          // No partial move yet - check if this is a complete double move or first part
           if (got.base === exp.base && got.mod === "2") {
-            // Complete double move done in one go (e.g., user did F2 when F2 was expected)
-            // This is ONE move in the sequence, so increment fixIndex by 1
             const nextIndex = fixIndex + 1;
             handleMoveSuccess(nextIndex);
           } else if (
             got.base === exp.base &&
             (got.mod === "" || got.mod === "'")
           ) {
-            // First part of a double move (e.g., user did F when F2 was expected)
-            // Set fixDoublePartialDir and wait for second part - don't increment fixIndex yet
             const dir = got.mod === "'" ? -1 : 1;
             setFixDoublePartialDir(dir);
           } else {
@@ -450,3 +435,5 @@ export const useFixSequenceValidation = ({
 
   return { validateMove };
 };
+
+export default useFixSequenceValidation;

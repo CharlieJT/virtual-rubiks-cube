@@ -20,12 +20,12 @@ interface UseSlideTransitionProps {
   setOrbitControlsEnabled: (enabled: boolean) => void;
   disableOrbitTemporarily: () => void;
   clearControlsInternal: () => void;
-  orbitPrevRef: React.RefObject<any>;
+  orbitPrevRef: React.RefObject<Record<string, unknown> | null>;
   isInitializingRef?: React.RefObject<boolean>;
   handleOrbitControlsChange?: (enabled: boolean) => void;
 }
 
-export const useSlideTransition = ({
+const useSlideTransition = ({
   currentSlide,
   slides,
   lessonId,
@@ -178,3 +178,5 @@ export const useSlideTransition = ({
     orbitPrevRef,
   ]);
 };
+
+export default useSlideTransition;
