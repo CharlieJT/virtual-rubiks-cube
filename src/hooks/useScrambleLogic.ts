@@ -93,7 +93,7 @@ const useScrambleLogic = ({
     setShowScrambleOverlay(true);
     setShowSolutionOverlay(false);
     solutionOverlaySourceRef.current = null;
-  }, [enqueueMoves, isAnimating]);
+  }, [enqueueMoves, isAnimating, isScramblingState]);
 
   const handleScramble = useCallback(
     (keepTimerMode = false, allowDuringLock = false) => {
