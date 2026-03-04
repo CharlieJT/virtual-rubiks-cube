@@ -15,7 +15,7 @@ export interface BestTime {
   timeMs: number; // for sorting
 }
 
-export const useBestTimes = () => {
+const useBestTimes = () => {
   const [bestTimes, setBestTimes] = useState<BestTime[]>([]);
 
   // Load best times from localStorage on mount
@@ -128,3 +128,5 @@ export const useBestTimes = () => {
     hasTimes: bestTimes.length > 0,
   };
 };
+
+export default useBestTimes;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-export const useFixSequenceState = (activeSlideId: string | undefined, fixSequenceLength: number) => {
+const useFixSequenceState = (activeSlideId: string | undefined, fixSequenceLength: number) => {
   const [fixIndex, setFixIndex] = useState(0);
   const [fixDoublePartialDir, setFixDoublePartialDir] = useState<0 | 1 | -1>(0);
   const [fixErrorPulse, setFixErrorPulse] = useState(false);
@@ -92,4 +92,6 @@ export const useFixSequenceState = (activeSlideId: string | undefined, fixSequen
     resetFixState,
   };
 };
+
+export default useFixSequenceState;
 

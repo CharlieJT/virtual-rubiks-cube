@@ -1,9 +1,9 @@
 /**
  * Resets all yaw change refs for a given slide ID
  */
-export const resetYawRefsForSlide = (
+const resetYawRefsForSlide = (
   slideId: string | undefined,
-  slideSpecificState: ReturnType<typeof import("@components/tutorials/hooks/useSlideSpecificState").useSlideSpecificState>
+  slideSpecificState: ReturnType<typeof import("@components/tutorials/hooks/useSlideSpecificState").default>
 ): void => {
   if (!slideId) return;
 
@@ -27,19 +27,19 @@ export const resetYawRefsForSlide = (
   } = slideSpecificState;
 
   switch (slideId) {
-    case "yellow-edges-solution-2":
+    case "yellow-edges-one-correct":
       yellowEdges2YawChangedRef.current = false;
       break;
-    case "yellow-edges-solution-3":
+    case "yellow-edges-zero-correct":
       yellowEdges3YawChangedRef.current = false;
       break;
-    case "yellow-edges-solution-4":
+    case "yellow-edges-two-opposite":
       yellowEdges4YawChangedRef.current = false;
       break;
-    case "yellow-corners-solution-2":
+    case "yellow-corners-zero-correct":
       yellowCorners2YawChangedRef.current = false;
       break;
-    case "yellow-corners-solution-3":
+    case "yellow-corners-zero-repeated":
       yellowCorners3YawChangedRef.current = false;
       break;
     case "midlayer-green-white-extraction":
@@ -49,19 +49,19 @@ export const resetYawRefsForSlide = (
     case "flipped-misoriented-misaligned-green-white":
       slide6YawChangedRef.current = false;
       break;
-    case "practice-setup-solution-6":
+    case "corner-move-to-correct":
       slide8YawChangedRef.current = false;
       break;
-    case "second-layer-setup-solution":
+    case "edge-insert-left":
       secondLayerSetupYawChangedRef.current = false;
       break;
-    case "second-layer-setup-solution-2":
+    case "edge-insert-right":
       secondLayerSetup2YawChangedRef.current = false;
       break;
-    case "second-layer-setup-solution-3":
+    case "edge-remove-reinsert":
       secondLayerSetup3YawChangedRef.current = 0;
       break;
-    case "second-layer-setup-solution-4":
+    case "edge-flipped-in-position":
       secondLayerSetup4YawChangedRef.current = 0;
       break;
     case "orient-two-corners":
@@ -73,8 +73,10 @@ export const resetYawRefsForSlide = (
     case "orient-four-corners":
       orientFourCornersYawChangedRef.current = 0;
       break;
-    case "practice-setup-solution-9":
+    case "corner-insert-two-pieces":
       practiceSetupSolution9YawChangedRef.current = 0;
       break;
   }
 };
+
+export default resetYawRefsForSlide;

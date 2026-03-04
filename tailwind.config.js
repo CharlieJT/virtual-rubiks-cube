@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Quicksand", "Inter", "sans-serif"],
+        sans: ["Inter", "Quicksand", "system-ui", "sans-serif"],
       },
     },
   },

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 
 export interface TimerState {
   isActive: boolean;
@@ -7,7 +7,16 @@ export interface TimerState {
   finalTime: string | null;
 }
 
-export const useTimer = () => {
+const formatTime = (ms: number): string => {
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const minutesStr = minutes.toString().padStart(2, "0");
+  const secondsStr = seconds.toFixed(2).padStart(5, "0");
+  return `${minutesStr}:${secondsStr}`;
+};
+
+const useTimer = () => {
   const [timerState, setTimerState] = useState<TimerState>({
     isActive: false,
     startTime: null,
@@ -15,84 +24,53 @@ export const useTimer = () => {
     finalTime: null,
   });
 
-  const intervalRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
 
-  // Format milliseconds to MM:SS.ss
-  const formatTime = useCallback((ms: number): string => {
-    const totalSeconds = ms / 1000;
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-
-    // Always format as MM:SS.ss with leading zeros
-    const minutesStr = minutes.toString().padStart(2, "0");
-    const secondsStr = seconds.toFixed(2).padStart(5, "0");
-    return `${minutesStr}:${secondsStr}`;
-  }, []);
-
-  // Get current formatted time
+  // No state updates during run — avoids re-rendering App/canvas every tick
   const getCurrentTime = useCallback((): string => {
-    if (timerState.finalTime) {
-      return timerState.finalTime;
-    }
+    if (timerState.finalTime) return timerState.finalTime;
+    if (timerState.isActive && timerState.startTime !== null)
+      return formatTime(Date.now() - timerState.startTime);
     return formatTime(timerState.elapsedMs);
-  }, [timerState.elapsedMs, timerState.finalTime, formatTime]);
+  }, [
+    timerState.finalTime,
+    timerState.isActive,
+    timerState.startTime,
+    timerState.elapsedMs,
+  ]);
 
-  // Start the timer
   const startTimer = useCallback(() => {
     const now = Date.now();
+    startTimeRef.current = now;
     setTimerState({
       isActive: true,
       startTime: now,
       elapsedMs: 0,
       finalTime: null,
     });
-
-    intervalRef.current = window.setInterval(() => {
-      setTimerState((prev) => {
-        if (!prev.startTime || !prev.isActive) return prev;
-        return {
-          ...prev,
-          elapsedMs: Date.now() - prev.startTime,
-        };
-      });
-    }, 10); // Update every 10ms for smooth display
   }, []);
 
-  // Stop the timer and record final time
   const stopTimer = useCallback((): string => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    // Calculate the final time synchronously before state update
     let finalTimeString = "00:00.00";
-
-    const currentState = timerState;
-    if (currentState.isActive && currentState.startTime) {
-      const finalMs = Date.now() - currentState.startTime;
+    const startTime = startTimeRef.current ?? timerState.startTime;
+    if (timerState.isActive && startTime !== null) {
+      const finalMs = Date.now() - startTime;
       finalTimeString = formatTime(finalMs);
-
+      startTimeRef.current = null;
       setTimerState((prev) => ({
         ...prev,
         isActive: false,
         elapsedMs: finalMs,
         finalTime: finalTimeString,
       }));
-    } else if (currentState.finalTime) {
-      finalTimeString = currentState.finalTime;
+    } else if (timerState.finalTime) {
+      finalTimeString = timerState.finalTime;
     }
-
     return finalTimeString;
-  }, [formatTime, timerState]);
+  }, [timerState.isActive, timerState.startTime, timerState.finalTime]);
 
-  // Cancel the timer completely
   const cancelTimer = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
+    startTimeRef.current = null;
     setTimerState({
       isActive: false,
       startTime: null,
@@ -101,19 +79,9 @@ export const useTimer = () => {
     });
   }, []);
 
-  // Reset timer for new scramble
   const resetTimer = useCallback(() => {
     cancelTimer();
   }, [cancelTimer]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
 
   return {
     timerState,

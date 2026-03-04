@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-export const useMidStageTicks = (activeSlideId: string | undefined) => {
+const useMidStageTicks = (activeSlideId: string | undefined) => {
   const [midStage1Played, setMidStage1Played] = useState(false);
   const [midStage1Progress, setMidStage1Progress] = useState(false);
   const [midStage1Line, setMidStage1Line] = useState(false);
@@ -188,3 +188,5 @@ export const useMidStageTicks = (activeSlideId: string | undefined) => {
     animateMidlayerStage,
   };
 };
+
+export default useMidStageTicks;
