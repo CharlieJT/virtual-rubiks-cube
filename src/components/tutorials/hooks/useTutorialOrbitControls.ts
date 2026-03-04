@@ -9,7 +9,7 @@ interface UseTutorialOrbitControlsProps {
   forceOrbitDisabledRef: React.RefObject<boolean>;
 }
 
-export const useTutorialOrbitControls = ({
+const useTutorialOrbitControls = ({
   activeSlide,
   orbitControlsRef,
   isTransitioningRef,
@@ -121,3 +121,5 @@ export const useTutorialOrbitControls = ({
     orbitPrevRef,
   };
 };
+
+export default useTutorialOrbitControls;

@@ -142,7 +142,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "practice-setup-solution":
+    case "corner-white-facing-right":
       return [
         {
           moves: ["R", "U", "R'", "U'"],
@@ -153,7 +153,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "practice-setup-solution-2":
+    case "corner-white-facing-left":
       return [
         {
           moves: ["L'", "U'", "L", "U"],
@@ -164,7 +164,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "practice-setup-solution-3":
+    case "corner-white-facing-up":
       return [
         {
           moves: ["R", "U", "R'", "U'"],
@@ -198,7 +198,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "practice-setup-solution-4":
+    case "corner-remove-reinsert":
       return [
         {
           moves: ["R", "U", "R'", "U'"],
@@ -222,7 +222,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "practice-setup-solution-5":
+    case "corner-remove-reinsert-alt":
       return [
         {
           moves: ["R", "U", "R'", "U'"],
@@ -266,7 +266,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "practice-setup-solution-6":
+    case "corner-move-to-correct":
       return [
         {
           moves: ["R", "U", "R'", "U'"],
@@ -300,7 +300,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "practice-setup-solution-9":
+    case "corner-insert-two-pieces":
       return [
         {
           moves: ["U2"],
@@ -369,7 +369,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "second-layer-setup-solution":
+    case "edge-insert-left":
       return [
         {
           moves: ["U'"],
@@ -403,7 +403,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "second-layer-setup-solution-2":
+    case "edge-insert-right":
       return [
         {
           moves: ["U"],
@@ -437,7 +437,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "second-layer-setup-solution-3":
+    case "edge-remove-reinsert":
       return [
         {
           moves: ["U"],
@@ -511,7 +511,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "second-layer-setup-solution-4":
+    case "edge-flipped-in-position":
       return [
         {
           moves: ["U"],
@@ -664,7 +664,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "yellow-edges-solution":
+    case "yellow-edges-algorithm":
       return [
         {
           moves: ["R", "U", "R'", "U", "R", "U2", "R'"],
@@ -685,7 +685,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "yellow-edges-solution-2":
+    case "yellow-edges-one-correct":
       return [
         {
           moves: ["U"],
@@ -716,7 +716,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "yellow-edges-solution-3":
+    case "yellow-edges-zero-correct":
       return [
         {
           moves: ["U2"],
@@ -747,7 +747,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "yellow-edges-solution-4":
+    case "yellow-edges-two-opposite":
       return [
         {
           moves: ["R", "U", "R'", "U", "R", "U2", "R'"],
@@ -778,7 +778,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "yellow-corners-solution":
+    case "yellow-corners-one-correct":
       return [
         {
           moves: ["U", "R", "U'", "L'", "U", "R'", "U'", "L"],
@@ -789,7 +789,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "yellow-corners-solution-2":
+    case "yellow-corners-zero-correct":
       return [
         {
           moves: ["U", "R", "U'", "L'", "U", "R'", "U'", "L"],
@@ -813,7 +813,7 @@ export const getSequenceConfig = ({
         },
       ];
 
-    case "yellow-corners-solution-3":
+    case "yellow-corners-zero-repeated":
       return [
         {
           moves: ["U", "R", "U'", "L'", "U", "R'", "U'", "L"],
@@ -1154,9 +1154,7 @@ export const getSequenceConfig = ({
       ];
 
     default:
-      // Default rendering for other slides
       if (lessonId === "notation") {
-        // Notation lessons use fixSequenceDisplay with Green front face
         return [
           {
             moves: fixSequenceDisplay,
@@ -1168,13 +1166,12 @@ export const getSequenceConfig = ({
         ];
       }
 
-      // Use fixSequenceDisplay for certain slides, fixSequence for others
       const useDisplay =
-        activeSlideId === "practice-setup-solution" ||
-        activeSlideId === "practice-setup-solution-2" ||
-        activeSlideId === "practice-setup-solution-3" ||
+        activeSlideId === "corner-white-facing-right" ||
+        activeSlideId === "corner-white-facing-left" ||
+        activeSlideId === "corner-white-facing-up" ||
         activeSlideId === "yellow-cross-line" ||
-        activeSlideId === "yellow-edges-solution";
+        activeSlideId === "yellow-edges-algorithm";
 
       const moves = useDisplay ? fixSequenceDisplay : fixSequence;
       const boundaryIndex = useDisplay
@@ -1196,3 +1193,5 @@ export const getSequenceConfig = ({
       ];
   }
 };
+
+export default getSequenceConfig;

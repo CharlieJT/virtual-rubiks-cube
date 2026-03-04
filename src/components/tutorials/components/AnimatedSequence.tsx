@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
-import { useSequenceMeasurements } from "@components/tutorials/hooks/useSequenceMeasurements";
-import { useSequenceAnimations } from "@components/tutorials/hooks/useSequenceAnimations";
+import useSequenceMeasurements from "@components/tutorials/hooks/useSequenceMeasurements";
+import useSequenceAnimations from "@components/tutorials/hooks/useSequenceAnimations";
 import {
   getPartState,
   getActiveColorInfo,

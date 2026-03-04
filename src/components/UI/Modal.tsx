@@ -15,7 +15,7 @@ interface ModalProps {
   disablePointerEvents?: boolean;
   centerTitle?: boolean;
   titlePadding?: string;
-  theme?: "default" | "red" | "orange";
+  theme?: "default" | "red" | "orange" | "green";
   fullHeight?: boolean;
   disableTransition?: boolean;
   compact?: boolean;
@@ -33,6 +33,7 @@ const Modal: React.FC<ModalProps> = ({
   disablePointerEvents = false,
   centerTitle = false,
   titlePadding,
+  theme = "default",
   fullHeight = false,
   disableTransition = false,
   compact = false,
@@ -46,7 +47,7 @@ const Modal: React.FC<ModalProps> = ({
       if (disableTransition) {
         setEntered(true);
       } else {
-      setTimeout(() => setEntered(true), 10);
+        setTimeout(() => setEntered(true), 10);
       }
     } else {
       setEntered(false);
@@ -63,7 +64,7 @@ const Modal: React.FC<ModalProps> = ({
 
   useEffect(() => {
     if (!isOpen && !visible) return;
-    if (disablePointerEvents) return; 
+    if (disablePointerEvents) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -83,7 +84,9 @@ const Modal: React.FC<ModalProps> = ({
   return createPortal(
     <div
       className={
-        disablePointerEvents || !isOpen ? "pointer-events-none" : "pointer-events-auto"
+        disablePointerEvents || !isOpen
+          ? "pointer-events-none"
+          : "pointer-events-auto"
       }
       style={{
         position: "fixed",
@@ -102,7 +105,7 @@ const Modal: React.FC<ModalProps> = ({
       />
       <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none p-4">
         <div
-          className={`bg-white/95 backdrop-blur-2xl border border-gray-200/50 rounded-3xl min-w-[320px] max-w-[95vw] ${compact ? "md:max-w-[420px]" : "md:max-w-[900px]"} shadow-2xl relative flex flex-col transition-all duration-300 ${
+          className={`backdrop-blur-2xl border rounded-2xl min-w-[320px] max-w-[95vw] ${compact ? "md:max-w-[420px]" : "md:max-w-[900px]"} relative flex flex-col transition-all duration-300 ${
             disablePointerEvents ? "pointer-events-none" : "pointer-events-auto"
           } ${
             entered
@@ -112,26 +115,50 @@ const Modal: React.FC<ModalProps> = ({
           style={{
             maxHeight: fullHeight ? "90vh" : "80vh",
             overflow: "hidden",
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(235,235,235,0.95) 50%, rgba(220,220,220,0.92) 100%)",
+            borderColor:
+              theme === "red"
+                ? "rgba(255,23,68,0.2)"
+                : theme === "orange"
+                  ? "rgba(255,145,0,0.2)"
+                  : theme === "green"
+                    ? "rgba(0,230,118,0.2)"
+                    : "rgba(41,121,255,0.2)",
             boxShadow:
-              "0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+              theme === "red"
+                ? "0 25px 60px -12px rgba(255,23,68,0.25), 0 8px 24px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 1px rgba(255,23,68,0.1)"
+                : theme === "orange"
+                  ? "0 25px 60px -12px rgba(255,145,0,0.25), 0 8px 24px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 1px rgba(255,145,0,0.1)"
+                  : theme === "green"
+                    ? "0 25px 60px -12px rgba(0,230,118,0.25), 0 8px 24px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 1px rgba(0,230,118,0.1)"
+                    : "0 25px 60px -12px rgba(41,121,255,0.25), 0 8px 24px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 1px rgba(41,121,255,0.1)",
           }}
         >
+          {/* Linear gradient overlay */}
+          <div
+            className="absolute inset-0 overflow-hidden pointer-events-none z-0"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.08) 100%)",
+            }}
+          />
           {showCloseButton && (
             <Button
               onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-full transition-all duration-200 z-10"
+              className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-700 bg-white/80 hover:bg-white backdrop-blur-sm rounded-full transition-all duration-200 z-10 shadow-sm hover:shadow-md border border-gray-200/50 hover:scale-110 active:scale-95"
               aria-label="Close"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                strokeWidth={2.5}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
                   d="M6 18L18 6M6 6l12 12"
                 />
               </svg>
@@ -140,13 +167,14 @@ const Modal: React.FC<ModalProps> = ({
           {/* Header */}
           {title && (
             <div
-              className={
-                titlePadding ||
-                `pl-8 pr-12 pt-8 pb-2 ${""} shrink-0 border-b border-gray-100`
-              }
+              className={titlePadding || `pl-8 pr-12 pt-9 shrink-0 relative`}
+              style={{
+                background:
+                  "linear-gradient(to bottom, rgba(255,255,255,0.6), transparent)",
+              }}
             >
               <h3
-                className={`text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight ${
+                className={`text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight relative ${
                   centerTitle ? "text-center" : ""
                 }`}
               >
@@ -165,19 +193,33 @@ const Modal: React.FC<ModalProps> = ({
                 scrollbarGutter: "stable",
               }}
             >
-              {children}
+              <div className="text-gray-700 leading-relaxed">{children}</div>
             </div>
           </div>
           {/* Footer */}
           {footer && (
-            <div className="px-8 pb-8 pt-4 shrink-0 border-t border-gray-100">
+            <div
+              className="px-8 pb-8 pt-5 shrink-0 border-t"
+              style={{
+                borderColor:
+                  theme === "red"
+                    ? "rgba(255,23,68,0.1)"
+                    : theme === "orange"
+                      ? "rgba(255,145,0,0.1)"
+                      : theme === "green"
+                        ? "rgba(0,230,118,0.1)"
+                        : "rgba(41,121,255,0.1)",
+                background:
+                  "linear-gradient(to top, rgba(255,255,255,0.4), transparent)",
+              }}
+            >
               {footer}
             </div>
           )}
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };
 

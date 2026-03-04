@@ -504,8 +504,26 @@ const LessonSelector = ({
                 border-t border-r border-b border-gray-200/60
                 hover:border-gray-300/80`}
             >
+              {/* Vertical wavy effect for mobile */}
               <svg
-                className="absolute inset-x-0 -bottom-32 w-full h-[420px] md:h-[430px] opacity-[0.05] group-hover:opacity-[0.09] transition-opacity duration-300 pointer-events-none"
+                className="absolute left-7 top-0 bottom-0 w-[580px] sm:hidden opacity-[0.05] group-hover:opacity-[0.09] transition-opacity duration-300 pointer-events-none"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <path
+                  fill={
+                    section.level === "beginner"
+                      ? "#3b82f6"
+                      : section.level === "intermediate"
+                        ? "#a855f7"
+                        : "#f59e0b"
+                  }
+                  d="M 0,0 Q 15,0 0,40 Q 15,60 0,80 Q 15,100 0,100 L 100,100 L 100,0 Z"
+                />
+              </svg>
+              {/* Horizontal wavy effect for larger screens */}
+              <svg
+                className="hidden sm:block absolute inset-x-0 -bottom-32 w-full h-[410px] md:h-[430px] opacity-[0.05] group-hover:opacity-[0.09] transition-opacity duration-300 pointer-events-none"
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
               >
@@ -520,40 +538,40 @@ const LessonSelector = ({
                   d="M 0,25 Q 25,35 50,30 Q 75,25 100,30 L 100,100 Q 50,110 0,100 Z"
                 />
               </svg>
-              <div className="relative flex flex-col items-center text-center gap-4">
+              <div className="relative flex flex-row items-start text-left gap-3 sm:flex-col sm:items-center sm:text-center sm:gap-4">
                 <div
-                  className={`w-16 h-16 rounded-2xl ${section.color.badge} flex items-center justify-center group-hover:scale-105 transition-transform duration-300`}
+                  className={`w-10 h-10 sm:w-16 sm:h-16 rounded-2xl ${section.color.badge} flex items-center justify-center group-hover:scale-105 transition-transform duration-300 flex-shrink-0`}
                 >
-                  {React.createElement(section.icon, { size: 42 })}
+                  {React.createElement(section.icon, { size: 38 })}
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 ml-2 sm:ml-0 flex-1 min-w-0 sm:flex-none sm:min-w-auto">
                   <h3
                     className={`text-lg md:text-xl font-bold tracking-tight ${section.level === "beginner" ? "text-blue-800" : section.level === "intermediate" ? "text-purple-800" : "text-amber-800"}`}
                   >
                     {section.title}
                   </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed max-w-[200px] mx-auto">
+                  <p className="text-sm text-gray-600 leading-relaxed sm:max-w-[200px] sm:mx-auto">
                     {section.description}
                   </p>
-                </div>
-                <div
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold
-                  ${section.level === "beginner" ? "bg-blue-50 text-blue-700" : section.level === "intermediate" ? "bg-purple-50 text-purple-700" : "bg-amber-50 text-amber-700"}`}
-                >
-                  <span>{section.lessons.length} Lessons</span>
-                  <svg
-                    className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  <div
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold
+                    ${section.level === "beginner" ? "bg-blue-50 text-blue-700" : section.level === "intermediate" ? "bg-purple-50 text-purple-700" : "bg-amber-50 text-amber-700"}`}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
+                    <span>{section.lessons.length} Lessons</span>
+                    <svg
+                      className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>

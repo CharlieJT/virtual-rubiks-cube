@@ -16,6 +16,8 @@ const AXIS_X = Object.freeze(new THREE.Vector3(1, 0, 0));
 const AXIS_Y = Object.freeze(new THREE.Vector3(0, 1, 0));
 const AXIS_Z = Object.freeze(new THREE.Vector3(0, 0, 1));
 
+const _rotationCenter = new THREE.Vector3();
+
 const MOVE_CONFIG: Record<string, { axis: THREE.Vector3; dir: number }> = {
   U: { axis: AXIS_Y, dir: -1 },
   D: { axis: AXIS_Y, dir: 1 },
@@ -199,21 +201,21 @@ export class AnimationHelper {
         const deltaRotation = targetRotation - currentRotationAmount;
 
         if (deltaRotation !== 0) {
-          const rotationCenter = new THREE.Vector3(0, 0, 0);
-          const cleanMove = move.replace(/['2]/g, "").toUpperCase();
-          const baseMove = cleanMove[0];
+          _rotationCenter.set(0, 0, 0);
+          const cleanMove2 = move.replace(/['2]/g, "").toUpperCase();
+          const baseMove2 = cleanMove2[0];
           
-          if (baseMove === "U") rotationCenter.set(0, 1.05, 0);
-          else if (baseMove === "D") rotationCenter.set(0, -1.05, 0);
-          else if (baseMove === "R") rotationCenter.set(1.05, 0, 0);
-          else if (baseMove === "L") rotationCenter.set(-1.05, 0, 0);
-          else if (baseMove === "F") rotationCenter.set(0, 0, 1.05);
-          else if (baseMove === "B") rotationCenter.set(0, 0, -1.05);
+          if (baseMove2 === "U") _rotationCenter.set(0, 1.05, 0);
+          else if (baseMove2 === "D") _rotationCenter.set(0, -1.05, 0);
+          else if (baseMove2 === "R") _rotationCenter.set(1.05, 0, 0);
+          else if (baseMove2 === "L") _rotationCenter.set(-1.05, 0, 0);
+          else if (baseMove2 === "F") _rotationCenter.set(0, 0, 1.05);
+          else if (baseMove2 === "B") _rotationCenter.set(0, 0, -1.05);
           
           affectedCubies.forEach((cubie) => {
-            cubie.mesh.position.sub(rotationCenter);
+            cubie.mesh.position.sub(_rotationCenter);
             cubie.mesh.position.applyAxisAngle(normalizedAxis, deltaRotation);
-            cubie.mesh.position.add(rotationCenter);
+            cubie.mesh.position.add(_rotationCenter);
             cubie.mesh.rotateOnAxis(normalizedAxis, deltaRotation);
           });
           currentRotationAmount = targetRotation;

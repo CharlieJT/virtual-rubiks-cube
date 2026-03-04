@@ -1,24 +1,34 @@
 import React from "react";
 
 const Header: React.FC = () => (
-  <div className="text-center py-4 shrink-0">
+  <div className="text-center pt-4 pb-2 shrink-0">
     <h1
-      className="text-2xl md:text-4xl lg:text-5xl font-black mb-1 drop-shadow-2xl text-blue-100 flex items-center justify-center gap-3 tracking-tight"
+      className="text-4xl md:text-4xl lg:text-5xl mb-1 text-white flex items-center justify-center gap-3 tracking-tight"
       style={{
+        fontFamily: "'Orbitron', sans-serif",
+        fontWeight: 600,
         letterSpacing: "-0.03em",
+        textShadow: "0 2px 20px rgba(41,121,255,0.15)",
       }}
     >
       <img
-        src="/assets/tiptons-solver-logo.png"
-        alt="Tipton's Solver Logo"
-        className="inline-block w-10 h-10 lg:w-12 lg:h-12"
+        src="/assets/solvz-logo.png"
+        alt="Solvz Logo"
+        className="inline-block w-9 h-9 lg:w-11 lg:h-11"
         style={{ verticalAlign: "middle" }}
       />
-      Tipton's Solver
+      <p>solvz</p>
     </h1>
-    <p className="text-white/80 text-xs italic tracking-wide mt-1">
-      Drag to rotate • Swipe faces to twist
+    <p className="text-white/40 text-xs font-medium tracking-widest uppercase mt-2.5">
+      Drag to rotate &middot; Swipe faces to twist
     </p>
+    <div
+      className="mx-auto mt-3 h-px w-48 rounded-full"
+      style={{
+        background:
+          "linear-gradient(90deg, transparent, rgba(41,121,255,0.4), rgba(255,145,0,0.4), transparent)",
+      }}
+    />
   </div>
 );
 

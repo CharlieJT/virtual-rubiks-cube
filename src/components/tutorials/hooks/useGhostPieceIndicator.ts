@@ -7,7 +7,7 @@ interface UseGhostPieceIndicatorParams {
   onCubeInteraction?: () => void;
 }
 
-export const useGhostPieceIndicator = ({
+const useGhostPieceIndicator = ({
   activeSlideId,
   fixCompleted,
   isInteracting,
@@ -62,14 +62,12 @@ export const useGhostPieceIndicator = ({
     const fadeInDuration = 10;
     const startTime = Date.now();
     const animateFadeIn = () => {
-      // Stop if interaction started
       if (isInteracting) {
         resetCycle();
         return;
       }
       const elapsed = Date.now() - startTime;
       const rawProgress = Math.min(elapsed / fadeInDuration, 1);
-      // Ease-in-out: smooth acceleration and deceleration
       const progress =
         rawProgress < 0.5
           ? 2 * rawProgress * rawProgress
@@ -85,7 +83,6 @@ export const useGhostPieceIndicator = ({
 
         const moveDuration = 800;
         const animateMove = () => {
-          // Stop if interaction started
           if (isInteracting) {
             resetCycle();
             return;
@@ -93,7 +90,6 @@ export const useGhostPieceIndicator = ({
           if (startTimeRef.current) {
             const moveElapsed = Date.now() - startTimeRef.current;
             const rawProgress = Math.min(moveElapsed / moveDuration, 1);
-            // Ease-in-out: smooth acceleration and deceleration
             const moveProgress =
               rawProgress < 0.5
                 ? 2 * rawProgress * rawProgress
@@ -109,7 +105,6 @@ export const useGhostPieceIndicator = ({
               const fadeOutDuration = 10;
               const fadeOutStart = Date.now();
               const animateFadeOut = () => {
-                // Stop if interaction started
                 if (isInteracting) {
                   resetCycle();
                   return;
@@ -119,7 +114,6 @@ export const useGhostPieceIndicator = ({
                   fadeOutElapsed / fadeOutDuration,
                   1
                 );
-                // Ease-in-out: smooth acceleration and deceleration
                 const fadeOutProgress =
                   rawProgress < 0.5
                     ? 2 * rawProgress * rawProgress
@@ -144,27 +138,22 @@ export const useGhostPieceIndicator = ({
     animateFadeIn();
   }, [fixCompleted, isGhostSlide, isInteracting, resetCycle]);
 
-  // Hide immediately when interacting
   useEffect(() => {
     if (isInteracting) {
       resetCycle();
     }
   }, [isInteracting, resetCycle]);
 
-  // Reset when slide changes or fix is completed
   useEffect(() => {
     resetCycle();
   }, [activeSlideId, fixCompleted, resetCycle]);
 
   const handleCubeInteraction = useCallback(() => {
     onCubeInteraction?.();
-    // Hide ghost piece immediately when cube is interacted with
     resetCycle();
   }, [onCubeInteraction, resetCycle]);
 
-  // Check if ghost piece is visible/active
   const isVisible = opacity > 0 || isAnimatingMove;
-  // Check if ghost piece is currently animating (fade in, move, or fade out)
   const ghostIsAnimating = opacity > 0 || isAnimatingMove;
 
   return {
@@ -177,3 +166,5 @@ export const useGhostPieceIndicator = ({
     isAnimating: ghostIsAnimating,
   };
 };
+
+export default useGhostPieceIndicator;

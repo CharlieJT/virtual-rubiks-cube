@@ -16,7 +16,7 @@ interface UsePracticeSlideCompletionProps {
   isCubeFullySolved?: () => boolean;
 }
 
-export const usePracticeSlideCompletion = ({
+const usePracticeSlideCompletion = ({
   activeSlideId,
   cube3D,
   moveHistory,
@@ -129,3 +129,5 @@ export const usePracticeSlideCompletion = ({
     resetPracticeCompletion,
   };
 };
+
+export default usePracticeSlideCompletion;

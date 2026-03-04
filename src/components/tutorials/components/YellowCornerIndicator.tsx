@@ -18,9 +18,9 @@ export const YellowCornerIndicator: React.FC<YellowCornerIndicatorProps> = ({
   activeSlideId,
 }) => {
   const tickRotationDeg =
-    activeSlideId === "yellow-corners-solution-3"
+    activeSlideId === "yellow-corners-zero-repeated"
       ? 90
-      : activeSlideId === "yellow-corners-solution-2"
+      : activeSlideId === "yellow-corners-zero-correct"
       ? 0
       : 270;
 

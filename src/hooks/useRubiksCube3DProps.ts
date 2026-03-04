@@ -19,7 +19,7 @@ interface UseRubiksCube3DPropsParams {
   inputDisabled: boolean;
 }
 
-export const useRubiksCube3DProps = ({
+const useRubiksCube3DProps = ({
   activeSlideId,
   activeSlideAllowFaceMoves,
   activeSlideAllowSliceMoves,
@@ -116,4 +116,6 @@ export const useRubiksCube3DProps = ({
     dullOthersIntensity,
   };
 };
+
+export default useRubiksCube3DProps;
 

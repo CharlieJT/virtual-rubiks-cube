@@ -2,33 +2,33 @@ export const PRACTICE_SLIDES = [
   "practice-two-edges",
   "practice-three-edges",
   "practice-full-cross",
-  "practice-white-corners",
-  "practice-white-corners-2",
-  "practice-white-corners-3",
-  "practice-second-layer",
-  "practice-second-layer-2",
-  "practice-second-layer-3",
+  "practice-two-corners",
+  "practice-three-corners",
+  "practice-four-corners",
+  "practice-two-second-edges",
+  "practice-three-second-edges",
+  "practice-four-second-edges",
   "bonus-halfway-solve",
   "practice-last-three-steps",
   "practice-full-cube",
 ] as const;
 
 export const PRACTICE_WHITE_CORNERS_SLIDES = [
-  "practice-white-corners",
-  "practice-white-corners-2",
-  "practice-white-corners-3",
+  "practice-two-corners",
+  "practice-three-corners",
+  "practice-four-corners",
 ] as const;
 
 export const PRACTICE_SECOND_LAYER_SLIDES = [
-  "practice-second-layer",
-  "practice-second-layer-2",
-  "practice-second-layer-3",
+  "practice-two-second-edges",
+  "practice-three-second-edges",
+  "practice-four-second-edges",
 ] as const;
 
 export const RECAP_SLIDES = [
-  "recap-white-cross",
+  "white-cross-recap",
   "white-cross-completion",
-  "recap-white-corners",
+  "white-corners-recap",
   "white-corners-completion",
   "second-layer-recap",
   "second-layer-completion",
@@ -40,21 +40,21 @@ export const RECAP_SLIDES = [
 
 export const MULTI_STAGE_SLIDES = [
   "midlayer-green-white-extraction",
-  "practice-setup-solution-3",
-  "practice-setup-solution-4",
-  "practice-setup-solution-5",
-  "practice-setup-solution-6",
-  "second-layer-setup-solution",
-  "second-layer-setup-solution-2",
-  "second-layer-setup-solution-3",
-  "second-layer-setup-solution-4",
+  "corner-white-facing-up",
+  "corner-remove-reinsert",
+  "corner-remove-reinsert-alt",
+  "corner-move-to-correct",
+  "edge-insert-left",
+  "edge-insert-right",
+  "edge-remove-reinsert",
+  "edge-flipped-in-position",
   "yellow-cross-triangle",
   "yellow-cross-dot",
-  "yellow-edges-solution-2",
-  "yellow-edges-solution-3",
-  "yellow-edges-solution-4",
-  "yellow-corners-solution-2",
-  "yellow-corners-solution-3",
+  "yellow-edges-one-correct",
+  "yellow-edges-zero-correct",
+  "yellow-edges-two-opposite",
+  "yellow-corners-zero-correct",
+  "yellow-corners-zero-repeated",
 ] as const;
 
 export const ANIMATED_SEQUENCE_SLIDES = [
@@ -64,25 +64,25 @@ export const ANIMATED_SEQUENCE_SLIDES = [
   "misaligned-green-white",
   "flipped-misoriented-misaligned-green-white",
   "midlayer-green-white-extraction",
-  "practice-setup-solution",
-  "practice-setup-solution-2",
-  "practice-setup-solution-3",
-  "practice-setup-solution-4",
-  "practice-setup-solution-5",
-  "practice-setup-solution-6",
-  "second-layer-setup-solution",
-  "second-layer-setup-solution-2",
-  "second-layer-setup-solution-3",
-  "second-layer-setup-solution-4",
+  "corner-white-facing-right",
+  "corner-white-facing-left",
+  "corner-white-facing-up",
+  "corner-remove-reinsert",
+  "corner-remove-reinsert-alt",
+  "corner-move-to-correct",
+  "edge-insert-left",
+  "edge-insert-right",
+  "edge-remove-reinsert",
+  "edge-flipped-in-position",
   "yellow-cross-line",
   "yellow-cross-triangle",
   "yellow-cross-dot",
-  "yellow-edges-solution",
-  "yellow-edges-solution-2",
-  "yellow-edges-solution-3",
-  "yellow-corners-solution",
-  "yellow-corners-solution-2",
-  "yellow-corners-solution-3",
+  "yellow-edges-algorithm",
+  "yellow-edges-one-correct",
+  "yellow-edges-zero-correct",
+  "yellow-corners-one-correct",
+  "yellow-corners-zero-correct",
+  "yellow-corners-zero-repeated",
 ] as const;
 
 export const SLIDES_WITH_FRONT_FACE_LABEL = [
@@ -92,25 +92,25 @@ export const SLIDES_WITH_FRONT_FACE_LABEL = [
   "misaligned-green-white",
   "flipped-misoriented-misaligned-green-white",
   "midlayer-green-white-extraction",
-  "practice-setup-solution",
-  "practice-setup-solution-2",
-  "practice-setup-solution-3",
-  "practice-setup-solution-4",
-  "practice-setup-solution-5",
-  "practice-setup-solution-6",
+  "corner-white-facing-right",
+  "corner-white-facing-left",
+  "corner-white-facing-up",
+  "corner-remove-reinsert",
+  "corner-remove-reinsert-alt",
+  "corner-move-to-correct",
   "yellow-cross-line",
   "yellow-cross-triangle",
   "yellow-cross-dot",
-  "yellow-edges-solution",
-  "yellow-edges-solution-2",
-  "yellow-edges-solution-3",
-  "yellow-corners-solution",
-  "yellow-corners-solution-2",
-  "yellow-corners-solution-3",
-  "second-layer-setup-solution",
-  "second-layer-setup-solution-2",
-  "second-layer-setup-solution-3",
-  "second-layer-setup-solution-4",
+  "yellow-edges-algorithm",
+  "yellow-edges-one-correct",
+  "yellow-edges-zero-correct",
+  "yellow-corners-one-correct",
+  "yellow-corners-zero-correct",
+  "yellow-corners-zero-repeated",
+  "edge-insert-left",
+  "edge-insert-right",
+  "edge-remove-reinsert",
+  "edge-flipped-in-position",
 ] as const;
 
 export const WHITE_CROSS_SLIDES_WITHOUT_FRONT_FACE = [
@@ -137,27 +137,27 @@ export const SLIDES_WITH_SETUP_DELAY = [
   "practice-two-edges",
   "practice-three-edges",
   "practice-full-cross",
-  "practice-white-corners",
-  "practice-white-corners-2",
-  "practice-white-corners-3",
-  "practice-second-layer",
-  "practice-second-layer-2",
-  "practice-second-layer-3",
+  "practice-two-corners",
+  "practice-three-corners",
+  "practice-four-corners",
+  "practice-two-second-edges",
+  "practice-three-second-edges",
+  "practice-four-second-edges",
   "practice-last-three-steps",
   "practice-full-cube",
-  "practice-setup-solution",
-  "practice-setup-solution-2",
-  "practice-setup-solution-3",
-  "practice-setup-solution-4",
-  "practice-setup-solution-5",
-  "practice-setup-solution-6",
-  "second-layer-setup-solution",
-  "second-layer-setup-solution-2",
-  "second-layer-setup-solution-3",
-  "second-layer-setup-solution-4",
+  "corner-white-facing-right",
+  "corner-white-facing-left",
+  "corner-white-facing-up",
+  "corner-remove-reinsert",
+  "corner-remove-reinsert-alt",
+  "corner-move-to-correct",
+  "edge-insert-left",
+  "edge-insert-right",
+  "edge-remove-reinsert",
+  "edge-flipped-in-position",
   "yellow-cross-triangle",
   "yellow-cross-dot",
-  "yellow-corners-solution-2",
+  "yellow-corners-zero-correct",
 ] as const;
 
 export type SlideId =
@@ -167,42 +167,34 @@ export type SlideId =
   | (typeof ANIMATED_SEQUENCE_SLIDES)[number]
   | string;
 
-export const isPracticeSlide = (slideId: string | undefined): boolean => {
-  return PRACTICE_SLIDES.includes(slideId as (typeof PRACTICE_SLIDES)[number]);
-};
+export const isPracticeSlide = (slideId: string | undefined): boolean =>
+  PRACTICE_SLIDES.includes(slideId as (typeof PRACTICE_SLIDES)[number]);
 
 export const isPracticeWhiteCornersSlide = (
   slideId: string | undefined
-): boolean => {
-  return PRACTICE_WHITE_CORNERS_SLIDES.includes(slideId as (typeof PRACTICE_WHITE_CORNERS_SLIDES)[number]);
-};
+): boolean =>
+  PRACTICE_WHITE_CORNERS_SLIDES.includes(slideId as (typeof PRACTICE_WHITE_CORNERS_SLIDES)[number]);
 
 export const isPracticeSecondLayerSlide = (
   slideId: string | undefined
-): boolean => {
-  return PRACTICE_SECOND_LAYER_SLIDES.includes(slideId as (typeof PRACTICE_SECOND_LAYER_SLIDES)[number]);
-};
+): boolean =>
+  PRACTICE_SECOND_LAYER_SLIDES.includes(slideId as (typeof PRACTICE_SECOND_LAYER_SLIDES)[number]);
 
-export const isRecapSlide = (slideId: string | undefined): boolean => {
-  return RECAP_SLIDES.includes(slideId as (typeof RECAP_SLIDES)[number]);
-};
+export const isRecapSlide = (slideId: string | undefined): boolean =>
+  RECAP_SLIDES.includes(slideId as (typeof RECAP_SLIDES)[number]);
 
-export const isMultiStageSlide = (slideId: string | undefined): boolean => {
-  return MULTI_STAGE_SLIDES.includes(slideId as (typeof MULTI_STAGE_SLIDES)[number]);
-};
+export const isMultiStageSlide = (slideId: string | undefined): boolean =>
+  MULTI_STAGE_SLIDES.includes(slideId as (typeof MULTI_STAGE_SLIDES)[number]);
 
 export const isAnimatedSequenceSlide = (
   slideId: string | undefined
-): boolean => {
-  return ANIMATED_SEQUENCE_SLIDES.includes(slideId as (typeof ANIMATED_SEQUENCE_SLIDES)[number]);
-};
+): boolean =>
+  ANIMATED_SEQUENCE_SLIDES.includes(slideId as (typeof ANIMATED_SEQUENCE_SLIDES)[number]);
 
 export const isHighlightIntensitySlide = (
   slideId: string | undefined
-): boolean => {
-  return HIGHLIGHT_INTENSITY_SLIDES.includes(slideId as (typeof HIGHLIGHT_INTENSITY_SLIDES)[number]);
-};
+): boolean =>
+  HIGHLIGHT_INTENSITY_SLIDES.includes(slideId as (typeof HIGHLIGHT_INTENSITY_SLIDES)[number]);
 
-export const requiresSetupDelay = (slideId: string | undefined): boolean => {
-  return SLIDES_WITH_SETUP_DELAY.includes(slideId as (typeof SLIDES_WITH_SETUP_DELAY)[number]);
-};
+export const requiresSetupDelay = (slideId: string | undefined): boolean =>
+  SLIDES_WITH_SETUP_DELAY.includes(slideId as (typeof SLIDES_WITH_SETUP_DELAY)[number]);

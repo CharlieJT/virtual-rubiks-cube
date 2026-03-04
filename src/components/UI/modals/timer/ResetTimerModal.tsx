@@ -31,11 +31,10 @@ const ResetTimerModal: React.FC<ResetTimerModalProps> = ({
         <Button
           onClick={onConfirm}
           disabled={isResetting}
-          className={`px-4 py-1 rounded-lg font-bold w-[85px] text-white border-none transition-opacity ${
-            isResetting
-              ? "bg-orange-300 opacity-70 cursor-not-allowed"
-              : "bg-gradient-to-r from-orange-400 to-orange-600 hover:opacity-90 cursor-pointer"
+          className={`px-5 py-2.5 rounded-xl font-semibold w-[85px] text-white border-none transition-all duration-200 hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] ${
+            isResetting ? "opacity-70 cursor-not-allowed" : "cursor-pointer"
           }`}
+          style={{ backgroundColor: isResetting ? "#ffcc80" : "#FF9100" }}
         >
           {isResetting ? (
             <span className="inline-flex pt-1 items-center gap-2">
@@ -47,7 +46,7 @@ const ResetTimerModal: React.FC<ResetTimerModalProps> = ({
         </Button>
         <Button
           onClick={onClose}
-          className="px-4 py-2 rounded-lg font-bold bg-orange-50 text-orange-900 border-2 border-orange-400 hover:bg-orange-100 transition-colors"
+          className="px-5 py-2.5 rounded-xl font-semibold bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-all duration-200"
         >
           Cancel
         </Button>

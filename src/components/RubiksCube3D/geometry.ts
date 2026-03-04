@@ -1,37 +1,29 @@
 import * as THREE from "three";
 
-// Centralized drag sensitivity (radians per pixel)
-export const DRAG_SENSITIVITY = 0.006;
-// Minimum primary-axis projection (px) required to lock a drag and start a twist
-export const LOCK_PRIMARY_PX = 5;
+export const DRAG_SENSITIVITY = 0.006; // radians per pixel
+export const LOCK_PRIMARY_PX = 5; // min primary-axis px to lock a drag
 
-// Distance the cubies are apart
 export const CUBIE_DISTANCE = 1.09;
 
 export const CUBIE_SIZE = 1.09;
-// Sticker appearance tuning
 export const STICKER_INSET = 0.91; // 90% of face size
-export const STICKER_LIFT = 0.01; // distance above cubie surface (in world units) to prevent z-fighting; larger because size != 1
-export const STICKER_CORNER_RATIO = 0.285; // fraction of sticker size used as corner radius when corner flag is true
-export const STICKER_FALSE_CORNER_RATIO = 0.04; // tiny rounding for corners flagged false (was sharp previously)
-export const STICKER_CURVE_SEGMENTS = 6; // segments used to approximate each rounded corner
+export const STICKER_LIFT = 0.01; // prevents z-fighting
+export const STICKER_CORNER_RATIO = 0.285; // fraction of sticker size for corner radius
+export const STICKER_FALSE_CORNER_RATIO = 0.04; // subtle rounding for non-corner edges
+export const STICKER_CURVE_SEGMENTS = 6;
 
-// Border mesh constants
 export const BORDER_RADIUS = 0.065;
 export const BORDER_DEPTH = 0.502;
 export const BORDER_LENGTH = 1.04;
 
-// Geometry cache for performance
 const geometryCache = new Map<string, THREE.BufferGeometry>();
-
-// Cache sticker geometries by pattern
 const stickerGeometryCache = new Map<string, THREE.ShapeGeometry>();
 
 export const getStickerGeometryForCorners = (
   size: number,
   rTrue: number,
   rFalse: number,
-  corners: [boolean, boolean, boolean, boolean]
+  corners: [boolean, boolean, boolean, boolean],
 ) => {
   const key = `v3_${size}_${rTrue}_${rFalse}_${corners
     .map((c) => (c ? 1 : 0))
@@ -40,7 +32,7 @@ export const getStickerGeometryForCorners = (
   if (cached) return cached;
 
   const radii = corners.map((flag) =>
-    Math.min(flag ? rTrue : rFalse, size * 0.49)
+    Math.min(flag ? rTrue : rFalse, size * 0.49),
   ) as [number, number, number, number];
 
   const half = size / 2;
@@ -84,7 +76,7 @@ export const getStickerGeometryForCorners = (
     if (geom.getAttribute("uv")) geom.deleteAttribute("uv");
     geom.setAttribute(
       "uv",
-      new THREE.BufferAttribute(new Float32Array(uvs), 2)
+      new THREE.BufferAttribute(new Float32Array(uvs), 2),
     );
   }
   stickerGeometryCache.set(key, geom);
@@ -93,7 +85,7 @@ export const getStickerGeometryForCorners = (
 
 export const getCubieGeometry = (
   size: number,
-  cornerStyles: string[]
+  cornerStyles: string[],
 ): THREE.BufferGeometry => {
   const segmentCount = 4;
   const key = cornerStyles.join(",") + ":" + segmentCount;
@@ -106,7 +98,7 @@ export const getCubieGeometry = (
     size,
     segmentCount,
     segmentCount,
-    segmentCount
+    segmentCount,
   );
   const corners = [
     [1, 1, 1],
@@ -122,7 +114,7 @@ export const getCubieGeometry = (
   const v = new THREE.Vector3();
   const colorAttr = new THREE.BufferAttribute(
     new Float32Array(pos.count * 3),
-    3
+    3,
   );
   for (let i = 0; i < pos.count; i++) {
     colorAttr.setXYZ(i, 1, 1, 1); // default white

@@ -6,12 +6,14 @@ import useIsTouchDevice from "@/hooks/useIsTouchDevice";
 import useDprManager from "@/hooks/useDprManager";
 import type { OrbitControlsInstance } from "@/types/orbitControls";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
-import getSlidesForLesson, { type Slide } from "@components/tutorials/slideDefinitions";
-import { useFixSequenceState } from "@components/tutorials/hooks/useFixSequenceState";
-import { useMidStageTicks } from "@components/tutorials/hooks/useMidStageTicks";
-import { useSlideSpecificState } from "@components/tutorials/hooks/useSlideSpecificState";
-import { usePracticeSlideCompletion } from "@components/tutorials/hooks/usePracticeSlideCompletion";
-import { useTutorialCube3D } from "@components/tutorials/hooks/useTutorialCube3D";
+import getSlidesForLesson, {
+  type Slide,
+} from "@components/tutorials/slideDefinitions";
+import useFixSequenceState from "@components/tutorials/hooks/useFixSequenceState";
+import useMidStageTicks from "@components/tutorials/hooks/useMidStageTicks";
+import useSlideSpecificState from "@components/tutorials/hooks/useSlideSpecificState";
+import usePracticeSlideCompletion from "@components/tutorials/hooks/usePracticeSlideCompletion";
+import useTutorialCube3D from "@components/tutorials/hooks/useTutorialCube3D";
 import { getFixSequence } from "@components/tutorials/utils/fixSequenceHelpers";
 import { makeCentersGrey } from "@/utils/makeCentersGrey";
 import {
@@ -22,14 +24,20 @@ import {
 } from "@components/tutorials/utils/tutorialHelpers";
 import type { CubeMove } from "@/types/cube";
 
-export const useTutorialPageState = (lessonId: string) => {
+const useTutorialPageState = (lessonId: string) => {
   const cubeRef = useRef(new CubeJSWrapper());
   const [cube3D, setCube3D] = useState(() =>
-    cubejsTo3D(cubeRef.current.getCube())
+    cubejsTo3D(cubeRef.current.getCube()),
   );
-  const [previousTutorialCube3D, setPreviousTutorialCube3D] = useState<CubeState[][][] | null>(null);
-  const [baselineTutorialCube3D, setBaselineTutorialCube3D] = useState<CubeState[][][] | null>(null);
-  const [stickerGreyMap, setStickerGreyMap] = useState<Map<string, boolean>>(new Map());
+  const [previousTutorialCube3D, setPreviousTutorialCube3D] = useState<
+    CubeState[][][] | null
+  >(null);
+  const [baselineTutorialCube3D, setBaselineTutorialCube3D] = useState<
+    CubeState[][][] | null
+  >(null);
+  const [stickerGreyMap, setStickerGreyMap] = useState<Map<string, boolean>>(
+    new Map(),
+  );
   const [colorFadeProgress, setColorFadeProgress] = useState(0);
   const colorFadeProgressRef = useRef(0);
   const tutorialCube3DRef = useRef<CubeState[][][] | null>(null);
@@ -42,7 +50,7 @@ export const useTutorialPageState = (lessonId: string) => {
   const isAnimatingRef = useRef(false);
   const lastMoveTimeRef = useRef(0);
   const lastMoveSourceRef = useRef<"queue" | "manual" | "undo" | "redo" | null>(
-    null
+    null,
   );
 
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
@@ -80,7 +88,7 @@ export const useTutorialPageState = (lessonId: string) => {
 
   const isTouchDevice = useIsTouchDevice();
   const { canvasDpr, attachSetDpr, setInteractiveDpr, onDecline, onIncline } =
-    useDprManager(isTouchDevice);
+    useDprManager();
   const [precisionActive] = useState(false);
   const forceOrbitDisabledRef = useRef(false);
 
@@ -96,12 +104,12 @@ export const useTutorialPageState = (lessonId: string) => {
 
   const fixSequence: string[] = useMemo(
     () => getFixSequence(activeSlide?.id),
-    [activeSlide?.id]
+    [activeSlide?.id],
   );
 
   const fixSequenceState = useFixSequenceState(
     activeSlide?.id,
-    fixSequence.length
+    fixSequence.length,
   );
   const {
     fixIndex,
@@ -365,3 +373,5 @@ export const useTutorialPageState = (lessonId: string) => {
     tutorialCube3D,
   };
 };
+
+export default useTutorialPageState;

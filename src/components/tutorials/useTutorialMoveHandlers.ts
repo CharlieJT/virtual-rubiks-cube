@@ -40,7 +40,7 @@ interface UseTutorialMoveHandlersParams {
   isResettingRef: React.RefObject<boolean>;
 }
 
-export const useTutorialMoveHandlers = ({
+const useTutorialMoveHandlers = ({
   fixSequence,
   fixIndex,
   fixDoublePartialDir,
@@ -253,3 +253,5 @@ export const useTutorialMoveHandlers = ({
 
   return { handleButtonMove, handleMoveAnimationDone };
 };
+
+export default useTutorialMoveHandlers;

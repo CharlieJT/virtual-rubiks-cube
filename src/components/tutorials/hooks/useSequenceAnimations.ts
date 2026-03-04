@@ -9,7 +9,7 @@ interface UseSequenceAnimationsProps {
   slideKey?: string | number;
 }
 
-export const useSequenceAnimations = ({
+const useSequenceAnimations = ({
   parts,
   currentIndex,
   deferMeasurements = false,
@@ -308,4 +308,6 @@ export const useSequenceAnimations = ({
     completionMessageTranslateY,
   };
 };
+
+export default useSequenceAnimations;
 

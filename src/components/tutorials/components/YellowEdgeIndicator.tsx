@@ -43,13 +43,13 @@ export const createYellowEdgePieceChildren = (
 
     // Calculate tick rotation based on slide and sequence progress
     let tickRotationDeg = 270; // Default rotation
-    if (activeSlideId === "yellow-edges-solution-2" && fixIndex >= 1) {
+    if (activeSlideId === "yellow-edges-one-correct" && fixIndex >= 1) {
       // After sequence 1 (U move, fixIndex >= 1), rotate 90 degrees anti-clockwise
       tickRotationDeg = 270 - 90; // 180 degrees
-    } else if (activeSlideId === "yellow-edges-solution-4" && fixIndex >= 7) {
+    } else if (activeSlideId === "yellow-edges-two-opposite" && fixIndex >= 7) {
       // After sequence 1 (first Sune, fixIndex >= 7), rotate 90 degrees clockwise
       tickRotationDeg = 270 + 90; // 360 degrees (or 0)
-    } else if (activeSlideId === "yellow-edges-solution-3" && fixIndex >= 1) {
+    } else if (activeSlideId === "yellow-edges-zero-correct" && fixIndex >= 1) {
       // After sequence 1 (U2, fixIndex >= 1), rotate 90 degrees clockwise
       tickRotationDeg = 270 + 90; // 360 degrees (or 0)
     }

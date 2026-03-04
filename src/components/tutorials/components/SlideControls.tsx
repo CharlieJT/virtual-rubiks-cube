@@ -31,8 +31,8 @@ const SlideControls: React.FC<SlideControlsProps> = ({
   const shouldShowReset =
     lessonId === "notation" ||
     (lessonId === "rubiks-cube-introduction" && currentSlide > 0) ||
-    activeSlideId === "yellow-edges-solution" ||
-    activeSlideId === "yellow-corners-solution" ||
+    activeSlideId === "yellow-edges-algorithm" ||
+    activeSlideId === "yellow-corners-one-correct" ||
     activeSlideId === "orient-two-corners" ||
     currentSlide >= 2;
   const shouldShowReposition = !shouldShowReset;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import Button from "@components/UI/Button";
 
 interface InfoButtonProps {
@@ -11,30 +11,27 @@ const InfoButton: React.FC<InfoButtonProps> = ({
   onClick,
   className = "",
   style,
-}) => {
-  const [hovered, setHovered] = useState(false);
-  const bgColor = hovered ? "#4060cb" : "transparent";
-  const mainColor = hovered ? "#2a3a7a" : "#4060cb";
-  return (
-    <Button
-      className={`absolute top-5 right-4 z-[10000] bg-transparent border-2 rounded-full w-11 h-11 flex items-center justify-center shadow-lg transition-colors ${className}`}
-      style={{
-        fontSize: 24,
-        borderColor: mainColor,
-        backgroundColor: bgColor,
-        ...style,
-      }}
-      aria-label="Information"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      type="button"
+}) => (
+  <Button
+    className={`absolute top-4 right-4 z-[10000] bg-white/10 backdrop-blur-md border border-white/20 rounded-xl w-10 h-10 flex items-center justify-center shadow-lg transition-all duration-200 hover:bg-white/20 hover:scale-105 active:scale-95 ${className}`}
+    style={style}
+    aria-label="Information"
+    onClick={onClick}
+    type="button"
+  >
+    <svg
+      className="w-7 h-7 text-white/70 hover:text-white"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <span className="font-extrabold text-2xl" style={{ color: mainColor }}>
-        i
-      </span>
-    </Button>
-  );
-};
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4M12 8h.01" />
+    </svg>
+  </Button>
+);
 
 export default InfoButton;

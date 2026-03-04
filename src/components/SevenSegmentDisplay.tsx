@@ -50,8 +50,8 @@ const SevenSegmentDigit: React.FC<SevenSegmentDigitProps> = ({
 
   const { width, height, thickness } = sizeClasses[size];
 
-  const activeColor = "#00ff00"; // Green
-  const inactiveColor = "#001100"; // Very dark green
+  const activeColor = "#00E676"; // Cube green
+  const inactiveColor = "#0a1a0a"; // Very subtle dark green
 
   return (
     <div className={`relative ${width} ${height} mx-0.2`}>
@@ -161,11 +161,11 @@ const SevenSegmentDisplay: React.FC<SevenSegmentDisplayProps> = ({
         >
           <div
             className={`${dotSize} rounded-full mb-0.5`}
-            style={{ backgroundColor: "#00ff00" }}
+            style={{ backgroundColor: "#00E676" }}
           />
           <div
             className={`${dotSize} rounded-full`}
-            style={{ backgroundColor: "#00ff00" }}
+            style={{ backgroundColor: "#00E676" }}
           />
         </div>
       );
@@ -182,7 +182,7 @@ const SevenSegmentDisplay: React.FC<SevenSegmentDisplayProps> = ({
         >
           <div
             className={`${dotSize} rounded-full mb-0.5`}
-            style={{ backgroundColor: "#00ff00" }}
+            style={{ backgroundColor: "#00E676" }}
           />
         </div>
       );
@@ -192,7 +192,7 @@ const SevenSegmentDisplay: React.FC<SevenSegmentDisplayProps> = ({
   };
 
   return (
-    <div className="flex items-center justify-center bg-black rounded-lg py-2 pl-4 -pr-2 border border-gray-800">
+    <div className="flex items-center justify-center bg-black rounded-lg py-2 pl-4 -pr-2" style={{ boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,230,118,0.05)" }}>
       {/* Main part (MM:SS) */}
       {mainPart.split("").map((char, index) => renderCharacter(char, index))}
 
