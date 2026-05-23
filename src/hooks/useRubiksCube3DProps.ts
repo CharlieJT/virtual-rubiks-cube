@@ -19,6 +19,42 @@ interface UseRubiksCube3DPropsParams {
   inputDisabled: boolean;
 }
 
+export const getHighlightPositionsForSlide = (
+  slideId: string | undefined,
+  lessonId: string,
+  tutorialCube3D: CubeState[][][],
+): [number, number, number][] | undefined => {
+  if (slideId === "center-order-bogr") {
+    return [
+      [1, 1, 0],
+      [1, 1, 2],
+      [0, 1, 1],
+      [2, 1, 1],
+    ];
+  }
+  if (slideId === "bogr-edges-focus") {
+    return [
+      [1, 2, 2],
+      [2, 2, 1],
+      [1, 2, 0],
+      [0, 2, 1],
+    ];
+  }
+  if (slideId === "mechanical-approach" && lessonId === "white-corners") {
+    const pos = findWhiteGreenRedCorner(tutorialCube3D);
+    return pos ? [pos] : [];
+  }
+  if (slideId === "mechanical-approach" && lessonId === "second-layer") {
+    const pos = findRedGreenSecondLayerEdge(tutorialCube3D);
+    return pos ? [pos] : [];
+  }
+  if (slideId === "find-green-white" && lessonId === "white-cross") {
+    const pos = findGreenWhiteEdge(tutorialCube3D);
+    return pos ? [pos] : [];
+  }
+  return undefined;
+};
+
 const useRubiksCube3DProps = ({
   activeSlideId,
   activeSlideAllowFaceMoves,
@@ -40,6 +76,7 @@ const useRubiksCube3DProps = ({
   const disableSliceDrag = useMemo(() => {
     return (
       isRecapSlide ||
+      !activeSlideAllowFaceMoves ||
       activeSlideId === "intro" ||
       activeSlideId === "mechanical-approach" ||
       activeSlideId === "find-green-white" ||
@@ -48,6 +85,7 @@ const useRubiksCube3DProps = ({
     );
   }, [
     isRecapSlide,
+    activeSlideAllowFaceMoves,
     activeSlideId,
     fixCompleted,
     isPracticeSlide,
@@ -77,23 +115,20 @@ const useRubiksCube3DProps = ({
     return 0;
   }, [activeSlideId]);
 
-  const highlightPositions = useMemo((): [number, number, number][] | undefined => {
-    if (activeSlideId === "mechanical-approach" && lessonId === "white-corners") {
-      const pos = findWhiteGreenRedCorner(tutorialCube3D);
-      return pos ? [pos] : [];
-    }
-    if (activeSlideId === "mechanical-approach" && lessonId === "second-layer") {
-      const pos = findRedGreenSecondLayerEdge(tutorialCube3D);
-      return pos ? [pos] : [];
-    }
-    if (activeSlideId === "find-green-white" && lessonId === "white-cross") {
-      const pos = findGreenWhiteEdge(tutorialCube3D);
-      return pos ? [pos] : [];
-    }
-    return undefined;
+  const highlightPositions = useMemo(():
+    | [number, number, number][]
+    | undefined => {
+    return getHighlightPositionsForSlide(
+      activeSlideId,
+      lessonId,
+      tutorialCube3D,
+    );
   }, [activeSlideId, lessonId, tutorialCube3D]);
 
   const dullOthersIntensity = useMemo(() => {
+    if (activeSlideId === "center-order-bogr" || activeSlideId === "bogr-edges-focus") {
+      return 0.75;
+    }
     if (
       activeSlideId === "mechanical-approach" &&
       (lessonId === "white-corners" || lessonId === "second-layer")
@@ -106,6 +141,26 @@ const useRubiksCube3DProps = ({
     return 0;
   }, [activeSlideId, lessonId]);
 
+  const doubleSidedStickerKeys = useMemo(() => {
+    if (activeSlideId !== "center-order-bogr") return undefined;
+    return new Set<string>(["1,1,0", "1,1,2", "0,1,1", "2,1,1"]);
+  }, [activeSlideId]);
+
+  const doubleSidedStickerKeysForEdges = useMemo(() => {
+    if (activeSlideId !== "bogr-edges-focus") return undefined;
+    return new Set<string>([
+      "1,2,2:front",
+      "2,2,1:right",
+      "1,2,0:back",
+      "0,2,1:left",
+    ]);
+  }, [activeSlideId]);
+
+  const cubeOpacity = useMemo(() => {
+    if (activeSlideId === "center-order-bogr" || activeSlideId === "bogr-edges-focus")
+      return 0.65;
+    return undefined;
+  }, [activeSlideId]);
 
   return {
     inputDisabled: inputDisabledValue,
@@ -114,8 +169,30 @@ const useRubiksCube3DProps = ({
     highlightIntensity,
     highlightPositions,
     dullOthersIntensity,
+    doubleSidedStickerKeys,
+    doubleSidedStickerKeysForEdges,
+    cubeOpacity,
   };
 };
 
-export default useRubiksCube3DProps;
+export const getDullAndOpacityForSlide = (
+  slideId: string | undefined,
+  lessonId: string
+): { dull: number; opacity: number | undefined } => {
+  let dull = 0;
+  let opacity: number | undefined;
+  if (slideId === "center-order-bogr" || slideId === "bogr-edges-focus") {
+    dull = 0.75;
+    opacity = 0.65;
+  } else if (
+    slideId === "mechanical-approach" &&
+    (lessonId === "white-corners" || lessonId === "second-layer")
+  ) {
+    dull = 0.75;
+  } else if (slideId === "find-green-white" && lessonId === "white-cross") {
+    dull = 0.75;
+  }
+  return { dull, opacity };
+};
 
+export default useRubiksCube3DProps;

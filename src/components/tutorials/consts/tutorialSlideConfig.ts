@@ -32,6 +32,7 @@ export const RECAP_SLIDES = [
   "white-corners-completion",
   "second-layer-recap",
   "second-layer-completion",
+  "intermediate-white-cross-recap",
   "yellow-cross-completion",
   "yellow-edges-completion",
   "yellow-corners-completion",

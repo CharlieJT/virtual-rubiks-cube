@@ -57,14 +57,8 @@ const useSlideInteractionRules = ({
         (isPracticeSlide10_11_12 && practiceCompleted);
 
       setInputDisabled(shouldDisableInput);
-      
-      if (activeSlide.allowFaceMoves === false) {
-        setOrbitControlsEnabled(false);
-        handleOrbitControlsChange(false);
-      } else {
       setOrbitControlsEnabled(true);
-        handleOrbitControlsChange(true);
-      }
+      handleOrbitControlsChange(true);
     }
   }, [activeSlide?.id, isResetting, practiceCompleted, setInputDisabled, setOrbitControlsEnabled, handleOrbitControlsChange]);
 };

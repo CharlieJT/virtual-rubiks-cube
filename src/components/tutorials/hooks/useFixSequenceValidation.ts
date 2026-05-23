@@ -42,10 +42,17 @@ interface UseFixSequenceValidationProps {
   orientThreeCornersYawChangedRef: MutableRefObject<number>;
   orientFourCornersYawChangedRef: MutableRefObject<number>;
   practiceSetupSolution9YawChangedRef: MutableRefObject<number>;
+  intermediateWhiteCrossSlide8YawStateRef: MutableRefObject<number>;
+  intermediateWhiteCrossSlide11YawStateRef: MutableRefObject<number>;
+  intermediateWhiteCrossSlide13YawStateRef: MutableRefObject<number>;
   animateMidlayerStage: (stage: 1 | 2 | 3 | 4 | 5) => void;
   triggerFixTick: () => void;
   resetToSlideBaseline: (skipFixIndexReset?: boolean, previousState?: CubeState[][][]) => Promise<void>;
-  showErrorFade: (wrongMove: CubeMove | null, fixSequence: string[], fixIndex: number) => void;
+  showErrorFade: (
+    wrongMove: CubeMove | null,
+    slide16FadeSideCentersFromColorOverride?: boolean,
+  ) => void;
+  slide16FadeFromFullColorRef?: MutableRefObject<boolean>;
   setFixFirstTickProgress: (progress: boolean) => void;
   setFixFirstTickLine: (line: boolean) => void;
   setFixFirstTickPlayed: (played: boolean) => void;
@@ -88,10 +95,14 @@ const useFixSequenceValidation = ({
   orientThreeCornersYawChangedRef,
   orientFourCornersYawChangedRef,
   practiceSetupSolution9YawChangedRef,
+  intermediateWhiteCrossSlide8YawStateRef,
+  intermediateWhiteCrossSlide11YawStateRef,
+  intermediateWhiteCrossSlide13YawStateRef,
   animateMidlayerStage,
   triggerFixTick,
   resetToSlideBaseline,
   showErrorFade,
+  slide16FadeFromFullColorRef,
   setFixFirstTickProgress,
   setFixFirstTickLine,
   setFixFirstTickPlayed,
@@ -146,7 +157,9 @@ const useFixSequenceValidation = ({
           yellowCorners2YawChangedRef.current = false;
         }
         setFixErrorPulse(true);
-        showErrorFade(wrongMoveAttempted, fixSequence, fixIndex);
+        const slide16FadeCapture =
+          slide16FadeFromFullColorRef?.current ?? false;
+        showErrorFade(wrongMoveAttempted, slide16FadeCapture);
         flushSync(() => {
           setFixIndex(wrongMoveIndex);
           setFixErrorPulse(true);
@@ -305,6 +318,9 @@ const useFixSequenceValidation = ({
             orientThreeCornersYawChangedRef,
             orientFourCornersYawChangedRef,
             practiceSetupSolution9YawChangedRef,
+            intermediateWhiteCrossSlide8YawStateRef,
+            intermediateWhiteCrossSlide11YawStateRef,
+            intermediateWhiteCrossSlide13YawStateRef,
           }
         );
 
@@ -413,6 +429,9 @@ const useFixSequenceValidation = ({
       slide8WhiteCrossYawStateRef,
       slide6YawChangedRef,
       slide8YawChangedRef,
+      intermediateWhiteCrossSlide8YawStateRef,
+      intermediateWhiteCrossSlide11YawStateRef,
+      intermediateWhiteCrossSlide13YawStateRef,
       yellowEdges2YawChangedRef,
       yellowEdges3YawChangedRef,
       yellowCorners2YawChangedRef,
@@ -420,6 +439,8 @@ const useFixSequenceValidation = ({
       animateMidlayerStage,
       triggerFixTick,
       resetToSlideBaseline,
+      showErrorFade,
+      slide16FadeFromFullColorRef,
       setFixFirstTickProgress,
       setFixFirstTickLine,
       setFixFirstTickPlayed,

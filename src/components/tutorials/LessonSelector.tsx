@@ -29,6 +29,7 @@ type LessonType =
   | "full-oll"
   | "full-pll"
   | "white-cross-comprehensive"
+  | "intermediate-white-cross"
   | "f2l-advanced";
 
 interface Lesson {
@@ -137,6 +138,12 @@ const lessonSections: LessonSection[] = [
       shadow: "shadow-purple-200/20",
     },
     lessons: [
+      {
+        id: "intermediate-white-cross",
+        title: "White Cross (Intermediate)",
+        description: "White cross with white on bottom and center order (BOGR)",
+        icon: "/assets/white-cross-image.png",
+      },
       {
         id: "white-cross-comprehensive",
         title: "White Cross (Comprehensive)",

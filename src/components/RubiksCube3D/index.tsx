@@ -52,6 +52,10 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       disableSliceDrag = false,
       preventSliceMoves = false,
       pieceChildren,
+      doubleSidedStickerKeys,
+      doubleSidedStickerKeysForEdges,
+      cubeOpacity,
+      innerStickerOpacity,
       hideLogo = false,
       hideRightFace = false,
       hideFrontFace = false,
@@ -471,6 +475,11 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 isHighlighted={isHighlighted}
                 highlightIntensity={0}
                 dullOthersIntensity={!isHighlighted ? (dullOthersIntensity ?? 0) : 0}
+                stickerDoubleSide={doubleSidedStickerKeys?.has(cubieKey) ?? false}
+                doubleSidedStickerKeysForEdges={doubleSidedStickerKeysForEdges}
+                cubeOpacity={cubeOpacity}
+                innerStickerOpacity={innerStickerOpacity}
+                isColorFadeActive={!!(previousCube3D && baselineCube3D)}
                 trackingStateRef={trackingStateRef}
                 onPointerDown={stableHandlePointerDown}
                 onMeshReady={stableHandleMeshReady}
@@ -532,6 +541,10 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       stableHandleMeshReady,
       stableHandleMaterialsReady,
       stablePieceChildren,
+      doubleSidedStickerKeys,
+      doubleSidedStickerKeysForEdges,
+      cubeOpacity,
+      innerStickerOpacity,
     ]);
 
     return (

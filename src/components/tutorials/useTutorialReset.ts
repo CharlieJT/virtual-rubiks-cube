@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { flushSync } from "react-dom";
 import type React from "react";
 import type { Slide } from "@components/tutorials/slideDefinitions";
 import type { CubeMove } from "@/types/cube";
@@ -16,7 +17,6 @@ interface UseTutorialResetParams {
   isTransitioningRef: React.RefObject<boolean>;
   isResettingRef: React.RefObject<boolean>;
   setInputDisabled: (value: boolean) => void;
-  setFixIndex: (value: number | ((prev: number) => number)) => void;
   setFixDoublePartialDir: React.Dispatch<React.SetStateAction<0 | 1 | -1>>;
   setFixShowTick: (value: boolean) => void;
   setFixTickAnimKey: (value: number | ((prev: number) => number)) => void;
@@ -42,7 +42,11 @@ interface UseTutorialResetParams {
   setIsAnimating: (value: boolean) => void;
   isAnimatingRef: React.RefObject<boolean>;
   setPracticeSetupComplete: (value: boolean) => void;
-  showErrorFade: (wrongMove: CubeMove | null) => void;
+  slide16FadeFromFullColorRef: React.MutableRefObject<boolean>;
+  showErrorFade: (
+    wrongMove: CubeMove | null,
+    slide16FadeSideCentersFromColorOverride?: boolean,
+  ) => void;
 }
 
 const useTutorialReset = ({
@@ -53,7 +57,6 @@ const useTutorialReset = ({
   isTransitioningRef,
   isResettingRef,
   setInputDisabled,
-  setFixIndex,
   setFixDoublePartialDir,
   setFixShowTick,
   setFixTickAnimKey,
@@ -79,28 +82,30 @@ const useTutorialReset = ({
   setIsAnimating,
   isAnimatingRef,
   setPracticeSetupComplete,
+  slide16FadeFromFullColorRef,
   showErrorFade,
 }: UseTutorialResetParams) => {
   const resetToSlideBaseline = useCallback(
     async (skipFixIndexReset = false) => {
-      showErrorFade(null);
+      const slide16FadeSideCentersFromColorCapture =
+        slide16FadeFromFullColorRef.current;
+      if (!skipFixIndexReset) {
+        flushSync(() => {
+          resetFixState();
+        });
+      }
+      showErrorFade(null, slide16FadeSideCentersFromColorCapture);
       await new Promise((resolve) => setTimeout(resolve, 350));
 
       isTransitioningRef.current = true;
       setInputDisabled(true);
       disableOrbitTemporarily();
-      if (!skipFixIndexReset) {
-        setFixIndex(0);
-      }
-      setFixDoublePartialDir(0);
 
       isResettingRef.current = true;
       setPendingMove(null);
       setIsAnimating(false);
       isAnimatingRef.current = false;
-      if (!skipFixIndexReset) {
-        resetFixState();
-      } else {
+      if (skipFixIndexReset) {
         setFixDoublePartialDir(0);
         setFixShowTick(false);
         setFixTickAnimKey((k: number) => k + 1);
@@ -149,7 +154,6 @@ const useTutorialReset = ({
       resetMidStageTicks,
       resetSlideSpecificState,
       resetPracticeCompletion,
-      setFixIndex,
       setFixDoublePartialDir,
       setFixShowTick,
       setFixTickAnimKey,
@@ -172,6 +176,7 @@ const useTutorialReset = ({
       setIsAnimating,
       isAnimatingRef,
       setPracticeSetupComplete,
+      slide16FadeFromFullColorRef,
     ]
   );
 

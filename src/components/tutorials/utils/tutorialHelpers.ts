@@ -1,5 +1,7 @@
 import type { CubeState } from "@/types/cube";
 import CUBE_COLORS from "@/consts/cubeColours";
+import { makeCentersGrey, makeSideCentersGrey } from "@/utils/makeCentersGrey";
+import type { Slide } from "@components/tutorials/slideDefinitions";
 
 /**
  * Camera configuration options for reset/transition
@@ -14,7 +16,7 @@ export interface SlideCameraConfig {
 
 export const getSlideCameraConfig = (
   slideId: string | undefined,
-  lessonId?: string
+  lessonId?: string,
 ): SlideCameraConfig => {
   const slideIdForLogging = slideId || "unknown";
 
@@ -36,6 +38,194 @@ export const getSlideCameraConfig = (
     }
     return {
       extraYawRad: (Math.PI / 180) * -45,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "intermediate-white-cross-intro"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: false,
+      extraERotationDeg: 135,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    (slideId === "intermediate-white-cross-intro" ||
+      slideId === "white-on-bottom")
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: 135,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    (slideId === "center-order-bogr" || slideId === "bogr-edges-focus")
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: 135,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (lessonId === "intermediate-white-cross" && slideId === "f2-blue-front") {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: 180,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "insert-flipped-edge-right"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -145,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "insert-flipped-edge-left"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "two-edges-blue-front"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "two-edges-reposition-blue-front"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "solve-two-edges-together"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "solve-orange-and-blue-together"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -235,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "solve-blue-and-red-together"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "solve-red-and-blue-together"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "solve-green-and-orange-together"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slideId === "bogr-insert-align-red-green"
+  ) {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -145,
+      extraPitchDeg: -10,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (lessonId === "intermediate-white-cross") {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
       slideId: slideIdForLogging,
     };
   }
@@ -195,6 +385,15 @@ export const getSlideCameraConfig = (
   }
 
   if (slideId === "second-layer-recap") {
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -45,
+      slideId: slideIdForLogging,
+    };
+  }
+
+  if (slideId === "intermediate-white-cross-recap") {
     return {
       extraYawRad: 0,
       flipUpsideDown: true,
@@ -373,7 +572,7 @@ export const getCubieColorSet = (piece: CubeState) => {
  */
 export const createTutorialCubeState = (
   lessonId: string,
-  base: CubeState[][][]
+  base: CubeState[][][],
 ) => {
   // Default: leave as-is
   if (!lessonId) return base;
@@ -381,6 +580,94 @@ export const createTutorialCubeState = (
   if (lessonId === "white-cross") return base;
   // Fallback: no-op
   return base;
+};
+
+const GREY = "#808080";
+
+/**
+ * Build the same tutorial cube state that would be displayed for a given slide
+ * (createTutorialCubeState + filter + yellow-cross + makeCentersGrey).
+ * Used for slide-transition fade baseline and error-fade baseline.
+ */
+export const getTutorialCubeStateForSlide = (
+  lessonId: string,
+  slide: Slide | undefined,
+  cubeState: CubeState[][][],
+): CubeState[][][] => {
+  let result = createTutorialCubeState(lessonId, cubeState);
+  if (slide?.filter) {
+    result = result.map((layer) =>
+      layer.map((row) =>
+        row.map((piece) => {
+          const visible = slide.filter!(piece);
+          if (visible) return piece;
+          return {
+            ...piece,
+            colors: {
+              front: GREY,
+              back: GREY,
+              left: GREY,
+              right: GREY,
+              top: GREY,
+              bottom: GREY,
+            },
+          };
+        }),
+      ),
+    );
+  }
+  if (lessonId === "yellow-cross") {
+    result = result.map((layer) =>
+      layer.map((row) =>
+        row.map((piece) => {
+          const set = getCubieColorSet(piece);
+          if (set.size === 2 && set.has(CUBE_COLORS.YELLOW)) {
+            const newColors = { ...piece.colors };
+            const faceKeys: Array<keyof CubeState["colors"]> = [
+              "front",
+              "back",
+              "left",
+              "right",
+              "top",
+              "bottom",
+            ];
+            for (const face of faceKeys) {
+              const color = piece.colors[face];
+              if (
+                color &&
+                color !== CUBE_COLORS.YELLOW &&
+                color !== GREY &&
+                color !== CUBE_COLORS.BLACK
+              ) {
+                newColors[face] = GREY;
+              }
+            }
+            return { ...piece, colors: newColors };
+          }
+          return piece;
+        }),
+      ),
+    );
+  }
+  if (
+    lessonId === "rubiks-cube-introduction" &&
+    (slide?.id === "edge-pieces" || slide?.id === "corner-pieces")
+  ) {
+    result = makeCentersGrey(result);
+  }
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slide?.id === "bogr-edges-focus"
+  ) {
+    result = makeSideCentersGrey(result);
+  }
+  if (
+    lessonId === "intermediate-white-cross" &&
+    slide?.id === "bogr-insert-align-red-green"
+  ) {
+    result = makeSideCentersGrey(result);
+  }
+  return result;
 };
 
 /**
@@ -991,12 +1278,90 @@ export const isCubeFullySolved = (cube3D: CubeState[][][]) => {
     face: keyof CubeState["colors"];
     positions: Array<[number, number, number]>;
   }> = [
-    { face: "front", positions: [[0, 0, 2], [1, 0, 2], [2, 0, 2], [0, 1, 2], [1, 1, 2], [2, 1, 2], [0, 2, 2], [1, 2, 2], [2, 2, 2]] },
-    { face: "back", positions: [[0, 0, 0], [1, 0, 0], [2, 0, 0], [0, 1, 0], [1, 1, 0], [2, 1, 0], [0, 2, 0], [1, 2, 0], [2, 2, 0]] },
-    { face: "left", positions: [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 0], [0, 1, 1], [0, 1, 2], [0, 2, 0], [0, 2, 1], [0, 2, 2]] },
-    { face: "right", positions: [[2, 0, 0], [2, 0, 1], [2, 0, 2], [2, 1, 0], [2, 1, 1], [2, 1, 2], [2, 2, 0], [2, 2, 1], [2, 2, 2]] },
-    { face: "top", positions: [[0, 2, 0], [1, 2, 0], [2, 2, 0], [0, 2, 1], [1, 2, 1], [2, 2, 1], [0, 2, 2], [1, 2, 2], [2, 2, 2]] },
-    { face: "bottom", positions: [[0, 0, 0], [1, 0, 0], [2, 0, 0], [0, 0, 1], [1, 0, 1], [2, 0, 1], [0, 0, 2], [1, 0, 2], [2, 0, 2]] },
+    {
+      face: "front",
+      positions: [
+        [0, 0, 2],
+        [1, 0, 2],
+        [2, 0, 2],
+        [0, 1, 2],
+        [1, 1, 2],
+        [2, 1, 2],
+        [0, 2, 2],
+        [1, 2, 2],
+        [2, 2, 2],
+      ],
+    },
+    {
+      face: "back",
+      positions: [
+        [0, 0, 0],
+        [1, 0, 0],
+        [2, 0, 0],
+        [0, 1, 0],
+        [1, 1, 0],
+        [2, 1, 0],
+        [0, 2, 0],
+        [1, 2, 0],
+        [2, 2, 0],
+      ],
+    },
+    {
+      face: "left",
+      positions: [
+        [0, 0, 0],
+        [0, 0, 1],
+        [0, 0, 2],
+        [0, 1, 0],
+        [0, 1, 1],
+        [0, 1, 2],
+        [0, 2, 0],
+        [0, 2, 1],
+        [0, 2, 2],
+      ],
+    },
+    {
+      face: "right",
+      positions: [
+        [2, 0, 0],
+        [2, 0, 1],
+        [2, 0, 2],
+        [2, 1, 0],
+        [2, 1, 1],
+        [2, 1, 2],
+        [2, 2, 0],
+        [2, 2, 1],
+        [2, 2, 2],
+      ],
+    },
+    {
+      face: "top",
+      positions: [
+        [0, 2, 0],
+        [1, 2, 0],
+        [2, 2, 0],
+        [0, 2, 1],
+        [1, 2, 1],
+        [2, 2, 1],
+        [0, 2, 2],
+        [1, 2, 2],
+        [2, 2, 2],
+      ],
+    },
+    {
+      face: "bottom",
+      positions: [
+        [0, 0, 0],
+        [1, 0, 0],
+        [2, 0, 0],
+        [0, 0, 1],
+        [1, 0, 1],
+        [2, 0, 1],
+        [0, 0, 2],
+        [1, 0, 2],
+        [2, 0, 2],
+      ],
+    },
   ];
 
   for (const { face, positions } of faceLayouts) {
@@ -1013,7 +1378,7 @@ export const isCubeFullySolved = (cube3D: CubeState[][][]) => {
  * Find the white/green/red corner piece position
  */
 export const findWhiteGreenRedCorner = (
-  cube3D: CubeState[][][]
+  cube3D: CubeState[][][],
 ): [number, number, number] | null => {
   for (let x = 0; x < 3; x++) {
     for (let y = 0; y < 3; y++) {
@@ -1038,7 +1403,7 @@ export const findWhiteGreenRedCorner = (
  * Find the red/green second layer edge piece position (no white, no yellow)
  */
 export const findRedGreenSecondLayerEdge = (
-  cube3D: CubeState[][][]
+  cube3D: CubeState[][][],
 ): [number, number, number] | null => {
   for (let x = 0; x < 3; x++) {
     for (let y = 0; y < 3; y++) {
@@ -1064,7 +1429,7 @@ export const findRedGreenSecondLayerEdge = (
  * Find the green/white edge piece position
  */
 export const findGreenWhiteEdge = (
-  cube3D: CubeState[][][]
+  cube3D: CubeState[][][],
 ): [number, number, number] | null => {
   for (let x = 0; x < 3; x++) {
     for (let y = 0; y < 3; y++) {

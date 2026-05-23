@@ -99,6 +99,11 @@ export interface CubePieceProps {
   highlightIntensity?: number;
   isHighlighted?: boolean;
   dullOthersIntensity?: number;
+  stickerDoubleSide?: boolean;
+  doubleSidedStickerKeysForEdges?: Set<string>;
+  cubeOpacity?: number;
+  innerStickerOpacity?: number;
+  isColorFadeActive?: boolean;
 }
 
 export interface RubiksCube3DProps {
@@ -126,6 +131,10 @@ export interface RubiksCube3DProps {
   highlightPositions?: Array<[number, number, number]>;
   highlightIntensity?: number;
   dullOthersIntensity?: number;
+  doubleSidedStickerKeys?: Set<string>;
+  doubleSidedStickerKeysForEdges?: Set<string>;
+  cubeOpacity?: number;
+  innerStickerOpacity?: number;
   pieceChildren?: (
     x: number,
     y: number,

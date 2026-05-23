@@ -19,7 +19,9 @@ import {
 import { getSlideCameraConfig } from "@components/tutorials/utils/tutorialHelpers";
 import BeginnersMethodGrid from "@components/tutorials/components/BeginnersMethodGrid";
 import YellowCrossCasesGrid from "@components/tutorials/components/YellowCrossCasesGrid";
-import useRubiksCube3DProps from "@/hooks/useRubiksCube3DProps";
+import useRubiksCube3DProps, {
+  getHighlightPositionsForSlide,
+} from "@/hooks/useRubiksCube3DProps";
 import useTutorialPointerHandler from "@components/tutorials/hooks/useTutorialPointerHandler";
 import useGhostPieceIndicator from "@components/tutorials/hooks/useGhostPieceIndicator";
 import GhostPieceIndicator from "@components/tutorials/components/GhostPieceIndicator";
@@ -30,6 +32,20 @@ import {
   GHOST_PIECE_SLIDE_IDS,
   HINT_BUTTON_SLIDE_IDS,
 } from "./tutorialCubeViewHelpers";
+
+const BOGR_CENTER_KEYS = new Set<string>([
+  "1,1,0",
+  "1,1,2",
+  "0,1,1",
+  "2,1,1",
+]);
+
+const BOGR_EDGE_STICKER_KEYS = new Set<string>([
+  "1,2,2:front",
+  "2,2,1:right",
+  "1,2,0:back",
+  "0,2,1:left",
+]);
 
 interface TutorialCubeViewProps {
   cubeContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -50,6 +66,9 @@ interface TutorialCubeViewProps {
   baselineCube3D?: CubeState[][][] | null;
   stickerGreyMap?: Map<string, boolean>;
   colorFadeProgress?: number;
+  previousDullOthersIntensity?: number | null;
+  previousCubeOpacity?: number | null;
+  previousSlideId?: string | null;
   touchCount: number;
   pendingMove: CubeMove | null;
   isAnimating: boolean;
@@ -137,6 +156,9 @@ const TutorialCubeView = ({
   baselineCube3D,
   stickerGreyMap,
   colorFadeProgress = 0,
+  previousDullOthersIntensity,
+  previousCubeOpacity,
+  previousSlideId,
   touchCount,
   pendingMove,
   isAnimating,
@@ -258,6 +280,9 @@ const TutorialCubeView = ({
     highlightIntensity,
     highlightPositions,
     dullOthersIntensity,
+    doubleSidedStickerKeys,
+    doubleSidedStickerKeysForEdges,
+    cubeOpacity,
   } = useRubiksCube3DProps({
     activeSlideId,
     activeSlideAllowFaceMoves,
@@ -270,6 +295,71 @@ const TutorialCubeView = ({
     fixCompleted,
     inputDisabled: inputDisabled || ghostIsVisible,
   });
+
+  const dullnessProgress =
+    colorFadeProgress <= 0.5 ? 0 : (colorFadeProgress - 0.5) / 0.5;
+  const effectiveDullOthersIntensity =
+    previousDullOthersIntensity != null
+      ? previousDullOthersIntensity +
+        dullnessProgress * ((dullOthersIntensity ?? 0) - previousDullOthersIntensity)
+      : dullOthersIntensity;
+
+  const effectiveCubeOpacity =
+    previousCubeOpacity != null
+      ? previousCubeOpacity +
+        colorFadeProgress * ((cubeOpacity ?? 1) - previousCubeOpacity)
+      : cubeOpacity;
+
+  const showDoubleSidedStickers =
+    activeSlideId === "center-order-bogr" ||
+    (previousSlideId === "center-order-bogr" && previousCubeOpacity != null);
+  const effectiveDoubleSidedStickerKeys = showDoubleSidedStickers
+    ? activeSlideId === "center-order-bogr"
+      ? doubleSidedStickerKeys
+      : BOGR_CENTER_KEYS
+    : undefined;
+
+  const showDoubleSidedEdgeStickers =
+    activeSlideId === "bogr-edges-focus" ||
+    (previousSlideId === "bogr-edges-focus" && previousCubeOpacity != null);
+  const effectiveDoubleSidedStickerKeysForEdges = showDoubleSidedEdgeStickers
+    ? activeSlideId === "bogr-edges-focus"
+      ? doubleSidedStickerKeysForEdges
+      : BOGR_EDGE_STICKER_KEYS
+    : undefined;
+
+  const showAnyDoubleSided = showDoubleSidedStickers || showDoubleSidedEdgeStickers;
+  const innerStickerOpacity =
+    showAnyDoubleSided
+      ? previousCubeOpacity == null
+        ? activeSlideId === "center-order-bogr" || activeSlideId === "bogr-edges-focus"
+          ? 0.65
+          : effectiveCubeOpacity
+        : activeSlideId === "center-order-bogr" || activeSlideId === "bogr-edges-focus"
+          ? colorFadeProgress * (cubeOpacity ?? 1)
+          : (previousCubeOpacity ?? 0.65) * (1 - colorFadeProgress)
+      : undefined;
+
+  const effectiveHighlightPositions =
+    previousSlideId != null && previousCube3D != null
+      ? (() => {
+          const prev = getHighlightPositionsForSlide(
+            previousSlideId,
+            lessonId,
+            previousCube3D,
+          );
+          const keys = new Set<string>();
+          (highlightPositions ?? []).forEach(([x, y, z]) =>
+            keys.add(`${x},${y},${z}`),
+          );
+          (prev ?? []).forEach(([x, y, z]) => keys.add(`${x},${y},${z}`));
+          return keys.size > 0
+            ? ([...keys].map((s) =>
+                s.split(",").map(Number),
+              ) as [number, number, number][])
+            : highlightPositions;
+        })()
+      : highlightPositions;
 
   const showOverlay =
     isAnimating ||
@@ -384,8 +474,12 @@ const TutorialCubeView = ({
                 disableSliceDrag={disableSliceDrag}
                 preventSliceMoves={preventSliceMoves}
                 highlightIntensity={highlightIntensity}
-                highlightPositions={highlightPositions}
-                dullOthersIntensity={dullOthersIntensity}
+                highlightPositions={effectiveHighlightPositions}
+                dullOthersIntensity={effectiveDullOthersIntensity}
+                doubleSidedStickerKeys={effectiveDoubleSidedStickerKeys}
+                doubleSidedStickerKeysForEdges={effectiveDoubleSidedStickerKeysForEdges}
+                cubeOpacity={effectiveCubeOpacity}
+                innerStickerOpacity={innerStickerOpacity}
                 pieceChildren={combinedPieceChildren}
                 hideLogo={hideLogo}
                 errorFlash={fixErrorPulse}

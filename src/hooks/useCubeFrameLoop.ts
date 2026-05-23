@@ -95,7 +95,7 @@ function useCubeFrameLoop({
     const needsFade = !!(
       previousCube3D &&
       baselineCube3D &&
-      colorFadeProgress > 0
+      colorFadeProgress >= 0
     );
     const needsDulling = (dullOthersIntensity ?? 0) > 0;
     const needsAnimation = needsFade || needsDulling;
@@ -114,7 +114,8 @@ function useCubeFrameLoop({
       for (const face in pieceData.materials) {
         const mat = pieceData.materials[face];
         const base = pieceData.baseColors[face];
-        if (!mat || !base) continue;
+        if (!mat) continue;
+        if (!needsFade && !base) continue;
 
         if (needsFade) {
           const faceKey = `${x},${y},${z},${face}`;
@@ -137,6 +138,11 @@ function useCubeFrameLoop({
                   .copy(temps.previous)
                   .lerp(temps.grey, phase1Progress);
                 mat.color.copy(temps.lerped);
+              } else if (needsDulling && !isHighlighted) {
+                temps.lerped
+                  .copy(temps.previous)
+                  .lerp(temps.grey, dullOthersIntensity ?? 0);
+                mat.color.copy(temps.lerped);
               } else {
                 mat.color.copy(temps.previous);
               }
@@ -151,6 +157,11 @@ function useCubeFrameLoop({
                 temps.lerped
                   .copy(needsGreyFade ? temps.grey : temps.previous)
                   .lerp(temps.baseline, phase2Progress);
+                mat.color.copy(temps.lerped);
+              } else if (needsDulling && !isHighlighted) {
+                temps.lerped
+                  .copy(temps.baseline)
+                  .lerp(temps.grey, dullOthersIntensity ?? 0);
                 mat.color.copy(temps.lerped);
               } else {
                 mat.color.copy(temps.previous);

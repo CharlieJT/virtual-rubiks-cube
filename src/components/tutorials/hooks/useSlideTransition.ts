@@ -73,7 +73,7 @@ const useSlideTransition = ({
             orbitControlsRef,
             cubeRef,
             undefined,
-            isInitialMount
+            isInitialMount,
           );
         } else if (retryCount < maxRetries) {
           retryCount++;
@@ -93,7 +93,7 @@ const useSlideTransition = ({
           const controls = orbitControlsRef.current;
           setInputDisabled(false);
           if (controls) {
-            const shouldEnableOrbit = slide?.allowFaceMoves !== false;
+            const shouldEnableOrbit = true;
             controls.enabled = shouldEnableOrbit;
             controls.noRotate = !shouldEnableOrbit;
             if (typeof controls.staticMoving === "boolean")
@@ -120,7 +120,7 @@ const useSlideTransition = ({
           isTransitioningRef.current = false;
           setIsTransitioning?.(false);
         },
-        true
+        true,
       );
       return;
     }
@@ -144,7 +144,7 @@ const useSlideTransition = ({
         const controls = orbitControlsRef.current;
         setInputDisabled(false);
         if (controls) {
-          const shouldEnableOrbit = slide?.allowFaceMoves !== false;
+          const shouldEnableOrbit = true;
           controls.enabled = shouldEnableOrbit;
           controls.noRotate = !shouldEnableOrbit;
           if (typeof controls.staticMoving === "boolean")
@@ -154,12 +154,15 @@ const useSlideTransition = ({
           if (typeof controls.rotateSpeed === "number")
             controls.rotateSpeed = 1.2;
           setOrbitControlsEnabled(shouldEnableOrbit);
+          if (handleOrbitControlsChange) {
+            handleOrbitControlsChange(shouldEnableOrbit);
+          }
           if (typeof controls.update === "function") controls.update();
         }
         orbitPrevRef.current = null;
         isTransitioningRef.current = false;
         setIsTransitioning?.(false);
-      }
+      },
     );
   }, [
     currentSlide,
@@ -176,6 +179,7 @@ const useSlideTransition = ({
     disableOrbitTemporarily,
     clearControlsInternal,
     orbitPrevRef,
+    handleOrbitControlsChange,
   ]);
 };
 

@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import type { MutableRefObject } from "react";
 import { flushSync } from "react-dom";
 import { Vector3 } from "three";
 import type { CubeMove, CubeState } from "@/types/cube";
@@ -11,15 +12,17 @@ import {
   createTutorialCubeState,
   getCubieColorSet,
   getSlideCameraConfig,
+  getTutorialCubeStateForSlide,
 } from "@components/tutorials/utils/tutorialHelpers";
 import CUBE_COLORS from "@/consts/cubeColours";
-import { makeCentersGrey } from "@/utils/makeCentersGrey";
+import { makeCentersGrey, makeSideCentersGrey } from "@/utils/makeCentersGrey";
 import {
   isSliceMove,
   getSliceRotationMove,
   getSliceLayerChecker,
 } from "@components/tutorials/utils/sliceMoveHelpers";
 import resetYawRefsForSlide from "@components/tutorials/utils/yawResetHelpers";
+import { runColorFadeAnimation } from "@components/tutorials/utils/runColorFadeAnimation";
 import type { UseSlideSpecificStateReturn } from "@components/tutorials/hooks/useSlideSpecificState";
 
 interface UseTutorialErrorFadeParams {
@@ -31,6 +34,8 @@ interface UseTutorialErrorFadeParams {
   orbitControlsRef: React.RefObject<OrbitControlsInstance | null>;
   cubeViewRef: React.RefObject<RubiksCube3DHandle | null>;
   isTransitioningRef: React.RefObject<boolean>;
+  /** Slide 16: true when side centres are shown in full colour (for reset fade-out). */
+  slide16FadeFromFullColorRef: MutableRefObject<boolean>;
   slideSpecificState: UseSlideSpecificStateReturn;
   setCube3D: (cube: CubeState[][][]) => void;
   setPreviousTutorialCube3D: (cube: CubeState[][][] | null) => void;
@@ -54,6 +59,7 @@ const useTutorialErrorFade = ({
   orbitControlsRef,
   cubeViewRef,
   isTransitioningRef,
+  slide16FadeFromFullColorRef,
   slideSpecificState,
   setCube3D,
   setPreviousTutorialCube3D,
@@ -68,7 +74,11 @@ const useTutorialErrorFade = ({
   orbitPrevRef,
 }: UseTutorialErrorFadeParams) => {
   const showErrorFade = useCallback(
-    (wrongMove: CubeMove | null = null) => {
+    (
+      wrongMove: CubeMove | null = null,
+      /** When set, used instead of slide16FadeFromFullColorRef (needed because reset runs flushSync before fade). */
+      slide16FadeSideCentersFromColorOverride?: boolean,
+    ) => {
       const wrongMoveIsSlice = wrongMove ? isSliceMove(wrongMove) : false;
 
       resetYawRefsForSlide(slides[currentSlide]?.id, slideSpecificState);
@@ -170,12 +180,25 @@ const useTutorialErrorFade = ({
         );
       }
 
-      const finalFiltered =
+      let finalFiltered =
         lessonId === "rubiks-cube-introduction" &&
         (activeSlide?.id === "edge-pieces" ||
           activeSlide?.id === "corner-pieces")
           ? makeCentersGrey(filtered)
           : filtered;
+
+      if (
+        lessonId === "intermediate-white-cross" &&
+        activeSlide?.id === "bogr-insert-align-red-green"
+      ) {
+        const slide16UseFullColorSideCenters =
+          slide16FadeSideCentersFromColorOverride !== undefined
+            ? slide16FadeSideCentersFromColorOverride
+            : slide16FadeFromFullColorRef.current;
+        finalFiltered = slide16UseFullColorSideCenters
+          ? filtered
+          : makeSideCentersGrey(filtered);
+      }
 
       setPreviousTutorialCube3D(finalFiltered);
 
@@ -183,77 +206,14 @@ const useTutorialErrorFade = ({
       const tempCubeRef = new CubeJSWrapper();
       tempCubeRef.reset();
       if (slide?.setup) {
-        tempCubeRef.reset();
         slide.setup(tempCubeRef);
       }
-
       const baselineCubeState = cubejsTo3D(tempCubeRef.getCube());
-      const baselineBase = createTutorialCubeState(lessonId, baselineCubeState);
-      let baselineFiltered = baselineBase;
-      if (activeSlide?.filter) {
-        baselineFiltered = baselineBase.map((layer) =>
-          layer.map((row) =>
-            row.map((piece) => {
-              const visible = activeSlide.filter!(piece);
-              if (visible) {
-                return piece;
-              }
-              return {
-                ...piece,
-                colors: {
-                  front: grey,
-                  back: grey,
-                  left: grey,
-                  right: grey,
-                  top: grey,
-                  bottom: grey,
-                },
-              };
-            }),
-          ),
-        );
-      }
-
-      if (lessonId === "yellow-cross") {
-        baselineFiltered = baselineFiltered.map((layer) =>
-          layer.map((row) =>
-            row.map((piece) => {
-              const set = getCubieColorSet(piece);
-              if (set.size === 2 && set.has(CUBE_COLORS.YELLOW)) {
-                const newColors = { ...piece.colors };
-                const faceKeys: Array<keyof typeof piece.colors> = [
-                  "front",
-                  "back",
-                  "left",
-                  "right",
-                  "top",
-                  "bottom",
-                ];
-                for (const face of faceKeys) {
-                  const color = piece.colors[face];
-                  if (
-                    color &&
-                    color !== CUBE_COLORS.YELLOW &&
-                    color !== grey &&
-                    color !== CUBE_COLORS.BLACK
-                  ) {
-                    newColors[face] = grey;
-                  }
-                }
-                return { ...piece, colors: newColors };
-              }
-              return piece;
-            }),
-          ),
-        );
-      }
-
-      const finalBaselineFiltered =
-        lessonId === "rubiks-cube-introduction" &&
-        (activeSlide?.id === "edge-pieces" ||
-          activeSlide?.id === "corner-pieces")
-          ? makeCentersGrey(baselineFiltered)
-          : baselineFiltered;
+      const finalBaselineFiltered = getTutorialCubeStateForSlide(
+        lessonId,
+        activeSlide,
+        baselineCubeState,
+      );
 
       const greyMap = new Map<string, boolean>();
 
@@ -425,48 +385,20 @@ const useTutorialErrorFade = ({
         },
       );
 
-      const phase1Duration = 120;
-      const phase2Delay = 120;
-      const phase2Duration = 120;
-      const totalFadeDuration = phase1Duration + phase2Delay + phase2Duration;
-      let startTime: number | null = null;
-      const animateFade = (timestamp: number) => {
-        if (startTime === null) {
-          startTime = timestamp;
-        }
-        const elapsed = timestamp - startTime;
-
-        let progress = 0;
-        if (elapsed < phase1Duration) {
-          progress = (elapsed / phase1Duration) * 0.5;
-        } else if (elapsed < phase1Duration + phase2Delay) {
-          progress = 0.5;
-        } else {
-          const phase2Elapsed = elapsed - (phase1Duration + phase2Delay);
-          progress = 0.5 + (phase2Elapsed / phase2Duration) * 0.5;
-        }
-
-        progress = Math.min(1, progress);
-        setColorFadeProgress(progress);
-
-        if (elapsed < totalFadeDuration) {
-          requestAnimationFrame(animateFade);
-        } else {
-          const slide = slides[currentSlide];
+      runColorFadeAnimation(setColorFadeProgress, () => {
+        const slide = slides[currentSlide];
+        cubeRef.current.reset();
+        if (slide?.setup) {
           cubeRef.current.reset();
-          if (slide?.setup) {
-            cubeRef.current.reset();
-            slide.setup(cubeRef.current);
-          }
-
-          setPreviousTutorialCube3D(null);
-          setBaselineTutorialCube3D(null);
-          setStickerGreyMap(new Map());
-          setColorFadeProgress(0);
-          setCube3D(cubejsTo3D(cubeRef.current.getCube()));
+          slide.setup(cubeRef.current);
         }
-      };
-      requestAnimationFrame(animateFade);
+
+        setPreviousTutorialCube3D(null);
+        setBaselineTutorialCube3D(null);
+        setStickerGreyMap(new Map());
+        setColorFadeProgress(0);
+        setCube3D(cubejsTo3D(cubeRef.current.getCube()));
+      });
     },
     [
       lessonId,
@@ -477,6 +409,7 @@ const useTutorialErrorFade = ({
       orbitControlsRef,
       cubeViewRef,
       isTransitioningRef,
+      slide16FadeFromFullColorRef,
       slideSpecificState,
       setCube3D,
       setPreviousTutorialCube3D,

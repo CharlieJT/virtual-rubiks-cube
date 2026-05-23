@@ -15,7 +15,10 @@ import useSlideSpecificState from "@components/tutorials/hooks/useSlideSpecificS
 import usePracticeSlideCompletion from "@components/tutorials/hooks/usePracticeSlideCompletion";
 import useTutorialCube3D from "@components/tutorials/hooks/useTutorialCube3D";
 import { getFixSequence } from "@components/tutorials/utils/fixSequenceHelpers";
-import { makeCentersGrey } from "@/utils/makeCentersGrey";
+import {
+  makeCentersGrey,
+  makeSideCentersGrey,
+} from "@/utils/makeCentersGrey";
 import {
   isWhiteCrossSolved as checkWhiteCrossSolved,
   isWhiteCornersSolved as checkWhiteCornersSolved,
@@ -40,6 +43,20 @@ const useTutorialPageState = (lessonId: string) => {
   );
   const [colorFadeProgress, setColorFadeProgress] = useState(0);
   const colorFadeProgressRef = useRef(0);
+  const [previousDullOthersIntensity, setPreviousDullOthersIntensity] =
+    useState<number | null>(null);
+  const [previousCubeOpacity, setPreviousCubeOpacity] = useState<
+    number | null
+  >(null);
+  const transitionPrevCubeRef = useRef<CubeState[][][] | null>(null);
+  const transitionPrevDullRef = useRef<number>(0);
+  const transitionPrevOpacityRef = useRef<number | undefined>(undefined);
+  const transitionPrevSlideIdRef = useRef<string | null>(null);
+  const [previousSlideId, setPreviousSlideId] = useState<string | null>(null);
+  const [slide16CenterRevealComplete, setSlide16CenterRevealComplete] =
+    useState(false);
+  /** True when slide 16 shows full-colour side centres (after D reveal); used for reset fade-out. */
+  const slide16FadeFromFullColorRef = useRef(false);
   const tutorialCube3DRef = useRef<CubeState[][][] | null>(null);
   useEffect(() => {
     colorFadeProgressRef.current = colorFadeProgress;
@@ -182,6 +199,9 @@ const useTutorialPageState = (lessonId: string) => {
     orientThreeCornersYawChangedRef,
     orientFourCornersYawChangedRef,
     practiceSetupSolution9YawChangedRef,
+    intermediateWhiteCrossSlide8YawStateRef,
+    intermediateWhiteCrossSlide11YawStateRef,
+    intermediateWhiteCrossSlide13YawStateRef,
     resetSlideSpecificState,
   } = slideSpecificState;
 
@@ -227,8 +247,48 @@ const useTutorialPageState = (lessonId: string) => {
     ) {
       return makeCentersGrey(baseTutorialCube3D);
     }
+    if (
+      lessonId === "intermediate-white-cross" &&
+      activeSlide?.id === "bogr-edges-focus"
+    ) {
+      return makeSideCentersGrey(baseTutorialCube3D);
+    }
+    if (
+      lessonId === "intermediate-white-cross" &&
+      activeSlide?.id === "bogr-insert-align-red-green" &&
+      (fixIndex < 4 || !slide16CenterRevealComplete)
+    ) {
+      return makeSideCentersGrey(baseTutorialCube3D);
+    }
     return baseTutorialCube3D;
-  }, [lessonId, activeSlide?.id, baseTutorialCube3D]);
+  }, [
+    lessonId,
+    activeSlide?.id,
+    baseTutorialCube3D,
+    fixIndex,
+    slide16CenterRevealComplete,
+  ]);
+
+  slide16FadeFromFullColorRef.current =
+    lessonId === "intermediate-white-cross" &&
+    activeSlide?.id === "bogr-insert-align-red-green" &&
+    slide16CenterRevealComplete &&
+    fixIndex >= 4;
+
+  useEffect(() => {
+    if (activeSlide?.id !== "bogr-insert-align-red-green") {
+      setSlide16CenterRevealComplete(false);
+    }
+  }, [activeSlide?.id]);
+
+  useEffect(() => {
+    if (
+      activeSlide?.id === "bogr-insert-align-red-green" &&
+      fixIndex < 4
+    ) {
+      setSlide16CenterRevealComplete(false);
+    }
+  }, [activeSlide?.id, fixIndex]);
 
   useEffect(() => {
     tutorialCube3DRef.current = tutorialCube3D;
@@ -247,6 +307,16 @@ const useTutorialPageState = (lessonId: string) => {
     colorFadeProgress,
     setColorFadeProgress,
     colorFadeProgressRef,
+    previousDullOthersIntensity,
+    setPreviousDullOthersIntensity,
+    previousCubeOpacity,
+    setPreviousCubeOpacity,
+    transitionPrevCubeRef,
+    transitionPrevDullRef,
+    transitionPrevOpacityRef,
+    transitionPrevSlideIdRef,
+    previousSlideId,
+    setPreviousSlideId,
     tutorialCube3DRef,
     pendingMove,
     setPendingMove,
@@ -357,6 +427,9 @@ const useTutorialPageState = (lessonId: string) => {
     orientThreeCornersYawChangedRef,
     orientFourCornersYawChangedRef,
     practiceSetupSolution9YawChangedRef,
+    intermediateWhiteCrossSlide8YawStateRef,
+    intermediateWhiteCrossSlide11YawStateRef,
+    intermediateWhiteCrossSlide13YawStateRef,
     resetSlideSpecificState,
     practiceCompleted,
     setPracticeCompleted,
@@ -371,6 +444,8 @@ const useTutorialPageState = (lessonId: string) => {
     setPracticeInitialCrossState,
     resetPracticeCompletion,
     tutorialCube3D,
+    setSlide16CenterRevealComplete,
+    slide16FadeFromFullColorRef,
   };
 };
 

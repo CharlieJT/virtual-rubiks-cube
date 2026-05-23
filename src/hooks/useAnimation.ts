@@ -20,7 +20,7 @@ const _yQuat = new THREE.Quaternion();
 const useAnimation = (
   trackingStateRef: React.RefObject<TrackingStateRef>,
   cleanupDragState: () => void,
-  commitMoveOnce: (move: CubeMove) => void
+  commitMoveOnce: (move: CubeMove) => void,
 ) => {
   const updateSnappingAnimation = () => {
     if (
@@ -44,7 +44,7 @@ const useAnimation = (
       if (dragState.dragGroup) {
         dragState.dragGroup.setRotationFromAxisAngle(
           dragState.rotationAxis,
-          currentRotation
+          currentRotation,
         );
       }
 
@@ -84,7 +84,7 @@ const useAnimation = (
       if (dragState.dragGroup) {
         dragState.dragGroup.setRotationFromAxisAngle(
           dragState.rotationAxis,
-          rotation
+          rotation,
         );
       }
     }
@@ -106,7 +106,7 @@ export const useImperativeHandle3D = (
   onOrbitControlsChange?: (enabled: boolean) => void,
   isTimerMode: boolean = false,
   inputDisabled: boolean = false,
-  resetLogo?: () => void
+  resetLogo?: () => void,
 ) => {
   const { camera, gl } = useThree();
 
@@ -136,7 +136,9 @@ export const useImperativeHandle3D = (
       // Detect multi-touch early and force-disable orbits during 2+ fingers
       const pointerType: string | undefined =
         (native && "pointerType" in native ? native.pointerType : undefined) ||
-        ("pointerType" in e ? (e as unknown as PointerEvent).pointerType : undefined);
+        ("pointerType" in e
+          ? (e as unknown as PointerEvent).pointerType
+          : undefined);
       if (pointerType === "touch" && touchesLen >= 2) {
         onOrbitControlsChange?.(false);
         return;
@@ -145,7 +147,7 @@ export const useImperativeHandle3D = (
       const rect = gl.domElement.getBoundingClientRect();
       _mouse.set(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
 
       _raycaster.setFromCamera(_mouse, camera);
@@ -177,7 +179,7 @@ export const useImperativeHandle3D = (
       touchCount,
       groupRef,
       inputDisabled,
-    ]
+    ],
   );
 
   const handleBoundaryPointerUp = useCallback(() => {
@@ -269,7 +271,7 @@ export const useImperativeHandle3D = (
             const extraRotation = new THREE.Quaternion();
             extraRotation.setFromAxisAngle(
               new THREE.Vector3(0, 1, 0),
-              Math.PI * 2 * progress
+              Math.PI * 2 * progress,
             ); // Full Y rotation
 
             const baseInterpolation = currentQuaternion
@@ -299,7 +301,7 @@ export const useImperativeHandle3D = (
         orbitControlsRef?: React.RefObject<OrbitControlsInstance | null>,
         _cubeRef?: React.RefObject<CubeJSWrapper | null>,
         onComplete?: () => void,
-        instant?: boolean
+        instant?: boolean,
       ) => {
         if (!orbitControlsRef?.current || !groupRef.current) {
           onComplete?.();
@@ -323,7 +325,9 @@ export const useImperativeHandle3D = (
         const camForward = camTarget.clone().sub(camPos).normalize(); // direction from camera to cube
         const camUp = camera.up.clone().normalize();
 
-        const extraOpts = controls.__resetOpts || {} as NonNullable<OrbitControlsInstance['__resetOpts']>;
+        const extraOpts =
+          controls.__resetOpts ||
+          ({} as NonNullable<OrbitControlsInstance["__resetOpts"]>);
 
         // Step 1: align cube's +Y (white) to camera up, OR -Y (yellow) if flipping
         // Use EXACTLY the same computation for both cases - just use different local vector
@@ -344,19 +348,19 @@ export const useImperativeHandle3D = (
           }
           const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
             camRight,
-            pitchRad
+            pitchRad,
           );
           targetCamUp.applyQuaternion(pitchQuat).normalize();
         }
 
         const alignUpQuat = new THREE.Quaternion().setFromUnitVectors(
           cubeUpLocal,
-          targetCamUp
+          targetCamUp,
         );
 
         // Step 2: compute yaw so cube's +Z (green/front) aligns to camera forward projected in the up plane
         const cubeFront = new THREE.Vector3(0, 0, 1).applyQuaternion(
-          alignUpQuat
+          alignUpQuat,
         );
         const frontProj = cubeFront
           .clone()
@@ -386,7 +390,7 @@ export const useImperativeHandle3D = (
             : THREE.MathUtils.degToRad(-45);
         const extraYaw = new THREE.Quaternion().setFromAxisAngle(
           targetCamUp,
-          yOffsetRad
+          yOffsetRad,
         );
         targetCubeQuaternion.premultiply(extraYaw);
 
@@ -394,19 +398,19 @@ export const useImperativeHandle3D = (
         // For flipped slides, cube's +Y is -targetCamUp; for normal it's targetCamUp.
         if (typeof extraOpts.extraERotationDeg === "number") {
           const eRotationRad = THREE.MathUtils.degToRad(
-            extraOpts.extraERotationDeg
+            extraOpts.extraERotationDeg,
           );
           const rotationAxis = extraOpts.flipUpsideDown
             ? targetCamUp.clone().negate()
             : targetCamUp.clone();
           const eRotationQuat = new THREE.Quaternion().setFromAxisAngle(
             rotationAxis,
-            eRotationRad
+            eRotationRad,
           );
           targetCubeQuaternion.premultiply(eRotationQuat);
         }
 
-        if ((controls).__resetOpts) delete (controls).__resetOpts;
+        if (controls.__resetOpts) delete controls.__resetOpts;
 
         if (instant) {
           cubeGroup.quaternion.copy(targetCubeQuaternion);
@@ -421,7 +425,7 @@ export const useImperativeHandle3D = (
         const startCameraTarget = controls.target.clone();
 
         // Use time-based animation instead of frame-based for consistent duration across devices
-        const duration = 600; // 600ms for consistent speed on all devices
+        const duration = 800; // 800ms for consistent speed on all devices
         const startTime = performance.now();
 
         const animate = () => {
@@ -471,7 +475,7 @@ export const useImperativeHandle3D = (
       trackingStateRef,
       cleanupDragState,
       resetLogo,
-    ]
+    ],
   );
 
   return {
