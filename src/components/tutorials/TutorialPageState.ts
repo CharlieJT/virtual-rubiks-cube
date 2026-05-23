@@ -48,10 +48,6 @@ const useTutorialPageState = (lessonId: string) => {
   const [previousCubeOpacity, setPreviousCubeOpacity] = useState<
     number | null
   >(null);
-  const transitionPrevCubeRef = useRef<CubeState[][][] | null>(null);
-  const transitionPrevDullRef = useRef<number>(0);
-  const transitionPrevOpacityRef = useRef<number | undefined>(undefined);
-  const transitionPrevSlideIdRef = useRef<string | null>(null);
   const [previousSlideId, setPreviousSlideId] = useState<string | null>(null);
   const [slide16CenterRevealComplete, setSlide16CenterRevealComplete] =
     useState(false);
@@ -269,6 +265,8 @@ const useTutorialPageState = (lessonId: string) => {
     slide16CenterRevealComplete,
   ]);
 
+  tutorialCube3DRef.current = tutorialCube3D;
+
   slide16FadeFromFullColorRef.current =
     lessonId === "intermediate-white-cross" &&
     activeSlide?.id === "bogr-insert-align-red-green" &&
@@ -290,10 +288,6 @@ const useTutorialPageState = (lessonId: string) => {
     }
   }, [activeSlide?.id, fixIndex]);
 
-  useEffect(() => {
-    tutorialCube3DRef.current = tutorialCube3D;
-  }, [tutorialCube3D]);
-
   return {
     cubeRef,
     cube3D,
@@ -311,10 +305,6 @@ const useTutorialPageState = (lessonId: string) => {
     setPreviousDullOthersIntensity,
     previousCubeOpacity,
     setPreviousCubeOpacity,
-    transitionPrevCubeRef,
-    transitionPrevDullRef,
-    transitionPrevOpacityRef,
-    transitionPrevSlideIdRef,
     previousSlideId,
     setPreviousSlideId,
     tutorialCube3DRef,

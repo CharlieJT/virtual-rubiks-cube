@@ -24,18 +24,19 @@ import useSlideInteractionRules from "@components/tutorials/hooks/useSlideIntera
 import useSlideSetup from "@components/tutorials/hooks/useSlideSetup";
 import useTutorialPageState from "@components/tutorials/TutorialPageState";
 import { getDullAndOpacityForSlide } from "@/hooks/useRubiksCube3DProps";
-import CUBE_COLORS from "@/consts/cubeColours";
 import {
   runColorFadeAnimation,
   SLIDE_FADE_DURATION_MS,
 } from "@components/tutorials/utils/runColorFadeAnimation";
+import {
+  buildSlideTransitionFadeBuffers,
+  buildStickerGreyMap,
+} from "@components/tutorials/utils/slideTransitionFadeHelpers";
 import { getTutorialCubeStateForSlide } from "@components/tutorials/utils/tutorialHelpers";
 import {
   makeSideCentersGrey,
   restoreSideCenterColorsFromCube,
 } from "@/utils/makeCentersGrey";
-import { CubeJSWrapper } from "@utils/cubejsWrapper";
-import cubejsTo3D from "@utils/cubejsTo3D";
 import useTutorialErrorFade from "@components/tutorials/useTutorialErrorFade";
 import useTutorialReset from "@components/tutorials/useTutorialReset";
 import useTutorialMoveHandlers from "@components/tutorials/useTutorialMoveHandlers";
@@ -69,10 +70,6 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setPreviousDullOthersIntensity,
     previousCubeOpacity,
     setPreviousCubeOpacity,
-    transitionPrevCubeRef,
-    transitionPrevDullRef,
-    transitionPrevOpacityRef,
-    transitionPrevSlideIdRef,
     previousSlideId,
     setPreviousSlideId,
     pendingMove,
@@ -198,12 +195,18 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
     setPracticeInitialCrossState,
     resetPracticeCompletion,
     tutorialCube3D,
+    tutorialCube3DRef,
     isTouchDevice,
     setSlide16CenterRevealComplete,
     slide16FadeFromFullColorRef,
   } = state;
 
   const slide16PrevFixRef = useRef(-1);
+
+  const getDisplayCubeState = useCallback(
+    () => tutorialCube3DRef.current ?? cube3D,
+    [cube3D, tutorialCube3DRef],
+  );
 
   const { combinedPieceChildren } = useYellowIndicators({
     lessonId,
@@ -391,6 +394,7 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       handleOrbitControlsChange,
       validateMove,
       isResettingRef,
+      getDisplayCubeState,
     },
   );
 
@@ -408,17 +412,59 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
           ? nextOrUpdater(currentSlide)
           : nextOrUpdater;
       if (next === currentSlide) return;
-      transitionPrevCubeRef.current = tutorialCube3D;
-      transitionPrevSlideIdRef.current = activeSlide?.id ?? null;
+
+      const prevCube = tutorialCube3D;
+      const nextSlide = slides[next];
+      const { baseline, greyMap } = buildSlideTransitionFadeBuffers(
+        prevCube,
+        nextSlide,
+        lessonId,
+      );
       const { dull, opacity } = getDullAndOpacityForSlide(
         activeSlide?.id,
         lessonId,
       );
-      transitionPrevDullRef.current = dull;
-      transitionPrevOpacityRef.current = opacity ?? 1;
-      setCurrentSlide(next);
+
+      flushSync(() => {
+        setPreviousTutorialCube3D(prevCube);
+        setBaselineTutorialCube3D(baseline);
+        setStickerGreyMap(greyMap);
+        setPreviousDullOthersIntensity(dull);
+        setPreviousCubeOpacity(opacity ?? 1);
+        setPreviousSlideId(activeSlide?.id ?? null);
+        setColorFadeProgress(0);
+        setCurrentSlide(next);
+      });
+
+      runColorFadeAnimation(
+        setColorFadeProgress,
+        () => {
+          setPreviousTutorialCube3D(null);
+          setBaselineTutorialCube3D(null);
+          setStickerGreyMap(new Map());
+          setPreviousDullOthersIntensity(null);
+          setPreviousCubeOpacity(null);
+          setPreviousSlideId(null);
+          setColorFadeProgress(0);
+        },
+        SLIDE_FADE_DURATION_MS,
+      );
     },
-    [currentSlide, tutorialCube3D, activeSlide?.id, lessonId, setCurrentSlide],
+    [
+      currentSlide,
+      tutorialCube3D,
+      activeSlide?.id,
+      lessonId,
+      slides,
+      setCurrentSlide,
+      setPreviousTutorialCube3D,
+      setBaselineTutorialCube3D,
+      setStickerGreyMap,
+      setPreviousDullOthersIntensity,
+      setPreviousCubeOpacity,
+      setPreviousSlideId,
+      setColorFadeProgress,
+    ],
   );
 
   useSlideTransition({
@@ -441,101 +487,6 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
   });
 
   useLayoutEffect(() => {
-    if (transitionPrevCubeRef.current === null) return;
-    const prevCube = transitionPrevCubeRef.current;
-    transitionPrevCubeRef.current = null;
-    const newSlide = slides[currentSlide];
-    const tempCube = new CubeJSWrapper();
-    tempCube.reset();
-    if (newSlide?.setup) {
-      newSlide.setup(tempCube);
-    }
-    const baselineCubeState = cubejsTo3D(tempCube.getCube());
-    const baseline = getTutorialCubeStateForSlide(
-      lessonId,
-      newSlide,
-      baselineCubeState,
-    );
-    const greyMap = new Map<string, boolean>();
-    const faceKeys = [
-      "front",
-      "back",
-      "left",
-      "right",
-      "top",
-      "bottom",
-    ] as const;
-    const isBogrEdgesFocus = newSlide?.id === "bogr-edges-focus";
-    const skipGreyPositions = isBogrEdgesFocus
-      ? new Set<string>([
-          "1,1,0",
-          "1,1,2",
-          "0,1,1",
-          "2,1,1",
-          "1,2,2",
-          "2,2,1",
-          "1,2,0",
-          "0,2,1",
-        ])
-      : null;
-    for (let x = 0; x < 3; x++) {
-      for (let y = 0; y < 3; y++) {
-        for (let z = 0; z < 3; z++) {
-          const posKey = `${x},${y},${z}`;
-          if (skipGreyPositions?.has(posKey)) continue;
-          const prevPiece = prevCube[x]?.[y]?.[z];
-          const basePiece = baseline[x]?.[y]?.[z];
-          if (prevPiece && basePiece) {
-            for (const face of faceKeys) {
-              const previousColor = prevPiece.colors[face] || CUBE_COLORS.BLACK;
-              const baselineColor = basePiece.colors[face] || CUBE_COLORS.BLACK;
-              const key = `${x},${y},${z},${face}`;
-              const differs =
-                previousColor !== CUBE_COLORS.BLACK &&
-                previousColor !== baselineColor;
-              if (differs) greyMap.set(key, true);
-            }
-          }
-        }
-      }
-    }
-    flushSync(() => {
-      setPreviousTutorialCube3D(prevCube);
-      setBaselineTutorialCube3D(baseline);
-      setPreviousDullOthersIntensity(transitionPrevDullRef.current);
-      setPreviousCubeOpacity(transitionPrevOpacityRef.current ?? null);
-      setPreviousSlideId(transitionPrevSlideIdRef.current);
-      setStickerGreyMap(greyMap);
-      setColorFadeProgress(0);
-    });
-
-    runColorFadeAnimation(
-      setColorFadeProgress,
-      () => {
-        setPreviousTutorialCube3D(null);
-        setBaselineTutorialCube3D(null);
-        setStickerGreyMap(new Map());
-        setPreviousDullOthersIntensity(null);
-        setPreviousCubeOpacity(null);
-        setPreviousSlideId(null);
-        setColorFadeProgress(0);
-      },
-      SLIDE_FADE_DURATION_MS,
-    );
-  }, [
-    currentSlide,
-    lessonId,
-    slides,
-    setPreviousTutorialCube3D,
-    setStickerGreyMap,
-    setBaselineTutorialCube3D,
-    setPreviousDullOthersIntensity,
-    setPreviousCubeOpacity,
-    setPreviousSlideId,
-    setColorFadeProgress,
-  ]);
-
-  useLayoutEffect(() => {
     const slide = slides[currentSlide];
     if (slide?.id !== "bogr-insert-align-red-green") {
       slide16PrevFixRef.current = fixIndex;
@@ -553,42 +504,11 @@ const TutorialPage = ({ lessonId, title, onBack }: TutorialPageProps) => {
       );
       const filtered = restoreSideCenterColorsFromCube(filteredBase, cube3D);
       const prevGrey = makeSideCentersGrey(filtered);
-      const greyMap = new Map<string, boolean>();
-      const faceKeys = [
-        "front",
-        "back",
-        "left",
-        "right",
-        "top",
-        "bottom",
-      ] as const;
-      for (let x = 0; x < 3; x++) {
-        for (let y = 0; y < 3; y++) {
-          for (let z = 0; z < 3; z++) {
-            const prevPiece = prevGrey[x]?.[y]?.[z];
-            const basePiece = filtered[x]?.[y]?.[z];
-            if (prevPiece && basePiece) {
-              for (const face of faceKeys) {
-                const previousColor =
-                  prevPiece.colors[face] || CUBE_COLORS.BLACK;
-                const baselineColor =
-                  basePiece.colors[face] || CUBE_COLORS.BLACK;
-                const key = `${x},${y},${z},${face}`;
-                const differs =
-                  previousColor !== CUBE_COLORS.BLACK &&
-                  previousColor !== baselineColor;
-                if (differs) greyMap.set(key, true);
-              }
-            }
-          }
-        }
-      }
-      flushSync(() => {
-        setPreviousTutorialCube3D(prevGrey);
-        setBaselineTutorialCube3D(filtered);
-        setStickerGreyMap(greyMap);
-        setColorFadeProgress(0);
-      });
+      const greyMap = buildStickerGreyMap(prevGrey, filtered);
+      setPreviousTutorialCube3D(prevGrey);
+      setBaselineTutorialCube3D(filtered);
+      setStickerGreyMap(greyMap);
+      setColorFadeProgress(0);
       runColorFadeAnimation(
         setColorFadeProgress,
         () => {

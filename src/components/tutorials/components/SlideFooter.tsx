@@ -24,22 +24,21 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const chevronPortalRef = useRef<HTMLDivElement>(null);
-
-  if (!activeSlide) return null;
-
-  const isRecap = isRecapSlide(activeSlide.id);
+  const isRecap = activeSlide ? isRecapSlide(activeSlide.id) : false;
 
   useEffect(() => {
+    if (!activeSlide) return;
     if (isRecap) {
       // Reset to hidden first, then animate up
       setIsExpanded(false);
       // Delay to allow for smooth animation
       const timer = setTimeout(() => setIsExpanded(true), 50);
       return () => clearTimeout(timer);
-    } else {
-      setIsExpanded(false);
     }
-  }, [isRecap, activeSlide?.id]);
+    setIsExpanded(false);
+  }, [activeSlide, isRecap, activeSlide?.id]);
+
+  if (!activeSlide) return null;
 
   if (isRecap) {
     // Full height recap slide
@@ -102,6 +101,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
               </div>
               <div className="text-sm text-gray-600 leading-relaxed">
                 <TypewriterText
+                  key={String(currentSlide)}
                   text={activeSlide.description}
                   keyProp={String(currentSlide)}
                   activeSlideId={activeSlide.id}
@@ -152,6 +152,7 @@ const SlideFooter: React.FC<SlideFooterProps> = ({
             </div>
             <div className="text-sm text-gray-600 leading-relaxed">
               <TypewriterText
+                key={String(currentSlide)}
                 text={activeSlide.description}
                 keyProp={String(currentSlide)}
                 activeSlideId={activeSlide.id}

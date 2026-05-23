@@ -34,6 +34,8 @@ interface GhostPieceIndicatorProps {
     | "U2"
     | "D2"
     | "B2";
+  /** Must match RubiksCube3D cubeScale in the same Canvas */
+  cubeScale?: number;
 }
 
 const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
@@ -43,7 +45,9 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
   isAnimatingMove,
   cubeViewRef,
   move,
+  cubeScale = 0.9,
 }) => {
+  const cubieSpacing = CUBIE_DISTANCE * cubeScale;
   const groupRef = useRef<THREE.Group>(null);
   const rotationGroupRef = useRef<THREE.Group>(null);
 
@@ -214,25 +218,25 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
   // Determine rotation center based on face
   switch (moveBase) {
     case "R":
-      rotationCenter = [CUBIE_DISTANCE, 0, 0]; // Right face center (x = 1)
+      rotationCenter = [cubieSpacing, 0, 0]; // Right face center (x = 1)
       break;
     case "L":
-      rotationCenter = [-CUBIE_DISTANCE, 0, 0]; // Left face center (x = -1)
+      rotationCenter = [-cubieSpacing, 0, 0]; // Left face center (x = -1)
       break;
     case "F":
-      rotationCenter = [0, 0, CUBIE_DISTANCE]; // Front face center (z = 1)
+      rotationCenter = [0, 0, cubieSpacing]; // Front face center (z = 1)
       break;
     case "B":
-      rotationCenter = [0, 0, -CUBIE_DISTANCE]; // Back face center (z = -1)
+      rotationCenter = [0, 0, -cubieSpacing]; // Back face center (z = -1)
       break;
     case "U":
-      rotationCenter = [0, CUBIE_DISTANCE, 0]; // Top face center (y = 1)
+      rotationCenter = [0, cubieSpacing, 0]; // Top face center (y = 1)
       break;
     case "D":
-      rotationCenter = [0, -CUBIE_DISTANCE, 0]; // Bottom face center (y = -1)
+      rotationCenter = [0, -cubieSpacing, 0]; // Bottom face center (y = -1)
       break;
     default:
-      rotationCenter = [0, 0, CUBIE_DISTANCE];
+      rotationCenter = [0, 0, cubieSpacing];
   }
 
   return (
@@ -247,49 +251,49 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
             case "R":
               position = [
                 0, // All right face pieces are at x = 1, so relative to center = 0
-                (y - 1) * CUBIE_DISTANCE,
-                (z - 1) * CUBIE_DISTANCE,
+                (y - 1) * cubieSpacing,
+                (z - 1) * cubieSpacing,
               ];
               break;
             case "L":
               position = [
                 0, // All left face pieces are at x = -1, so relative to center = 0
-                (y - 1) * CUBIE_DISTANCE,
-                (z - 1) * CUBIE_DISTANCE,
+                (y - 1) * cubieSpacing,
+                (z - 1) * cubieSpacing,
               ];
               break;
             case "F":
               position = [
-                (x - 1) * CUBIE_DISTANCE,
-                (y - 1) * CUBIE_DISTANCE,
+                (x - 1) * cubieSpacing,
+                (y - 1) * cubieSpacing,
                 0, // All front face pieces are at z = 1, so relative to center = 0
               ];
               break;
             case "B":
               position = [
-                (x - 1) * CUBIE_DISTANCE,
-                (y - 1) * CUBIE_DISTANCE,
+                (x - 1) * cubieSpacing,
+                (y - 1) * cubieSpacing,
                 0, // All back face pieces are at z = -1, so relative to center = 0
               ];
               break;
             case "U":
               position = [
-                (x - 1) * CUBIE_DISTANCE,
+                (x - 1) * cubieSpacing,
                 0, // All top face pieces are at y = 1, so relative to center = 0
-                (z - 1) * CUBIE_DISTANCE,
+                (z - 1) * cubieSpacing,
               ];
               break;
             case "D":
               position = [
-                (x - 1) * CUBIE_DISTANCE,
+                (x - 1) * cubieSpacing,
                 0, // All bottom face pieces are at y = -1, so relative to center = 0
-                (z - 1) * CUBIE_DISTANCE,
+                (z - 1) * cubieSpacing,
               ];
               break;
             default:
               position = [
-                (x - 1) * CUBIE_DISTANCE,
-                (y - 1) * CUBIE_DISTANCE,
+                (x - 1) * cubieSpacing,
+                (y - 1) * cubieSpacing,
                 0,
               ];
           }
@@ -305,6 +309,7 @@ const GhostPieceIndicator: React.FC<GhostPieceIndicatorProps> = ({
               sharedLogoTexture={solvzTexture}
               logoReady={logoReady}
               move={move}
+              cubeScale={cubeScale}
             />
           );
         })}

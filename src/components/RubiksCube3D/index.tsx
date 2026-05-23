@@ -1,4 +1,10 @@
-import React, { useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { flushSync } from "react-dom";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -8,12 +14,25 @@ import CUBIE_STYLE_MAP from "@/config/cube/cubieStyleMap";
 import { CUBIE_DISTANCE } from "./geometry";
 import initBorderMeshes from "./borderMeshBuilder";
 import useWhiteLogo from "@/hooks/useWhiteLogo";
+import {
+  doesFaceMoveRotateWhiteLogo,
+  getFaceTurnLogoDelta,
+  normalizeLogoAngle,
+} from "@/utils/whiteLogoDrag";
 import useDragLogic from "@/hooks/useDragLogic";
 import useAnimation, { useImperativeHandle3D } from "@/hooks/useAnimation";
 import CubePiece from "./CubePiece";
-import type { RubiksCube3DProps, RubiksCube3DHandle, PieceMaterialData } from "./types";
+import type {
+  RubiksCube3DProps,
+  RubiksCube3DHandle,
+  PieceMaterialData,
+  TrackingStateRef,
+} from "./types";
 import useLogoTexture from "@/hooks/useLogoTexture";
-import useMaterialUpdates from "@/hooks/useMaterialUpdates";
+import useMaterialUpdates, {
+  applySliceGroupRotation,
+  isSliceMove,
+} from "@/hooks/useMaterialUpdates";
 import useCubeFrameLoop from "@/hooks/useCubeFrameLoop";
 
 import useHoverLogic from "@/hooks/useHoverLogic";
@@ -64,8 +83,10 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       hideTopFace = false,
       hideBottomFace = false,
       errorFlash = false,
+      designVariant = "legacy",
+      cubeScale = 1,
     }: RubiksCube3DProps,
-    ref
+    ref,
   ) => {
     const { camera } = useThree();
     const groupRef = useRef<THREE.Group>(null);
@@ -77,29 +98,38 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const meshesReadyRef = useRef(false);
     const shakeTimeRef = useRef(0);
     const previousErrorFlashRef = useRef(false);
-    
+
     const shakeVectorRef = useRef(new THREE.Vector3());
-    
+
     const pieceMaterialsRef = useRef<Map<string, PieceMaterialData>>(new Map());
-    const meshToPieceDataRef = useRef<Map<THREE.Mesh, PieceMaterialData>>(new Map());
+    const meshToPieceDataRef = useRef<Map<THREE.Mesh, PieceMaterialData>>(
+      new Map(),
+    );
     const wasAnimatingRef = useRef(false);
     const cubeStateRef = useRef(cubeState);
+    cubeStateRef.current = cubeState;
+    const skipNextLayoutSyncRef = useRef(false);
     const lastCompletedMoveRef = useRef<CubeMove | null>(null);
     const lastMoveSourceRef = useRef<string | null>(null);
-    
-    const updateMaterialsForFastSequence = useMaterialUpdates({
+    /** Authoritative logo angle — commit updates this before React state catches up */
+    const logoAngleRef = useRef(0);
+
+    const pauseLayoutMaterialSync = !!(
+      previousCube3D &&
+      baselineCube3D &&
+      colorFadeProgress < 1
+    );
+
+    const syncAllMaterials = useMaterialUpdates({
       cubeState,
-      queueFast,
-      queueFastMs,
-      groupRef,
       cubiesRef,
       pieceMaterialsRef,
       meshToPieceDataRef,
-      lastCompletedMoveRef,
-      lastMoveSourceRef,
       cubeStateRef,
+      skipNextLayoutSyncRef,
+      pauseLayoutMaterialSync,
     });
-    
+
     const animColorRef = useRef({
       grey: new THREE.Color("#808080"),
       white: new THREE.Color(0xffffff),
@@ -108,40 +138,68 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       lerped: new THREE.Color(),
       emissive: new THREE.Color(),
     });
-    
-    const handleMaterialsReady = useCallback((key: string, data: PieceMaterialData) => {
-      pieceMaterialsRef.current.set(key, data);
-      const [gx, gy, gz] = data.gridIndex;
-      const cubie = cubiesRef.current.find((c) => c.x === gx && c.y === gy && c.z === gz);
-      if (cubie) {
-        meshToPieceDataRef.current.set(cubie.mesh, data);
-      }
-    }, []);
 
-    const { whiteLogoAngle, applyMoveToWhiteLogoAngle, resetLogo } =
-      useWhiteLogo(cubeState);
+    const handleMaterialsReady = useCallback(
+      (key: string, data: PieceMaterialData) => {
+        pieceMaterialsRef.current.set(key, data);
+        const [gx, gy, gz] = data.gridIndex;
+        const cubie = cubiesRef.current.find(
+          (c) => c.x === gx && c.y === gy && c.z === gz,
+        );
+        if (cubie) {
+          meshToPieceDataRef.current.set(cubie.mesh, data);
+        }
+      },
+      [],
+    );
+
+    const {
+      whiteLogoAngle,
+      setWhiteLogoAngle,
+      applyMoveToWhiteLogoAngle,
+      resetLogo,
+      getWhiteCenterFaceFromCube,
+    } = useWhiteLogo(cubeState);
     const { logoReady, solvzTexture } = useLogoTexture();
+
+    const resetLogoAndTexture = useCallback(() => {
+      resetLogo();
+      logoAngleRef.current = 0;
+      if (solvzTexture) {
+        solvzTexture.rotation = 0;
+        solvzTexture.needsUpdate = true;
+      }
+    }, [resetLogo, solvzTexture]);
+
     const { handlePreciseHover, handleLeaveCube } = useHoverLogic(
       cubeState,
       groupRef,
       raycastTargetsRef,
-      cubiesRef
+      cubiesRef,
     );
-    
-    const handleMeshReady = useCallback((mesh: THREE.Mesh, gridX: number, gridY: number, gridZ: number) => {
-      if (!cubiesRef.current.some((c) => c.mesh === mesh)) {
-        cubiesRef.current.push({
-          mesh,
-          x: gridX,
-          y: gridY,
-          z: gridZ,
-          originalPosition: mesh.position.clone(),
-        });
-      }
-      if (cubiesRef.current.length === 27) {
-        meshesReadyRef.current = true;
-      }
-    }, []);
+
+    const handleMeshReady = useCallback(
+      (mesh: THREE.Mesh, gridX: number, gridY: number, gridZ: number) => {
+        if (!cubiesRef.current.some((c) => c.mesh === mesh)) {
+          const slotPosition = new THREE.Vector3(
+            (gridX - 1) * CUBIE_DISTANCE,
+            (gridY - 1) * CUBIE_DISTANCE,
+            (gridZ - 1) * CUBIE_DISTANCE,
+          );
+          cubiesRef.current.push({
+            mesh,
+            x: gridX,
+            y: gridY,
+            z: gridZ,
+            originalPosition: slotPosition,
+          });
+        }
+        if (cubiesRef.current.length === 27) {
+          meshesReadyRef.current = true;
+        }
+      },
+      [],
+    );
 
     const commitMoveOnce = useCallback(
       (move: CubeMove) => {
@@ -154,22 +212,55 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         }
 
         commitGuardRef.current = { move: key, t: now };
-        
+
         lastCompletedMoveRef.current = move;
         lastMoveSourceRef.current = moveSource || null;
-        
-        const isFastSequence = moveSource === "queue" && (queueFast || typeof queueFastMs === "number");
-        
+
+        const isFastSequence =
+          moveSource === "queue" &&
+          (queueFast || typeof queueFastMs === "number");
+
         if (onMoveAnimationDone) {
+          const preMoveWhiteFace = getWhiteCenterFaceFromCube(cubeState);
           flushSync(() => {
-            onMoveAnimationDone(move);
-            applyMoveToWhiteLogoAngle(move, groupRef, isFastSequence);
+            const nextCube3D = onMoveAnimationDone(move);
+            if (!nextCube3D) return;
+
+            if (!isFastSequence && isSliceMove(move)) {
+              applySliceGroupRotation(move, groupRef.current);
+            }
+            const logoAngle = applyMoveToWhiteLogoAngle(
+              move,
+              groupRef,
+              isFastSequence,
+              nextCube3D,
+              preMoveWhiteFace,
+            );
+            skipNextLayoutSyncRef.current = true;
+            syncAllMaterials(nextCube3D);
+            cubeStateRef.current = nextCube3D;
+            logoAngleRef.current = logoAngle;
+            setWhiteLogoAngle(logoAngle);
+            if (solvzTexture) {
+              solvzTexture.rotation = logoAngle;
+              solvzTexture.needsUpdate = true;
+            }
           });
+          lastCompletedMoveRef.current = null;
+          lastMoveSourceRef.current = null;
         }
       },
-      [onMoveAnimationDone, applyMoveToWhiteLogoAngle, moveSource]
+      [
+        onMoveAnimationDone,
+        applyMoveToWhiteLogoAngle,
+        getWhiteCenterFaceFromCube,
+        cubeState,
+        moveSource,
+        queueFast,
+        queueFastMs,
+        syncAllMaterials,
+      ],
     );
-    
 
     const commitDragMove = useCallback(
       (move: CubeMove) => {
@@ -178,7 +269,19 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         commitMoveOnce(move);
         (window as CustomWindowType).__isManualDragMove = false;
       },
-      [commitMoveOnce, onDragMoveStart]
+      [commitMoveOnce, onDragMoveStart],
+    );
+
+    const onDragLayerStart = useCallback(
+      (baseMove: string, dragState: TrackingStateRef) => {
+        const whiteFace = getWhiteCenterFaceFromCube(cubeStateRef.current);
+        dragState._dragSyncsLogoTexture = doesFaceMoveRotateWhiteLogo(
+          baseMove,
+          whiteFace,
+        );
+        dragState._logoAngleAtDragStart = logoAngleRef.current;
+      },
+      [getWhiteCenterFaceFromCube],
     );
 
     const { trackingStateRef, processPointerDown, cleanupDragState } =
@@ -187,47 +290,73 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         cubiesRef,
         commitDragMove,
         isTimerMode,
-        preventSliceMoves
+        preventSliceMoves,
+        onDragLayerStart,
       );
+
+    const cleanupDragStateWithLogo = useCallback(() => {
+      const dragState = trackingStateRef.current;
+      const finalMove = dragState.finalMove;
+      const syncs = dragState._dragSyncsLogoTexture;
+      const start =
+        dragState._logoAngleAtDragStart ?? logoAngleRef.current;
+
+      cleanupDragState();
+
+      if (syncs && solvzTexture) {
+        solvzTexture.rotation = finalMove
+          ? normalizeLogoAngle(start + getFaceTurnLogoDelta(finalMove))
+          : start;
+        solvzTexture.needsUpdate = true;
+      }
+
+      dragState._dragSyncsLogoTexture = false;
+    }, [cleanupDragState, solvzTexture]);
 
     const { updateSnappingAnimation, updateDragRotation } = useAnimation(
       trackingStateRef,
-      cleanupDragState,
-      commitDragMove
+      cleanupDragStateWithLogo,
+      commitDragMove,
     );
+
+    const blockSliceInteraction =
+      inputDisabled || isAnimating || disableSliceDrag;
+    const blockSliceInteractionRef = useRef(blockSliceInteraction);
+    blockSliceInteractionRef.current = blockSliceInteraction;
 
     const { handleBoundaryPointerDown } = useImperativeHandle3D(
       ref,
       groupRef,
+      cubiesRef,
       trackingStateRef,
-      cleanupDragState,
+      cleanupDragStateWithLogo,
       touchCount,
       isAnimating,
       onOrbitControlsChange,
       isTimerMode,
       inputDisabled,
-      resetLogo
+      resetLogoAndTexture,
+      disableSliceDrag,
     );
 
     const handlePointerDown = useCallback(
       (
         e: React.PointerEvent,
         pos: [number, number, number],
-        intersectionPoint: THREE.Vector3
+        intersectionPoint: THREE.Vector3,
       ) => {
-        if (inputDisabled || isAnimating) {
+        if (blockSliceInteractionRef.current) {
           onOrbitControlsChange?.(true);
           return;
         }
         e.stopPropagation();
 
-        if (disableSliceDrag) {
-          onOrbitControlsChange && onOrbitControlsChange(true);
-          return;
-        }
-
         if (AnimationHelper.isLocked() || !meshesReadyRef.current) {
           const retryInteraction = () => {
+            if (blockSliceInteractionRef.current) {
+              onOrbitControlsChange?.(true);
+              return;
+            }
             if (AnimationHelper.isLocked() || !meshesReadyRef.current) {
               requestAnimationFrame(retryInteraction);
               return;
@@ -245,7 +374,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
               syntheticEvent,
               pos,
               intersectionPoint,
-              onOrbitControlsChange
+              onOrbitControlsChange,
             );
           };
 
@@ -256,20 +385,21 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         processPointerDown(e, pos, intersectionPoint, onOrbitControlsChange);
       },
       [
-        inputDisabled,
-        isAnimating,
-        disableSliceDrag,
+        blockSliceInteraction,
         onOrbitControlsChange,
         processPointerDown,
-      ]
+      ],
     );
 
+    const useModernDesign = designVariant === "modern";
+
     // Update logo texture rotation synchronously in useLayoutEffect
-    // This prevents flash when the logo rotates
+    // This prevents flash when the logo rotates. The UV matrix recomputes
+    // automatically each render, so we don't need to re-upload the texture.
     useLayoutEffect(() => {
       if (!solvzTexture) return;
-      solvzTexture.rotation = whiteLogoAngle;
-      solvzTexture.needsUpdate = true;
+      // logoAngleRef is authoritative during commits; never overwrite it from stale state
+      solvzTexture.rotation = logoAngleRef.current;
     }, [whiteLogoAngle, solvzTexture]);
 
     const logoTextureReady = logoReady && !!solvzTexture;
@@ -289,19 +419,8 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       let cancelled = false;
       let rafId: number | null = null;
 
-      const tryStart = () => {
+      const startAnimation = () => {
         if (cancelled) return;
-
-        const ready =
-          !!groupRef.current &&
-          cubiesRef.current.length === 27 &&
-          !!meshesReadyRef.current &&
-          !AnimationHelper.isLocked();
-
-        if (!ready) {
-          rafId = requestAnimationFrame(tryStart);
-          return;
-        }
 
         startGuardRef.current = key;
         commitGuardRef.current = null;
@@ -322,10 +441,17 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         }
 
         onStartAnimation && onStartAnimation();
-        
+
         const currentMove = pendingMove;
-        const isFastSequence = moveSource === "queue" && (queueFast || typeof queueFastMs === "number");
-        
+        const isFastSequence =
+          moveSource === "queue" &&
+          (queueFast || typeof queueFastMs === "number");
+        const useFastAnimation =
+          isFastSequence ||
+          isTimerMode ||
+          moveSource === "undo" ||
+          moveSource === "redo";
+
         currentTweenRef.current = AnimationHelper.animate(
           cubiesRef.current,
           groupRef.current!,
@@ -337,12 +463,40 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
             startGuardRef.current = null;
           },
           animationDuration,
-          isFastSequence,
-          isFastSequence ? updateMaterialsForFastSequence : () => {}
+          useFastAnimation,
+          undefined,
+          moveSource === "queue",
         );
       };
 
-      tryStart();
+      const tryStart = () => {
+        if (cancelled) return;
+
+        const ready =
+          !!groupRef.current &&
+          cubiesRef.current.length === 27 &&
+          !!meshesReadyRef.current &&
+          !AnimationHelper.isLocked();
+
+        if (ready) {
+          startAnimation();
+          return;
+        }
+
+        rafId = requestAnimationFrame(tryStart);
+      };
+
+      const readyNow =
+        !!groupRef.current &&
+        cubiesRef.current.length === 27 &&
+        !!meshesReadyRef.current &&
+        !AnimationHelper.isLocked();
+
+      if (readyNow) {
+        startAnimation();
+      } else {
+        tryStart();
+      }
 
       return () => {
         cancelled = true;
@@ -354,10 +508,9 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       commitMoveOnce,
       moveSource,
       isTimerMode,
-      cubeState,
       queueFast,
       queueFastMs,
-      updateMaterialsForFastSequence,
+      syncAllMaterials,
     ]);
 
     const highlightSet = useMemo(() => {
@@ -382,6 +535,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       colorFadeProgress,
       stickerGreyMap,
       dullOthersIntensity,
+      stickerOpacity: cubeOpacity,
       highlightSet,
       pieceMaterialsRef,
       wasAnimatingRef,
@@ -391,9 +545,12 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const handlePointerDownRef = useRef(handlePointerDown);
     handlePointerDownRef.current = handlePointerDown;
     const stableHandlePointerDown = useCallback(
-      (e: React.PointerEvent, pos: [number, number, number], intersectionPoint: THREE.Vector3) =>
-        handlePointerDownRef.current(e, pos, intersectionPoint),
-      []
+      (
+        e: React.PointerEvent,
+        pos: [number, number, number],
+        intersectionPoint: THREE.Vector3,
+      ) => handlePointerDownRef.current(e, pos, intersectionPoint),
+      [],
     );
 
     const handleMeshReadyRef = useRef(handleMeshReady);
@@ -401,7 +558,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const stableHandleMeshReady = useCallback(
       (mesh: THREE.Mesh, gridX: number, gridY: number, gridZ: number) =>
         handleMeshReadyRef.current(mesh, gridX, gridY, gridZ),
-      []
+      [],
     );
 
     const handleMaterialsReadyRef = useRef(handleMaterialsReady);
@@ -409,7 +566,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const stableHandleMaterialsReady = useCallback(
       (key: string, data: PieceMaterialData) =>
         handleMaterialsReadyRef.current(key, data),
-      []
+      [],
     );
 
     const pieceChildrenRef = useRef(pieceChildren);
@@ -417,7 +574,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
     const stablePieceChildren = useCallback(
       (x: number, y: number, z: number, piece: CubeState) =>
         pieceChildrenRef.current?.(x, y, z, piece),
-      []
+      [],
     );
 
     const cubePieces = useMemo(() => {
@@ -447,12 +604,16 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
             }
             const cubieKey = `${x},${y},${z}`;
             const styleEntry = CUBIE_STYLE_MAP[cubieKey];
-            const cornerStyles = styleEntry?.cornerBuilder || [];
+            const cornerStyles = useModernDesign
+              ? []
+              : styleEntry?.cornerBuilder || [];
             const isHighlighted = highlightSet.has(cubieKey);
-            
-            const previousColors = previousCube3D?.[x]?.[y]?.[z]?.colors || null;
-            const baselineColors = baselineCube3D?.[x]?.[y]?.[z]?.colors || null;
-            
+
+            const previousColors =
+              previousCube3D?.[x]?.[y]?.[z]?.colors || null;
+            const baselineColors =
+              baselineCube3D?.[x]?.[y]?.[z]?.colors || null;
+
             nodes.push(
               <CubePiece
                 key={cubieKey}
@@ -474,45 +635,52 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
                 cornerStyles={cornerStyles}
                 isHighlighted={isHighlighted}
                 highlightIntensity={0}
-                dullOthersIntensity={!isHighlighted ? (dullOthersIntensity ?? 0) : 0}
-                stickerDoubleSide={doubleSidedStickerKeys?.has(cubieKey) ?? false}
+                dullOthersIntensity={
+                  !isHighlighted ? (dullOthersIntensity ?? 0) : 0
+                }
+                stickerDoubleSide={
+                  doubleSidedStickerKeys?.has(cubieKey) ?? false
+                }
                 doubleSidedStickerKeysForEdges={doubleSidedStickerKeysForEdges}
                 cubeOpacity={cubeOpacity}
                 innerStickerOpacity={innerStickerOpacity}
                 isColorFadeActive={!!(previousCube3D && baselineCube3D)}
+                designVariant={designVariant}
+                orbitOnlyOnPointer={disableSliceDrag || isAnimating}
                 trackingStateRef={trackingStateRef}
                 onPointerDown={stableHandlePointerDown}
                 onMeshReady={stableHandleMeshReady}
                 onMaterialsReady={stableHandleMaterialsReady}
                 onPointerMove={undefined}
               >
-                {styleEntry?.borderMeshes?.map((bm, idx) => {
-                  if (!bm.cylinder) return null;
-                  const { radius, length, segments = 8 } = bm.cylinder;
-                  const [px, py, pz] = bm.position;
-                  const rot = bm.rotation || [0, 0, 0];
-                  return (
-                    <mesh
-                      key={idx}
-                      position={[px, py, pz]}
-                      rotation={rot}
-                      renderOrder={1}
-                    >
-                      <cylinderGeometry
-                        args={[radius, radius, length, segments]}
-                      />
-                      <meshPhongMaterial
-                        color={bm.color || "#222"}
-                        toneMapped={true}
-                        polygonOffset={true}
-                        polygonOffsetFactor={0}
-                        polygonOffsetUnits={-1000}
-                      />
-                    </mesh>
-                  );
-                })}
+                {!useModernDesign &&
+                  styleEntry?.borderMeshes?.map((bm, idx) => {
+                    if (!bm.cylinder) return null;
+                    const { radius, length, segments = 8 } = bm.cylinder;
+                    const [px, py, pz] = bm.position;
+                    const rot = bm.rotation || [0, 0, 0];
+                    return (
+                      <mesh
+                        key={idx}
+                        position={[px, py, pz]}
+                        rotation={rot}
+                        renderOrder={1}
+                      >
+                        <cylinderGeometry
+                          args={[radius, radius, length, segments]}
+                        />
+                        <meshPhongMaterial
+                          color={bm.color || "#222"}
+                          toneMapped={true}
+                          polygonOffset={true}
+                          polygonOffsetFactor={0}
+                          polygonOffsetUnits={-1000}
+                        />
+                      </mesh>
+                    );
+                  })}
                 {stablePieceChildren(x, y, z, cubie)}
-              </CubePiece>
+              </CubePiece>,
             );
           });
         });
@@ -545,11 +713,14 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
       doubleSidedStickerKeysForEdges,
       cubeOpacity,
       innerStickerOpacity,
+      designVariant,
+      useModernDesign,
     ]);
 
     return (
       <group
         ref={groupRef}
+        scale={cubeScale}
         onPointerLeave={handleLeaveCube}
         onPointerMove={handlePreciseHover}
         onPointerDown={handleBoundaryPointerDown}
@@ -558,7 +729,7 @@ const RubiksCube3D = React.forwardRef<RubiksCube3DHandle, RubiksCube3DProps>(
         {cubePieces}
       </group>
     );
-  }
+  },
 );
 
 export default RubiksCube3D;

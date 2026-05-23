@@ -136,14 +136,17 @@ const useSolveHandlers = ({
   );
 
   const handleMoveAnimationDone = useCallback(
-    (move: CubeMove) => {
+    (move: CubeMove): CubeState[][][] | void => {
       const isWholeCubeRotation = ["x", "x'", "y", "y'", "z", "z'"].includes(
         move,
       );
 
+      let nextCube3D: CubeState[][][] | undefined;
+
       if (!isWholeCubeRotation) {
         cubeRef.current.move(move);
-        setCube3D(cubejsTo3D(cubeRef.current.getCube()));
+        nextCube3D = cubejsTo3D(cubeRef.current.getCube());
+        setCube3D(nextCube3D);
         const solved = cubeRef.current.isSolved();
         setIsScrambled(!solved);
 
@@ -209,6 +212,7 @@ const useSolveHandlers = ({
           currentRunRef.current = null;
           setInputDisabled(false);
           sessionPhaseRef.current = "idle";
+          cubeViewRef.current?.resetCubieMeshTransforms();
         }
         if (currentRunRef.current === "solve") {
           setIsSolving(false);
@@ -223,6 +227,8 @@ const useSolveHandlers = ({
           setSolutionIndex(-1);
         }, 0);
       }
+
+      return nextCube3D;
     },
     [
       pumpQueueSoon,
@@ -262,6 +268,7 @@ const useSolveHandlers = ({
     if (isAnimating || AnimationHelper.isLocked()) return;
     clearMoveHistory();
     setIsSolving(true);
+    cubeViewRef.current?.abortActiveDrag();
     requestAnimationFrame(() => {
       setTimeout(() => {
         const currentState = cubeRef.current.getState();

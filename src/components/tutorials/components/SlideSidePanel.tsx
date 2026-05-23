@@ -38,6 +38,7 @@ const SlideSidePanel: React.FC<SlideSidePanelProps> = ({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="text-sm text-gray-600 leading-relaxed">
             <TypewriterText
+              key={String(currentSlide)}
               text={activeSlide.description}
               keyProp={String(currentSlide)}
               activeSlideId={activeSlide.id}

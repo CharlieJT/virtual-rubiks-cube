@@ -7,7 +7,7 @@ export const CUBIE_DISTANCE = 1.09;
 
 export const CUBIE_SIZE = 1.09;
 export const STICKER_INSET = 0.91; // 90% of face size
-export const STICKER_LIFT = 0.01; // prevents z-fighting
+export const STICKER_LIFT = 0; // prevents z-fighting
 export const STICKER_CORNER_RATIO = 0.285; // fraction of sticker size for corner radius
 export const STICKER_FALSE_CORNER_RATIO = 0.04; // subtle rounding for non-corner edges
 export const STICKER_CURVE_SEGMENTS = 6;

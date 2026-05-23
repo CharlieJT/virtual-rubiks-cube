@@ -6,6 +6,7 @@ import type {
   RubiksCube3DHandle,
   TrackingStateRef,
 } from "../components/RubiksCube3D/types";
+import type { AnimatedCubie } from "@utils/animationHelper";
 import type { CubeMove } from "@/types/cube";
 import type { CubeJSWrapper } from "@/utils/cubejsWrapper";
 import type { OrbitControlsInstance } from "@/types/orbitControls";
@@ -28,11 +29,11 @@ const useAnimation = (
       trackingStateRef.current?.dragGroup
     ) {
       const dragState = trackingStateRef.current;
-      const elapsed = Date.now() - dragState.snapAnimationStartTime;
+      const elapsed = performance.now() - dragState.snapAnimationStartTime;
       const progress = Math.min(elapsed / dragState.snapAnimationDuration, 1);
 
-      // Quadratic easing out for smooth feel
-      const easedProgress = 1 - Math.pow(1 - progress, 2);
+      // Ease-out cubic for smooth deceleration without extra duration
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
 
       const currentRotation =
         dragState.snapStartRotation +
@@ -53,21 +54,17 @@ const useAnimation = (
         if (dragState._snapCompleted) return;
         dragState._snapCompleted = true;
 
-        if (dragState.finalMove && commitMoveOnce) {
-          const moveToExecute = dragState.finalMove;
-          commitMoveOnce(moveToExecute);
+        const moveToExecute = dragState.finalMove;
 
-          setTimeout(() => {
-            cleanupDragState();
-            if (trackingStateRef.current) {
-              trackingStateRef.current.isSnapping = false;
-            }
-          }, 0);
-        } else {
-          cleanupDragState();
-          if (trackingStateRef.current) {
-            trackingStateRef.current.isSnapping = false;
-          }
+        // Remove drag-group rotation before commit so logo texture is not doubled
+        cleanupDragState();
+
+        if (moveToExecute && commitMoveOnce) {
+          commitMoveOnce(moveToExecute);
+        }
+
+        if (trackingStateRef.current) {
+          trackingStateRef.current.isSnapping = false;
         }
       }
     }
@@ -99,6 +96,7 @@ const useAnimation = (
 export const useImperativeHandle3D = (
   ref: React.ForwardedRef<RubiksCube3DHandle>,
   groupRef: React.RefObject<THREE.Group | null>,
+  cubiesRef: React.RefObject<AnimatedCubie[]>,
   trackingStateRef: React.RefObject<TrackingStateRef>,
   cleanupDragState: () => void,
   touchCount: number,
@@ -107,7 +105,10 @@ export const useImperativeHandle3D = (
   isTimerMode: boolean = false,
   inputDisabled: boolean = false,
   resetLogo?: () => void,
+  disableSliceDrag: boolean = false,
 ) => {
+  const blockSliceInteraction =
+    inputDisabled || isAnimating || disableSliceDrag;
   const { camera, gl } = useThree();
 
   const snapDuration = isTimerMode ? 60 : 120;
@@ -123,8 +124,8 @@ export const useImperativeHandle3D = (
           : 0) ||
         (touchCount ?? 0);
 
-      // When input disabled or cube is animating (scramble/solve), allow orbit and two-finger spin only
-      if (inputDisabled || isAnimating) {
+      // Scramble/solve/disabled: orbit only (no slice drag)
+      if (blockSliceInteraction) {
         if (touchesLen >= 2) {
           onOrbitControlsChange?.(false);
           return;
@@ -166,7 +167,7 @@ export const useImperativeHandle3D = (
         // so the cubie's own onPointerDown can initiate slice dragging.
         onOrbitControlsChange?.(false);
       } else {
-        if (!isAnimating && touchesLen < 2) {
+        if (!blockSliceInteraction && touchesLen < 2) {
           onOrbitControlsChange?.(true);
         }
       }
@@ -175,22 +176,21 @@ export const useImperativeHandle3D = (
       camera,
       gl,
       onOrbitControlsChange,
-      isAnimating,
+      blockSliceInteraction,
       touchCount,
       groupRef,
-      inputDisabled,
     ],
   );
 
   const handleBoundaryPointerUp = useCallback(() => {
-    if (inputDisabled || isAnimating) {
+    if (blockSliceInteraction) {
       onOrbitControlsChange?.(true);
       return;
     }
     if ((touchCount ?? 0) <= 1) {
       onOrbitControlsChange?.(true);
     }
-  }, [isAnimating, onOrbitControlsChange, touchCount, inputDisabled]);
+  }, [blockSliceInteraction, onOrbitControlsChange, touchCount]);
 
   useImperativeHandle(
     ref,
@@ -232,7 +232,7 @@ export const useImperativeHandle3D = (
           if (trackingStateRef.current) {
             trackingStateRef.current.isDragging = false;
             trackingStateRef.current.isSnapping = true;
-            trackingStateRef.current.snapAnimationStartTime = Date.now();
+            trackingStateRef.current.snapAnimationStartTime = performance.now();
             trackingStateRef.current.snapAnimationDuration = snapDuration;
             trackingStateRef.current.snapStartRotation = current;
             trackingStateRef.current.snapTargetRotation = 0;
@@ -466,12 +466,18 @@ export const useImperativeHandle3D = (
       resetLogo: () => {
         resetLogo?.();
       },
+      resetCubieMeshTransforms: () => {
+        if (cubiesRef.current.length > 0) {
+          AnimationHelper.resetCubieMeshTransforms(cubiesRef.current);
+        }
+      },
     }),
     [
       camera,
       handleBoundaryPointerDown,
       handleBoundaryPointerUp,
       groupRef,
+      cubiesRef,
       trackingStateRef,
       cleanupDragState,
       resetLogo,

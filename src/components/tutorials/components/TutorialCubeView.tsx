@@ -3,10 +3,11 @@ import { Canvas } from "@react-three/fiber";
 import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
 import type { TrackballControls as TrackballControlsInstance } from "three-stdlib";
 import RubiksCube3D from "@components/RubiksCube3D";
+import { ViewerLockedLights } from "@components/RubiksCube3D/ViewerLockedLights";
 import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 import type { CubeMove, CubeState } from "@/types/cube";
 import type { CubeJSWrapper } from "@utils/cubejsWrapper";
-import CUBE_COLORS from "@/consts/cubeColours";
+import { ACESFilmicToneMapping } from "three";
 import PracticeStatusIndicator from "@components/tutorials/components/PracticeStatusIndicator";
 import SlideControls from "@components/tutorials/components/SlideControls";
 import SpinTrackpad from "@components/UI/SpinTrackpad";
@@ -224,7 +225,7 @@ const TutorialCubeView = ({
   const isPracticeSlide = checkIsPracticeSlide(activeSlideId);
   const showYellowCrossStates = activeSlideId === "yellow-cross-states";
   const showBeginnersMethodGrid = activeSlideId === "beginners-method-overview";
-  const hideLogo = true; // Hide logo in tutorial lessons - show plain white centers
+  const hideLogo = true;
 
   const {
     handlePointerDown: baseHandlePointerDown,
@@ -386,8 +387,10 @@ const TutorialCubeView = ({
             <Canvas
               ref={canvasRef}
               camera={{
-                position: [4, 4, 4],
-                fov: 60,
+                position: [4.45, 4.225, 4.525],
+                fov: 45,
+                near: 0.1,
+                far: 100,
               }}
               className="w-full h-full transition-opacity duration-500 ease-in-out"
               style={{
@@ -406,6 +409,8 @@ const TutorialCubeView = ({
               }}
               onCreated={(state) => {
                 attachSetDpr(state.setDpr);
+                state.gl.toneMapping = ACESFilmicToneMapping;
+                state.gl.toneMappingExposure = 1;
                 state.gl.localClippingEnabled = true;
                 const canvas = state.gl.domElement as HTMLCanvasElement;
                 const onLost = (ev: Event) => ev.preventDefault();
@@ -426,11 +431,7 @@ const TutorialCubeView = ({
               onPointerUpCapture={handlePointerUp}
             >
               <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
-              <spotLight position={[-30, 20, 60]} intensity={0.3} />
-              <ambientLight
-                intensity={isRecapSlide ? 0.95 : 1.2}
-                color={CUBE_COLORS.WHITE}
-              />
+              <ViewerLockedLights />
               <TrackballControls
                 ref={
                   orbitControlsRef as unknown as React.RefObject<
@@ -452,6 +453,8 @@ const TutorialCubeView = ({
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={tutorialCube3D}
+                designVariant="modern"
+                cubeScale={0.9}
                 previousCube3D={previousCube3D}
                 baselineCube3D={baselineCube3D}
                 stickerGreyMap={stickerGreyMap}
@@ -540,6 +543,7 @@ const TutorialCubeView = ({
                     rotationProgress={ghostRotationProgress}
                     isAnimatingMove={ghostIsAnimatingMove}
                     cubeViewRef={cubeViewRef}
+                    cubeScale={0.9}
                     move={getGhostPieceMove(
                       activeSlideId,
                       fixSequence,
