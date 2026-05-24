@@ -143,7 +143,7 @@ const BODY_EDGE_RADIUS = CUBIE_SIZE * 0.07;
 /** Slightly stronger rounding for fully hidden body edges (0 visible sticker endpoints) on center / edge cubies — only visible during face turns */
 const BODY_INNER_EDGE_RADIUS = CUBIE_SIZE * 0.38;
 /** Same idea but for corner cubies, where 3 inner edges meet near the cube's hidden inner vertex; kept low so the inner cutaway isn't oversized */
-const CORNER_BODY_INNER_EDGE_RADIUS = CUBIE_SIZE * 0.1;
+const CORNER_BODY_INNER_EDGE_RADIUS = CUBIE_SIZE * 0;
 /** Inset trim on sticker/frame only where another sticker on this cubie meets the face */
 const STICKER_MEETING_TRIM_FACTOR = 0.07;
 const EDGE_BODY_SEGMENTS = 12;
@@ -299,11 +299,290 @@ function roundedRectShape(
   return shape;
 }
 
+function coordSignKey(coord: [number, number, number]): string {
+  return `${Math.sign(coord[0]) || 0},${Math.sign(coord[1]) || 0},${
+    Math.sign(coord[2]) || 0
+  }`;
+}
+
 function classifyFaceBlock(coord: [number, number, number]): FaceBlockKind {
   const nonZeroCount = coord.filter((value) => value !== 0).length;
   if (nonZeroCount === 1) return "center";
   if (nonZeroCount === 2) return "edge";
   return "corner";
+}
+
+type EdgeOrbitInfo = {
+  orbitKey: string;
+  canonicalCoord: [number, number, number];
+  rotationAxis: AxisIndex;
+  rotationSteps: 0 | 1 | 2 | 3;
+  /** +1 or -1 multiplier for orbit step angle (π/2 per step). */
+  rotationDirection: 1 | -1;
+};
+
+const EDGE_ORBIT_DEFINITIONS: ReadonlyArray<{
+  orbitKey: string;
+  canonicalCoord: [number, number, number];
+  rotationAxis: AxisIndex;
+  rotationDirection: 1 | -1;
+  slots: ReadonlyArray<[number, number, number]>;
+}> = [
+  {
+    orbitKey: "y-min",
+    canonicalCoord: [0, -1, 1],
+    rotationAxis: 1,
+    rotationDirection: 1,
+    slots: [
+      [0, -1, 1],
+      [1, -1, 0],
+      [0, -1, -1],
+      [-1, -1, 0],
+    ],
+  },
+  {
+    orbitKey: "y-max",
+    canonicalCoord: [0, 1, 1],
+    rotationAxis: 1,
+    rotationDirection: 1,
+    slots: [
+      [0, 1, 1],
+      [1, 1, 0],
+      [0, 1, -1],
+      [-1, 1, 0],
+    ],
+  },
+  {
+    orbitKey: "z-max",
+    canonicalCoord: [0, 1, 1],
+    rotationAxis: 2,
+    rotationDirection: -1,
+    slots: [
+      [0, 1, 1],
+      [1, 0, 1],
+      [0, -1, 1],
+      [-1, 0, 1],
+    ],
+  },
+  {
+    orbitKey: "z-min",
+    canonicalCoord: [0, 1, -1],
+    rotationAxis: 2,
+    rotationDirection: -1,
+    slots: [
+      [0, 1, -1],
+      [1, 0, -1],
+      [0, -1, -1],
+      [-1, 0, -1],
+    ],
+  },
+  {
+    orbitKey: "x-max",
+    canonicalCoord: [1, 1, 0],
+    rotationAxis: 0,
+    rotationDirection: -1,
+    slots: [
+      [1, 1, 0],
+      [1, 0, 1],
+      [1, -1, 0],
+      [1, 0, -1],
+    ],
+  },
+  {
+    orbitKey: "x-min",
+    canonicalCoord: [-1, 1, 0],
+    rotationAxis: 0,
+    rotationDirection: -1,
+    slots: [
+      [-1, 1, 0],
+      [-1, 0, 1],
+      [-1, -1, 0],
+      [-1, 0, -1],
+    ],
+  },
+];
+
+function resolveEdgeOrbitDefinition(
+  coord: [number, number, number],
+): (typeof EDGE_ORBIT_DEFINITIONS)[number] | null {
+  if (coord[1] === -1) {
+    return EDGE_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "y-min") ?? null;
+  }
+  if (coord[1] === 1) {
+    return EDGE_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "y-max") ?? null;
+  }
+  if (coord[2] === 1) {
+    return EDGE_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "z-max") ?? null;
+  }
+  if (coord[2] === -1) {
+    return EDGE_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "z-min") ?? null;
+  }
+  if (coord[0] === 1) {
+    return EDGE_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "x-max") ?? null;
+  }
+  if (coord[0] === -1) {
+    return EDGE_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "x-min") ?? null;
+  }
+  return null;
+}
+
+function getEdgeOrbit(coord: [number, number, number]): EdgeOrbitInfo | null {
+  const orbit = resolveEdgeOrbitDefinition(coord);
+  if (!orbit) return null;
+
+  const rotationSteps = orbit.slots.findIndex(
+    (slot) =>
+      slot[0] === coord[0] && slot[1] === coord[1] && slot[2] === coord[2],
+  );
+  if (rotationSteps < 0) return null;
+
+  return {
+    orbitKey: orbit.orbitKey,
+    canonicalCoord: orbit.canonicalCoord,
+    rotationAxis: orbit.rotationAxis,
+    rotationSteps: rotationSteps as 0 | 1 | 2 | 3,
+    rotationDirection: orbit.rotationDirection,
+  };
+}
+
+const CORNER_ORBIT_DEFINITIONS: ReadonlyArray<{
+  orbitKey: string;
+  canonicalCoord: [number, number, number];
+  rotationAxis: AxisIndex;
+  rotationDirection: 1 | -1;
+  slots: ReadonlyArray<[number, number, number]>;
+}> = [
+  {
+    orbitKey: "y-min",
+    canonicalCoord: [1, -1, 1],
+    rotationAxis: 1,
+    rotationDirection: 1,
+    slots: [
+      [1, -1, 1],
+      [1, -1, -1],
+      [-1, -1, -1],
+      [-1, -1, 1],
+    ],
+  },
+  {
+    orbitKey: "y-max",
+    canonicalCoord: [1, 1, 1],
+    rotationAxis: 1,
+    rotationDirection: 1,
+    slots: [
+      [1, 1, 1],
+      [1, 1, -1],
+      [-1, 1, -1],
+      [-1, 1, 1],
+    ],
+  },
+  {
+    orbitKey: "z-max",
+    canonicalCoord: [1, 1, 1],
+    rotationAxis: 2,
+    rotationDirection: -1,
+    slots: [
+      [1, 1, 1],
+      [-1, 1, 1],
+      [-1, -1, 1],
+      [1, -1, 1],
+    ],
+  },
+  {
+    orbitKey: "z-min",
+    canonicalCoord: [1, 1, -1],
+    rotationAxis: 2,
+    rotationDirection: -1,
+    slots: [
+      [1, 1, -1],
+      [-1, 1, -1],
+      [-1, -1, -1],
+      [1, -1, -1],
+    ],
+  },
+  {
+    orbitKey: "x-max",
+    canonicalCoord: [1, 1, 1],
+    rotationAxis: 0,
+    rotationDirection: -1,
+    slots: [
+      [1, 1, 1],
+      [1, 1, -1],
+      [1, -1, -1],
+      [1, -1, 1],
+    ],
+  },
+  {
+    orbitKey: "x-min",
+    canonicalCoord: [-1, 1, 1],
+    rotationAxis: 0,
+    rotationDirection: -1,
+    slots: [
+      [-1, 1, 1],
+      [-1, 1, -1],
+      [-1, -1, -1],
+      [-1, -1, 1],
+    ],
+  },
+];
+
+function resolveCornerOrbitDefinition(
+  coord: [number, number, number],
+): (typeof CORNER_ORBIT_DEFINITIONS)[number] | null {
+  if (coord[1] === -1) {
+    return CORNER_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "y-min") ?? null;
+  }
+  if (coord[1] === 1) {
+    return CORNER_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "y-max") ?? null;
+  }
+  if (coord[2] === 1) {
+    return CORNER_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "z-max") ?? null;
+  }
+  if (coord[2] === -1) {
+    return CORNER_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "z-min") ?? null;
+  }
+  if (coord[0] === 1) {
+    return CORNER_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "x-max") ?? null;
+  }
+  if (coord[0] === -1) {
+    return CORNER_ORBIT_DEFINITIONS.find((orbit) => orbit.orbitKey === "x-min") ?? null;
+  }
+  return null;
+}
+
+function getCornerOrbit(coord: [number, number, number]): EdgeOrbitInfo | null {
+  const orbit = resolveCornerOrbitDefinition(coord);
+  if (!orbit) return null;
+
+  const rotationSteps = orbit.slots.findIndex(
+    (slot) =>
+      slot[0] === coord[0] && slot[1] === coord[1] && slot[2] === coord[2],
+  );
+  if (rotationSteps < 0) return null;
+
+  return {
+    orbitKey: orbit.orbitKey,
+    canonicalCoord: orbit.canonicalCoord,
+    rotationAxis: orbit.rotationAxis,
+    rotationSteps: rotationSteps as 0 | 1 | 2 | 3,
+    rotationDirection: orbit.rotationDirection,
+  };
+}
+
+function cubieOrbitGeometryKey(orbit: EdgeOrbitInfo): string {
+  return `${orbit.orbitKey}|${orbit.rotationSteps}`;
+}
+
+function edgeOrbitOrientationMatrix(orbit: EdgeOrbitInfo): THREE.Matrix4 {
+  const axis =
+    orbit.rotationAxis === 0
+      ? new THREE.Vector3(1, 0, 0)
+      : orbit.rotationAxis === 1
+        ? new THREE.Vector3(0, 1, 0)
+        : new THREE.Vector3(0, 0, 1);
+  const angle =
+    orbit.rotationDirection * orbit.rotationSteps * (Math.PI / 2);
+  return _bodyRotationMatrix.makeRotationAxis(axis, angle);
 }
 
 function toFacePlanePosition(coord: [number, number, number], face: FaceKey) {
@@ -317,10 +596,11 @@ function toFacePlanePosition(coord: [number, number, number], face: FaceKey) {
   };
 }
 
-function edgeCornerRadii(
+function centerFacingCornerRadii(
   coord: [number, number, number],
   face: FaceKey,
   radius: number,
+  closestCount: 1 | 2,
 ): CornerRadii {
   const facePosition = toFacePlanePosition(coord, face);
   const corners = [
@@ -338,7 +618,7 @@ function edgeCornerRadii(
   }));
 
   const sorted = distances.map((item) => item.distance).sort((a, b) => a - b);
-  const threshold = sorted[1] + 1e-6;
+  const threshold = sorted[closestCount - 1] + 1e-6;
 
   const radii: CornerRadii = {
     topLeft: 0,
@@ -354,6 +634,14 @@ function edgeCornerRadii(
   }
 
   return radii;
+}
+
+function edgeCornerRadii(
+  coord: [number, number, number],
+  face: FaceKey,
+  radius: number,
+): CornerRadii {
+  return centerFacingCornerRadii(coord, face, radius, 2);
 }
 
 /**
@@ -798,7 +1086,7 @@ function shapeBodyGeometryCorners(
  */
 const bodyGeometryCache = new Map<string, THREE.BufferGeometry>();
 /** Bump when body mesh construction changes so dev HMR cache entries rebuild. */
-const BODY_GEOMETRY_CACHE_VERSION = "perf-v1";
+const BODY_GEOMETRY_CACHE_VERSION = "corner-orbit-v1";
 
 /** Canonical center body: built once, oriented per face via baked matrix. */
 const CANONICAL_CENTER_FACE: FaceKey = "top";
@@ -863,7 +1151,7 @@ type StickerFaceGeometries = {
   sticker: THREE.BufferGeometry;
 };
 const stickerGeometryCache = new Map<string, StickerFaceGeometries>();
-const STICKER_GEOMETRY_CACHE_VERSION = "perf-v1";
+const STICKER_GEOMETRY_CACHE_VERSION = "edge-orbit-v5";
 
 /**
  * Intern the visible-faces array by its sorted key so repeated renders with
@@ -886,12 +1174,6 @@ function internVisibleFaces(faces: FaceKey[]): {
   return { faces: cached, key };
 }
 
-function coordSignKey(coord: [number, number, number]): string {
-  return `${Math.sign(coord[0]) || 0},${Math.sign(coord[1]) || 0},${
-    Math.sign(coord[2]) || 0
-  }`;
-}
-
 /** Constant logo geometry — circle is identical for every white-center face. */
 const LOGO_GEOMETRY = new THREE.CircleGeometry(LOGO_RADIUS, 48);
 
@@ -901,11 +1183,11 @@ function getStickerFaceGeometries(
   visibleFacesKey: string,
   face: FaceKey,
 ): StickerFaceGeometries {
+  const isCenterFace = classifyFaceBlock(coord) === "center";
   const cacheKey = `${STICKER_GEOMETRY_CACHE_VERSION}|${coordSignKey(coord)}|${visibleFacesKey}|${face}`;
   const cached = stickerGeometryCache.get(cacheKey);
   if (cached) return cached;
 
-  const isCenterFace = classifyFaceBlock(coord) === "center";
   const radii = faceBlockRadii(coord, face);
   const zeroInsets: SideInsets = { left: 0, right: 0, top: 0, bottom: 0 };
   const tileMeetingTrim = STICKER_TILE_SIZE * STICKER_MEETING_TRIM_FACTOR;
@@ -954,13 +1236,13 @@ function getStickerFaceGeometries(
   return result;
 }
 
-function buildEdgeBodyGeometry(
-  coord: [number, number, number],
-  edgeFaces: FaceKey[],
+const canonicalEdgeBodySources = new Map<string, THREE.BufferGeometry>();
+
+function buildCanonicalEdgeBodyGeometry(
+  orbitKey: string,
+  canonicalCoord: [number, number, number],
 ): THREE.BufferGeometry {
-  const facesKey = [...edgeFaces].sort().join("+");
-  const cacheKey = `${BODY_GEOMETRY_CACHE_VERSION}|edge|${facesKey}|${coordSignKey(coord)}`;
-  const cached = bodyGeometryCache.get(cacheKey);
+  const cached = canonicalEdgeBodySources.get(orbitKey);
   if (cached) return cached;
 
   const geometry = new THREE.BoxGeometry(
@@ -972,16 +1254,56 @@ function buildEdgeBodyGeometry(
     EDGE_BODY_SEGMENTS,
   );
 
-  const roundedCorners = outerEdgeCornerSigns(coord);
-
   const built = shapeBodyGeometryCorners(
     geometry,
-    coord,
-    roundedCorners,
+    canonicalCoord,
+    outerEdgeCornerSigns(canonicalCoord),
     BODY_INNER_EDGE_RADIUS,
   );
-  bodyGeometryCache.set(cacheKey, built);
+  canonicalEdgeBodySources.set(orbitKey, built);
   return built;
+}
+
+function buildEdgeBodyGeometry(
+  coord: [number, number, number],
+): THREE.BufferGeometry {
+  const orbit = getEdgeOrbit(coord);
+  if (!orbit) {
+    const cacheKey = `${BODY_GEOMETRY_CACHE_VERSION}|edge|legacy|${coordSignKey(coord)}`;
+    const cached = bodyGeometryCache.get(cacheKey);
+    if (cached) return cached;
+
+    const geometry = new THREE.BoxGeometry(
+      CUBIE_SIZE,
+      CUBIE_SIZE,
+      CUBIE_SIZE,
+      EDGE_BODY_SEGMENTS,
+      EDGE_BODY_SEGMENTS,
+      EDGE_BODY_SEGMENTS,
+    );
+
+    const built = shapeBodyGeometryCorners(
+      geometry,
+      coord,
+      outerEdgeCornerSigns(coord),
+      BODY_INNER_EDGE_RADIUS,
+    );
+    bodyGeometryCache.set(cacheKey, built);
+    return built;
+  }
+
+  const cacheKey = `${BODY_GEOMETRY_CACHE_VERSION}|edge|${cubieOrbitGeometryKey(orbit)}`;
+  const cached = bodyGeometryCache.get(cacheKey);
+  if (cached) return cached;
+
+  const canonical = buildCanonicalEdgeBodyGeometry(
+    orbit.orbitKey,
+    orbit.canonicalCoord,
+  );
+  const matrix = edgeOrbitOrientationMatrix(orbit);
+  const baked = bakeOrientedBodyGeometry(canonical, matrix);
+  bodyGeometryCache.set(cacheKey, baked);
+  return baked;
 }
 
 function buildCenterBodyGeometry(centerFace: FaceKey): THREE.BufferGeometry {
@@ -996,13 +1318,13 @@ function buildCenterBodyGeometry(centerFace: FaceKey): THREE.BufferGeometry {
   return baked;
 }
 
-function buildCornerBodyGeometry(
-  coord: [number, number, number],
-  cornerFaces: [FaceKey, FaceKey, FaceKey],
+const canonicalCornerBodySources = new Map<string, THREE.BufferGeometry>();
+
+function buildCanonicalCornerBodyGeometry(
+  orbitKey: string,
+  canonicalCoord: [number, number, number],
 ): THREE.BufferGeometry {
-  const facesKey = [...cornerFaces].sort().join("+");
-  const cacheKey = `${BODY_GEOMETRY_CACHE_VERSION}|corner|${facesKey}|${coordSignKey(coord)}`;
-  const cached = bodyGeometryCache.get(cacheKey);
+  const cached = canonicalCornerBodySources.get(orbitKey);
   if (cached) return cached;
 
   const geometry = new THREE.BoxGeometry(
@@ -1016,12 +1338,54 @@ function buildCornerBodyGeometry(
 
   const built = shapeBodyGeometryCorners(
     geometry,
-    coord,
-    cornerBodyRoundedCorners(coord),
+    canonicalCoord,
+    cornerBodyRoundedCorners(canonicalCoord),
     CORNER_BODY_INNER_EDGE_RADIUS,
   );
-  bodyGeometryCache.set(cacheKey, built);
+  canonicalCornerBodySources.set(orbitKey, built);
   return built;
+}
+
+function buildCornerBodyGeometry(
+  coord: [number, number, number],
+): THREE.BufferGeometry {
+  const orbit = getCornerOrbit(coord);
+  if (!orbit) {
+    const cacheKey = `${BODY_GEOMETRY_CACHE_VERSION}|corner|legacy|${coordSignKey(coord)}`;
+    const cached = bodyGeometryCache.get(cacheKey);
+    if (cached) return cached;
+
+    const geometry = new THREE.BoxGeometry(
+      CUBIE_SIZE,
+      CUBIE_SIZE,
+      CUBIE_SIZE,
+      EDGE_BODY_SEGMENTS,
+      EDGE_BODY_SEGMENTS,
+      EDGE_BODY_SEGMENTS,
+    );
+
+    const built = shapeBodyGeometryCorners(
+      geometry,
+      coord,
+      cornerBodyRoundedCorners(coord),
+      CORNER_BODY_INNER_EDGE_RADIUS,
+    );
+    bodyGeometryCache.set(cacheKey, built);
+    return built;
+  }
+
+  const cacheKey = `${BODY_GEOMETRY_CACHE_VERSION}|corner|${cubieOrbitGeometryKey(orbit)}`;
+  const cached = bodyGeometryCache.get(cacheKey);
+  if (cached) return cached;
+
+  const canonical = buildCanonicalCornerBodyGeometry(
+    orbit.orbitKey,
+    orbit.canonicalCoord,
+  );
+  const matrix = edgeOrbitOrientationMatrix(orbit);
+  const baked = bakeOrientedBodyGeometry(canonical, matrix);
+  bodyGeometryCache.set(cacheKey, baked);
+  return baked;
 }
 
 const ModernCubePieceVisual = ({
@@ -1069,7 +1433,7 @@ const ModernCubePieceVisual = ({
 
   const edgeBodyGeometry = useMemo(() => {
     if (faceKind !== "edge" || visibleFaces.length !== 2) return null;
-    return buildEdgeBodyGeometry(coord, [...visibleFaces]);
+    return buildEdgeBodyGeometry(coord);
   }, [coord, faceKind, visibleFaces]);
 
   const centerBodyGeometry = useMemo(() => {
@@ -1079,10 +1443,7 @@ const ModernCubePieceVisual = ({
 
   const cornerBodyGeometry = useMemo(() => {
     if (faceKind !== "corner" || visibleFaces.length !== 3) return null;
-    return buildCornerBodyGeometry(
-      coord,
-      visibleFaces as [FaceKey, FaceKey, FaceKey],
-    );
+    return buildCornerBodyGeometry(coord);
   }, [coord, faceKind, visibleFaces]);
 
   const stickerDescriptors = useMemo(
