@@ -38,6 +38,7 @@ interface UseTutorialMoveHandlersParams {
   handleOrbitControlsChange: (enabled: boolean) => void;
   validateMove: (move: CubeMove, wasManual: boolean) => void;
   isResettingRef: React.RefObject<boolean>;
+  getDisplayCubeState: () => CubeState[][][];
 }
 
 const useTutorialMoveHandlers = ({
@@ -67,6 +68,7 @@ const useTutorialMoveHandlers = ({
   handleOrbitControlsChange,
   validateMove,
   isResettingRef,
+  getDisplayCubeState,
 }: UseTutorialMoveHandlersParams) => {
   const handleButtonMove = useCallback(
     (move: string) => {
@@ -90,7 +92,7 @@ const useTutorialMoveHandlers = ({
   );
 
   const handleMoveAnimationDone = useCallback(
-    (move: CubeMove) => {
+    (move: CubeMove): CubeState[][][] | void => {
       if (isResettingRef.current) {
         setPendingMove(null);
         setIsAnimating(false);
@@ -183,7 +185,9 @@ const useTutorialMoveHandlers = ({
 
         if (shouldApplyMove) {
           cubeRef.current.move(move);
-          setCube3D(cubejsTo3D(cubeRef.current.getCube()));
+          flushSync(() => {
+            setCube3D(cubejsTo3D(cubeRef.current.getCube()));
+          });
         }
 
         if (isManualMove && !isUndoRedo) {
@@ -230,6 +234,8 @@ const useTutorialMoveHandlers = ({
         validateMove(move, wasManual);
       }
       (window as CustomWindowType).__isWrongMove = false;
+
+      return getDisplayCubeState();
     },
     [
       resetQueue,
@@ -248,6 +254,7 @@ const useTutorialMoveHandlers = ({
       setResetQueue,
       setIsResetting,
       isResettingRef,
+      getDisplayCubeState,
     ]
   );
 

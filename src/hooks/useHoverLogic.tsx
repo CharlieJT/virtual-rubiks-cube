@@ -4,6 +4,7 @@ import { useThree } from "@react-three/fiber";
 import CUBE_COLORS from "@/consts/cubeColours";
 import type { CubeState } from "@/types/cube";
 import type { AnimatedCubie } from "@/utils/animationHelper";
+import { CUBIE_DISTANCE } from "@/components/RubiksCube3D/geometry";
 
 const _cubieCenter = new THREE.Vector3();
 const _relative = new THREE.Vector3();
@@ -69,9 +70,9 @@ const useHoverLogic = (
       if (!cubie) return;
 
       _cubieCenter.set(
-        (cubie.x - 1) * 1.05,
-        (cubie.y - 1) * 1.05,
-        (cubie.z - 1) * 1.05
+        (cubie.x - 1) * CUBIE_DISTANCE,
+        (cubie.y - 1) * CUBIE_DISTANCE,
+        (cubie.z - 1) * CUBIE_DISTANCE
       );
 
       const halfSize = 0.4655;

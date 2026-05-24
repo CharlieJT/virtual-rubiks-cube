@@ -6,9 +6,11 @@ import type { CubePieceProps } from "./types";
 import type { CubeState } from "@/types/cube";
 import STICKER_CORNER_MAP from "@/config/cube/stickerCornerMap";
 import CUBE_COLORS from "@/consts/cubeColours";
+import ModernCubePieceVisual from "./ModernCubePieceVisual";
 import { activeTouches } from "@utils/touchState";
 import {
   CUBIE_SIZE,
+  CUBIE_DISTANCE,
   STICKER_INSET,
   STICKER_LIFT,
   STICKER_CORNER_RATIO,
@@ -31,8 +33,15 @@ const isWhite = (c: string) => {
 
 const hasStickerColor = (c: string | undefined) => !!c && c !== "";
 
-const CubePiece = React.memo(
-  ({
+const MODERN_HIT_BOX = new THREE.BoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE);
+const MODERN_HIT_MATERIAL = new THREE.MeshBasicMaterial({
+  color: 0x000000,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+});
+
+const CubePiece = ({
     position,
     colors,
     previousColors,
@@ -51,9 +60,16 @@ const CubePiece = React.memo(
     highlightIntensity = 0,
     isHighlighted = false,
     dullOthersIntensity = 0,
+    stickerDoubleSide = false,
+    doubleSidedStickerKeysForEdges,
+    cubeOpacity,
+    innerStickerOpacity,
+    isColorFadeActive = false,
+    designVariant = "legacy",
     sharedLogoTexture,
     logoReady,
     hideLogo = false,
+    orbitOnlyOnPointer = false,
   }: CubePieceProps & {
     sharedLogoTexture: THREE.Texture | null;
     logoReady: boolean;
@@ -67,10 +83,14 @@ const CubePiece = React.memo(
     touchCountRef.current = touchCount;
     const onPointerDownRef = useRef(onPointerDown);
     onPointerDownRef.current = onPointerDown;
+    const orbitOnlyOnPointerRef = useRef(orbitOnlyOnPointer);
+    orbitOnlyOnPointerRef.current = orbitOnlyOnPointer;
     const onPointerMoveRef = useRef(onPointerMove);
     onPointerMoveRef.current = onPointerMove;
 
-    const stickerMatsRef = useRef<Record<string, THREE.MeshPhongMaterial>>({});
+    const stickerMatsRef = useRef<
+      Record<string, THREE.MeshPhongMaterial | THREE.MeshPhysicalMaterial>
+    >({});
     const baseColorsRef = useRef<Record<string, THREE.Color>>({});
 
     const tryRegisterMaterials = useCallback(() => {
@@ -95,18 +115,22 @@ const CubePiece = React.memo(
     void baselineColors;
     void colorFadeProgress;
     void dullOthersIntensity;
+    const useModernDesign = designVariant === "modern";
 
     const cubieGeometry = useMemo(
-      () => getCubieGeometry(CUBIE_SIZE, cornerStyles),
-      [cornerStyles]
+      () =>
+        useModernDesign
+          ? MODERN_HIT_BOX
+          : getCubieGeometry(CUBIE_SIZE, cornerStyles),
+      [cornerStyles, useModernDesign],
     );
 
     useEffect(() => {
       if (meshRef.current && onMeshReady) {
         const [x, y, z] = position;
-        const gridX = Math.round(x / 1.05 + 1);
-        const gridY = Math.round(y / 1.05 + 1);
-        const gridZ = Math.round(z / 1.05 + 1);
+        const gridX = Math.round(x / CUBIE_DISTANCE + 1);
+        const gridY = Math.round(y / CUBIE_DISTANCE + 1);
+        const gridZ = Math.round(z / CUBIE_DISTANCE + 1);
 
         onMeshReady(meshRef.current, gridX, gridY, gridZ);
       }
@@ -116,9 +140,9 @@ const CubePiece = React.memo(
     const [gx, gy, gz] = useMemo(() => {
       const [x, y, z] = position;
       return [
-        Math.round(x / 1.05 + 1),
-        Math.round(y / 1.05 + 1),
-        Math.round(z / 1.05 + 1),
+        Math.round(x / CUBIE_DISTANCE + 1),
+        Math.round(y / CUBIE_DISTANCE + 1),
+        Math.round(z / CUBIE_DISTANCE + 1),
       ];
     }, [position]);
     const isCenter =
@@ -131,14 +155,13 @@ const CubePiece = React.memo(
         stickerBaseSize * STICKER_CORNER_RATIO,
         stickerBaseSize * STICKER_FALSE_CORNER_RATIO,
       ],
-      [stickerBaseSize]
+      [stickerBaseSize],
     );
 
     useEffect(() => {
       if (sharedLogoTexture) {
         sharedLogoTexture.center.set(0.5, 0.5);
         sharedLogoTexture.offset.set(0, 0);
-        sharedLogoTexture.rotation = 0;
         sharedLogoTexture.wrapS = THREE.ClampToEdgeWrapping;
         sharedLogoTexture.wrapT = THREE.ClampToEdgeWrapping;
         sharedLogoTexture.needsUpdate = true;
@@ -154,11 +177,16 @@ const CubePiece = React.memo(
       new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
     ]);
     useEffect(() => {
+      if (useModernDesign) return;
       const mats = materialRefs.current;
+      const transparent = cubeOpacity != null && cubeOpacity < 1;
+      const opacity = cubeOpacity ?? 1;
       for (let i = 0; i < 6; i++) {
         const mat = mats[i];
         mat.color.set(0x000000);
         mat.map = null;
+        mat.transparent = transparent;
+        mat.opacity = opacity;
         mat.needsUpdate = true;
       }
     }, [
@@ -171,6 +199,8 @@ const CubePiece = React.memo(
       isCenter,
       logoReady,
       sharedLogoTexture,
+      cubeOpacity,
+      useModernDesign,
     ]);
 
     const handlePointerDown = useCallback(
@@ -199,44 +229,77 @@ const CubePiece = React.memo(
                 : undefined;
             if (touches && touches.length > 2) return;
           }
-          e.stopPropagation();
           const intersectionPoint = e.point || new THREE.Vector3();
+          if (orbitOnlyOnPointerRef.current) {
+            onPointerDownRef.current?.(
+              e as unknown as React.PointerEvent,
+              positionRef.current,
+              intersectionPoint,
+            );
+            return;
+          }
+          e.stopPropagation();
           onPointerDownRef.current?.(
             e as unknown as React.PointerEvent,
             positionRef.current,
-            intersectionPoint
+            intersectionPoint,
           );
         }
       },
       // trackingStateRef is a stable ref identity from the parent
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      []
+      [],
     );
 
-    const handlePointerMove = useCallback(
-      (e: ThreeEvent<PointerEvent>) => {
-        const isPrimary = (e.button ?? 0) === 0;
-        const shiftHeld = !!e.shiftKey;
-        if (isPrimary && !shiftHeld) {
-          e.stopPropagation();
-          onPointerMoveRef.current?.(e as unknown as React.PointerEvent);
-        }
-      },
-      []
-    );
+    const handlePointerMove = useCallback((e: ThreeEvent<PointerEvent>) => {
+      const isPrimary = (e.button ?? 0) === 0;
+      const shiftHeld = !!e.shiftKey;
+      if (isPrimary && !shiftHeld) {
+        e.stopPropagation();
+        onPointerMoveRef.current?.(e as unknown as React.PointerEvent);
+      }
+    }, []);
 
-    const handlePointerUp = useCallback(
-      (e: ThreeEvent<PointerEvent>) => {
-        const isPrimary = (e.button ?? 0) === 0;
-        const shiftHeld = !!e.shiftKey;
-        if (isPrimary && !shiftHeld) {
-          e.stopPropagation();
+    const handlePointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
+      const isPrimary = (e.button ?? 0) === 0;
+      const shiftHeld = !!e.shiftKey;
+      if (isPrimary && !shiftHeld) {
+        e.stopPropagation();
+      }
+    }, []);
+
+    const handleModernStickerMaterial = useCallback(
+      (
+        face: keyof CubeState["colors"],
+        material: THREE.MeshPhysicalMaterial,
+        color: string,
+        hasLogoMap: boolean,
+      ) => {
+        const isNewMaterial = stickerMatsRef.current[face] !== material;
+        stickerMatsRef.current[face] = material;
+        if (!isColorFadeActive) {
+          material.color.set(color);
+          if (!baseColorsRef.current[face]) {
+            baseColorsRef.current[face] = new THREE.Color();
+          }
+          _baseColor.set(color);
+          baseColorsRef.current[face].copy(_baseColor);
         }
+        const targetTransparent =
+          cubeOpacity != null && cubeOpacity < 1 ? true : hasLogoMap;
+        if (material.transparent !== targetTransparent) {
+          material.transparent = targetTransparent;
+          material.needsUpdate = true;
+        }
+        material.opacity = cubeOpacity ?? 1;
+        material.depthWrite = !(cubeOpacity != null && cubeOpacity < 1);
+        if (isNewMaterial && onMaterialsReady) tryRegisterMaterials();
       },
-      []
+      [cubeOpacity, isColorFadeActive, onMaterialsReady, tryRegisterMaterials],
     );
 
     const stickerElements = useMemo(() => {
+      if (useModernDesign) return null;
       const faces: Array<{
         key: keyof CubeState["colors"];
         show: boolean;
@@ -281,7 +344,7 @@ const CubePiece = React.memo(
           show: igz === 0,
           pos: [0, 0, -(half + STICKER_LIFT)],
           rot: [0, Math.PI, 0],
-        }
+        },
       );
       return faces.map((f) => {
         const col = colors[f.key];
@@ -297,7 +360,7 @@ const CubePiece = React.memo(
           stickerBaseSize,
           stickerRadiusTrue,
           stickerRadiusFalse,
-          cornerPattern
+          cornerPattern,
         );
         const isCenterSticker = (() => {
           switch (f.key) {
@@ -325,49 +388,104 @@ const CubePiece = React.memo(
           (hi || 0) > 0 && isHighlighted
             ? _emissiveColor.set(col as string).getHex()
             : 0x111111;
+        const innerOffsetScale = -1;
+        const innerPos: [number, number, number] = [
+          -f.pos[0] * innerOffsetScale,
+          -f.pos[1] * innerOffsetScale,
+          -f.pos[2] * innerOffsetScale,
+        ];
+        const innerRot: [number, number, number] = [
+          f.rot[0],
+          f.rot[1] + Math.PI,
+          f.rot[2],
+        ];
+        const isEdgeDoubleSided =
+          doubleSidedStickerKeysForEdges?.has(stickerKey) ?? false;
+        const showInnerSticker =
+          (isCenterSticker && stickerDoubleSide) || isEdgeDoubleSided;
         return (
-          <group key={f.key} position={f.pos} rotation={f.rot}>
-            <mesh geometry={geom}>
-              <meshPhongMaterial
-                ref={(m) => {
-                  if (m) {
-                    stickerMatsRef.current[f.key] = m;
-                    const newColor = showLogo ? 0xffffff : col;
-                    m.color.set(newColor);
-                    m.needsUpdate = true;
-                    if (!baseColorsRef.current[f.key]) {
-                      baseColorsRef.current[f.key] = new THREE.Color();
+          <>
+            <group key={f.key} position={f.pos} rotation={f.rot}>
+              <mesh geometry={geom}>
+                <meshPhongMaterial
+                  ref={(m) => {
+                    if (m) {
+                      stickerMatsRef.current[f.key] = m;
+                      if (!isColorFadeActive) {
+                        const newColor = showLogo ? 0xffffff : col;
+                        m.color.set(newColor);
+                        if (!baseColorsRef.current[f.key]) {
+                          baseColorsRef.current[f.key] = new THREE.Color();
+                        }
+                        _baseColor.set(newColor);
+                        baseColorsRef.current[f.key].copy(_baseColor);
+                      }
+                      const targetTransparent =
+                        cubeOpacity != null && cubeOpacity < 1
+                          ? true
+                          : !!showLogo;
+                      if (m.transparent !== targetTransparent) {
+                        m.transparent = targetTransparent;
+                        m.needsUpdate = true;
+                      }
+                      m.opacity = cubeOpacity ?? 1;
+                      if (onMaterialsReady) tryRegisterMaterials();
                     }
-                    _baseColor.set(newColor);
-                    baseColorsRef.current[f.key].copy(_baseColor);
-                    if (onMaterialsReady) tryRegisterMaterials();
+                  }}
+                  map={showLogo ? sharedLogoTexture || undefined : undefined}
+                  transparent={cubeOpacity != null && cubeOpacity < 1 ? true : !!showLogo}
+                  opacity={cubeOpacity ?? 1}
+                  shininess={(hi || 0) > 0 ? (isHighlighted ? 24 : 2) : 8}
+                  specular={
+                    (hi || 0) > 0
+                      ? isHighlighted
+                        ? 0x222222
+                        : 0x111111
+                      : 0x222222
                   }
-                }}
-                map={showLogo ? sharedLogoTexture || undefined : undefined}
-                transparent={!!showLogo}
-                shininess={(hi || 0) > 0 ? (isHighlighted ? 24 : 2) : 8}
-                specular={
-                  (hi || 0) > 0
-                    ? isHighlighted
-                      ? 0x222222
-                      : 0x111111
-                    : 0x222222
-                }
-                emissive={emissiveHex}
-                emissiveIntensity={
-                  (hi || 0) > 0
-                    ? isHighlighted
-                      ? Math.min(0.35, 0.12 + (hi || 0) * 0.6)
-                      : 0.05
-                    : 0.06
-                }
-                side={THREE.FrontSide}
-                polygonOffset
-                polygonOffsetFactor={-2}
-                polygonOffsetUnits={-2}
-              />
-            </mesh>
-          </group>
+                  emissive={emissiveHex}
+                  emissiveIntensity={
+                    (hi || 0) > 0
+                      ? isHighlighted
+                        ? Math.min(0.35, 0.12 + (hi || 0) * 0.6)
+                        : 0.05
+                      : 0.06
+                  }
+                  side={THREE.FrontSide}
+                  polygonOffset
+                  polygonOffsetFactor={-2}
+                  polygonOffsetUnits={-2}
+                />
+              </mesh>
+            </group>
+            {showInnerSticker && (
+              <group
+                key={`${f.key}-inner`}
+                position={innerPos}
+                rotation={innerRot}
+              >
+                <mesh geometry={geom} renderOrder={10}>
+                  <meshPhongMaterial
+                    color={col}
+                    transparent={
+                      (innerStickerOpacity ?? cubeOpacity ?? 1) < 1
+                    }
+                    opacity={innerStickerOpacity ?? cubeOpacity ?? 1}
+                    shininess={8}
+                    specular={0x222222}
+                    emissive={0x111111}
+                    emissiveIntensity={0.06}
+                    side={isEdgeDoubleSided ? THREE.DoubleSide : THREE.FrontSide}
+                    depthTest={false}
+                    depthWrite={false}
+                    polygonOffset
+                    polygonOffsetFactor={-2}
+                    polygonOffsetUnits={-2}
+                  />
+                </mesh>
+              </group>
+            )}
+          </>
         );
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -387,9 +505,42 @@ const CubePiece = React.memo(
       stickerRadiusFalse,
       onMaterialsReady,
       tryRegisterMaterials,
+      stickerDoubleSide,
+      doubleSidedStickerKeysForEdges,
+      cubeOpacity,
+      innerStickerOpacity,
+      isColorFadeActive,
+      useModernDesign,
     ]);
 
     if (!cubieGeometry) return null;
+
+    if (useModernDesign) {
+      return (
+        <mesh
+          ref={meshRef}
+          position={position}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
+          <mesh geometry={cubieGeometry} material={MODERN_HIT_MATERIAL} />
+          <ModernCubePieceVisual
+            gridIndex={gridIndex ?? [gx, gy, gz]}
+            colors={colors}
+            cubeOpacity={cubeOpacity}
+            innerStickerOpacity={innerStickerOpacity}
+            stickerDoubleSide={stickerDoubleSide}
+            doubleSidedStickerKeysForEdges={doubleSidedStickerKeysForEdges}
+            hideLogo={hideLogo}
+            sharedLogoTexture={sharedLogoTexture}
+            logoReady={logoReady}
+            onStickerMaterial={handleModernStickerMaterial}
+          />
+          {children}
+        </mesh>
+      );
+    }
 
     return (
       <mesh
@@ -404,7 +555,50 @@ const CubePiece = React.memo(
         {children}
       </mesh>
     );
-  }
-);
+  };
 
-export default CubePiece;
+function cubePiecePropsEqual(
+  prev: CubePieceProps & {
+    sharedLogoTexture: THREE.Texture | null;
+    logoReady: boolean;
+    hideLogo?: boolean;
+    isHighlighted?: boolean;
+    dullOthersIntensity?: number;
+  },
+  next: typeof prev,
+): boolean {
+  if (prev.orbitOnlyOnPointer !== next.orbitOnlyOnPointer) return false;
+  if (prev.designVariant !== next.designVariant) return false;
+  if (prev.cubeOpacity !== next.cubeOpacity) return false;
+  if (prev.innerStickerOpacity !== next.innerStickerOpacity) return false;
+  if (prev.stickerDoubleSide !== next.stickerDoubleSide) return false;
+  if (prev.doubleSidedStickerKeysForEdges !== next.doubleSidedStickerKeysForEdges)
+    return false;
+  if (prev.hideLogo !== next.hideLogo) return false;
+  if (prev.logoReady !== next.logoReady) return false;
+  if (prev.sharedLogoTexture !== next.sharedLogoTexture) return false;
+  if (prev.isHighlighted !== next.isHighlighted) return false;
+  if (prev.dullOthersIntensity !== next.dullOthersIntensity) return false;
+  if (prev.isColorFadeActive !== next.isColorFadeActive) return false;
+  if (prev.colorFadeProgress !== next.colorFadeProgress) return false;
+  if (prev.position[0] !== next.position[0]) return false;
+  if (prev.position[1] !== next.position[1]) return false;
+  if (prev.position[2] !== next.position[2]) return false;
+  const pg = prev.gridIndex;
+  const ng = next.gridIndex;
+  if (pg?.[0] !== ng?.[0] || pg?.[1] !== ng?.[1] || pg?.[2] !== ng?.[2]) {
+    return false;
+  }
+  const pc = prev.colors;
+  const nc = next.colors;
+  return (
+    pc.front === nc.front &&
+    pc.back === nc.back &&
+    pc.left === nc.left &&
+    pc.right === nc.right &&
+    pc.top === nc.top &&
+    pc.bottom === nc.bottom
+  );
+}
+
+export default React.memo(CubePiece, cubePiecePropsEqual);

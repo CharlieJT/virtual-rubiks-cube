@@ -2,7 +2,8 @@ import { useCallback, useRef, useMemo } from "react";
 
 const getDevicePixelRatio = () => {
   if (typeof window !== "undefined") {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = window.devicePixelRatio || 1;
+    return dpr >= 2 ? Math.min(dpr, 2) : Math.min(dpr, 1.5);
   }
   return 1;
 };

@@ -32,7 +32,64 @@ const makeCentersGrey = (cube3D: CubeState[][][]): CubeState[][][] => {
   return result;
 };
 
-export { makeCentersGrey };
+const SIDE_CENTER_POSITIONS: [number, number, number][] = [
+  [1, 1, 0],
+  [1, 1, 2],
+  [0, 1, 1],
+  [2, 1, 1],
+];
+
+const makeSideCentersGrey = (cube3D: CubeState[][][]): CubeState[][][] => {
+  const result = cube3D.map((layer) =>
+    layer.map((row) => row.map((piece) => ({ ...piece })))
+  );
+  for (const [x, y, z] of SIDE_CENTER_POSITIONS) {
+    const piece = result[x][y][z];
+    if (piece) {
+      result[x][y][z] = {
+        ...piece,
+        colors: {
+          front: GREY,
+          back: GREY,
+          left: GREY,
+          right: GREY,
+          top: GREY,
+          bottom: GREY,
+        },
+      };
+    }
+  }
+  return result;
+};
+
+/** Copy true side-centre sticker colors from `source` onto `target` (e.g. after getTutorialCubeStateForSlide greyed them). */
+const restoreSideCenterColorsFromCube = (
+  target: CubeState[][][],
+  source: CubeState[][][],
+): CubeState[][][] => {
+  const result = target.map((layer) =>
+    layer.map((row) =>
+      row.map((piece) => ({
+        ...piece,
+        colors: { ...piece.colors },
+      })),
+    ),
+  );
+  for (const [x, y, z] of SIDE_CENTER_POSITIONS) {
+    const src = source[x]?.[y]?.[z];
+    const piece = result[x]?.[y]?.[z];
+    if (src && piece) {
+      result[x][y][z] = { ...piece, colors: { ...src.colors } };
+    }
+  }
+  return result;
+};
+
+export {
+  makeCentersGrey,
+  makeSideCentersGrey,
+  restoreSideCenterColorsFromCube,
+};
 
 
 

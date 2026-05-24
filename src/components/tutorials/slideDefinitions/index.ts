@@ -7,6 +7,7 @@ import { getYellowCrossSlides } from "./yellowCrossSlides";
 import { getYellowEdgesSlides } from "./yellowEdgesSlides";
 import { getYellowCornersSlides } from "./yellowCornersSlides";
 import { getOrientYellowCornersSlides } from "./orientYellowCornersSlides";
+import { getIntermediateWhiteCrossSlides } from "./intermediateWhiteCrossSlides";
 
 export type { Slide };
 
@@ -29,6 +30,8 @@ const getSlidesForLesson = (lessonId: string): Slide[] => {
     return getYellowCornersSlides();
   } else if (lessonId === "orient-yellow-corners") {
     return getOrientYellowCornersSlides();
+  } else if (lessonId === "intermediate-white-cross") {
+    return getIntermediateWhiteCrossSlides();
   }
   return [];
 };

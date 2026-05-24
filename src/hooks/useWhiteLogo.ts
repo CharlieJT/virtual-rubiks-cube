@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useLayoutEffect } from "react";
 import * as THREE from "three";
 import type { CubeState, CubeMove, SliceKey } from "@/types/cube";
 import { AnimationHelper } from "@utils/animationHelper";
@@ -39,26 +39,33 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     return s === WHITE || s === "white";
   }, []);
 
-  const getWhiteCenterFaceFromState = useCallback(():
-    | keyof CubeState["colors"]
-    | null => {
-    const candidates: Array<{
-      idx: [number, number, number];
-      face: keyof CubeState["colors"];
-    }> = [
-      { idx: [2, 1, 1], face: "right" },
-      { idx: [0, 1, 1], face: "left" },
-      { idx: [1, 2, 1], face: "top" },
-      { idx: [1, 0, 1], face: "bottom" },
-      { idx: [1, 1, 2], face: "front" },
-      { idx: [1, 1, 0], face: "back" },
-    ];
-    for (const c of candidates) {
-      const cubie = cubeState[c.idx[0]]?.[c.idx[1]]?.[c.idx[2]];
-      if (cubie && isWhiteColor(cubie.colors[c.face])) return c.face;
-    }
-    return null;
-  }, [cubeState, isWhiteColor]);
+  const getWhiteCenterFaceFromCube = useCallback(
+    (state: CubeState[][][]): keyof CubeState["colors"] | null => {
+      const candidates: Array<{
+        idx: [number, number, number];
+        face: keyof CubeState["colors"];
+      }> = [
+        { idx: [2, 1, 1], face: "right" },
+        { idx: [0, 1, 1], face: "left" },
+        { idx: [1, 2, 1], face: "top" },
+        { idx: [1, 0, 1], face: "bottom" },
+        { idx: [1, 1, 2], face: "front" },
+        { idx: [1, 1, 0], face: "back" },
+      ];
+      for (const c of candidates) {
+        const cubie = state[c.idx[0]]?.[c.idx[1]]?.[c.idx[2]];
+        if (cubie && isWhiteColor(cubie.colors[c.face])) return c.face;
+      }
+      return null;
+    },
+    [isWhiteColor],
+  );
+
+  const getWhiteCenterFaceFromState = useCallback(
+    (): keyof CubeState["colors"] | null =>
+      getWhiteCenterFaceFromCube(cubeState),
+    [cubeState, getWhiteCenterFaceFromCube],
+  );
 
   // Canonical face basis used to compute in-plane texture angle (must match UV orientation).
   // Returns references to module-scope vectors — callers must clone before a subsequent call.
@@ -176,20 +183,33 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     return n;
   };
 
-  useEffect(() => {
-    if (prevWhiteFaceRef.current == null) {
-      const face = getWhiteCenterFaceFromState();
-      if (face) {
-        prevWhiteFaceRef.current = face;
-        whiteQuatRef.current.identity();
-        setWhiteLogoAngle(0);
-        displayedAngleRef.current = 0;
-      }
+  useLayoutEffect(() => {
+    if (prevWhiteFaceRef.current != null) return;
+    const face = getWhiteCenterFaceFromState();
+    if (face) {
+      prevWhiteFaceRef.current = face;
+      whiteQuatRef.current.identity();
+      displayedAngleRef.current = 0;
     }
   }, [getWhiteCenterFaceFromState]);
 
   const applyMoveToWhiteLogoAngle = useCallback(
-    (move: CubeMove, groupRef: React.RefObject<THREE.Group | null>, isFastSequence: boolean = false) => {
+    (
+      move: CubeMove,
+      groupRef: React.RefObject<THREE.Group | null>,
+      isFastSequence: boolean = false,
+      cubeStateOverride?: CubeState[][][],
+      preMoveWhiteFace?: keyof CubeState["colors"] | null,
+    ): number => {
+      const stateForMove = cubeStateOverride ?? cubeState;
+      const getWhiteFace = () => getWhiteCenterFaceFromCube(stateForMove);
+
+      if (prevWhiteFaceRef.current == null) {
+        const seed =
+          preMoveWhiteFace ?? getWhiteCenterFaceFromCube(cubeState);
+        if (seed) prevWhiteFaceRef.current = seed;
+      }
+
       const moveStr = (move as string).toUpperCase();
       const now = Date.now();
       // Guard: avoid double-apply if the exact same move fires twice within 120ms
@@ -198,15 +218,15 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
         lastAppliedMoveRef.current.move === moveStr &&
         now - lastAppliedMoveRef.current.t < 120
       ) {
-        return;
+        return displayedAngleRef.current;
       }
       lastAppliedMoveRef.current = { move: moveStr, t: now };
       // Determine rotation according to explicit rule:
       // - If rotating the current white face (U/D/L/R/F/B), rotate the logo 90° CW for non-prime, CCW for prime, 180° for "2".
       // - For slice moves (M/E/S), preserve orientation (no rotation), just re-project after the move.
       // - Whole-cube rotations (X/Y/Z) rotate orientation normally.
-      // Use the current white face from state (post-logical-move) to avoid race conditions
-      const currentWhiteFace = getWhiteCenterFaceFromState();
+      // Use post-move cube state when provided (commit runs before React re-render).
+      const currentWhiteFace = getWhiteFace();
       const base = moveStr[0];
       const isWhole = base === "X" || base === "Y" || base === "Z";
       const isSliceMove = base === "M" || base === "E" || base === "S";
@@ -280,22 +300,21 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
             if (n < -Math.PI) n += twoPi;
             return n;
           };
-          setWhiteLogoAngle((prev) => {
-            const next = normalizeAngle((prev || 0) + delta);
-            displayedAngleRef.current = next;
-            return next;
-          });
+          const next = normalizeAngle(
+            (displayedAngleRef.current || 0) + delta,
+          );
+          displayedAngleRef.current = next;
           if (currentWhiteFace) prevWhiteFaceRef.current = currentWhiteFace;
-          return; // handled; skip projection below
+          return next;
         }
         // If rotating some other face (not the white center's), leave the logo angle unchanged here.
-        return;
+        return displayedAngleRef.current;
       }
 
       // Slice moves: don't rotate orientation here; we'll transfer angle discretely and align quaternion below.
 
       // Compute angle relative to current (post-move) white face
-      const whiteFaceAfter = getWhiteCenterFaceFromState();
+      const whiteFaceAfter = getWhiteFace();
       if (whiteFaceAfter || (isSliceMove && prevWhiteFaceRef.current)) {
         const quarter = Math.PI / 2;
         // Resolve the target face for mapping:
@@ -314,7 +333,7 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
           const rotatedN = prevN.clone().applyQuaternion(q).normalize();
           resolvedAfter = getNearestFaceFromVector(rotatedN);
         }
-        if (!resolvedAfter) return;
+        if (!resolvedAfter) return displayedAngleRef.current;
 
         const {
           normal: faceN,
@@ -344,7 +363,7 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
                 resolvedAfter,
                 displayedAngleRef.current || 0,
                 sliceParam,
-                cubeState,
+                stateForMove,
                 moveStr
               );
               thetaDesired += additionalDelta;
@@ -433,12 +452,14 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
         let n = theta % twoPi;
         if (n > Math.PI) n -= twoPi;
         if (n < -Math.PI) n += twoPi;
-        setWhiteLogoAngle(n);
         displayedAngleRef.current = n;
         prevWhiteFaceRef.current = resolvedAfter;
+        return n;
       }
+
+      return displayedAngleRef.current;
     },
-    [getWhiteCenterFaceFromState, cubeState]
+    [getWhiteCenterFaceFromCube, cubeState]
   );
 
   const resetLogo = useCallback(() => {
@@ -459,6 +480,7 @@ const useWhiteLogo = (cubeState: CubeState[][][]) => {
     setWhiteLogoAngle,
     applyMoveToWhiteLogoAngle,
     resetLogo,
+    getWhiteCenterFaceFromCube,
   };
 };
 

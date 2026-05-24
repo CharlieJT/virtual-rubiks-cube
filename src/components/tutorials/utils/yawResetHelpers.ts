@@ -24,6 +24,9 @@ const resetYawRefsForSlide = (
     orientThreeCornersYawChangedRef,
     orientFourCornersYawChangedRef,
     practiceSetupSolution9YawChangedRef,
+    intermediateWhiteCrossSlide8YawStateRef,
+    intermediateWhiteCrossSlide11YawStateRef,
+    intermediateWhiteCrossSlide13YawStateRef,
   } = slideSpecificState;
 
   switch (slideId) {
@@ -75,6 +78,16 @@ const resetYawRefsForSlide = (
       break;
     case "corner-insert-two-pieces":
       practiceSetupSolution9YawChangedRef.current = 0;
+      break;
+    case "two-edges-reposition-blue-front":
+    case "solve-blue-and-red-together":
+      intermediateWhiteCrossSlide8YawStateRef.current = 0;
+      break;
+    case "solve-red-and-blue-together":
+      intermediateWhiteCrossSlide11YawStateRef.current = 0;
+      break;
+    case "solve-green-and-orange-together":
+      intermediateWhiteCrossSlide13YawStateRef.current = 0;
       break;
   }
 };

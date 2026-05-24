@@ -199,7 +199,7 @@ const useSnapLogic = ({
     if (signedSteps === 0) {
       trackingStateRef.current.isDragging = false;
       trackingStateRef.current.isSnapping = true;
-      trackingStateRef.current.snapAnimationStartTime = Date.now();
+      trackingStateRef.current.snapAnimationStartTime = performance.now();
       trackingStateRef.current.snapAnimationDuration = snapDurationSlow;
       trackingStateRef.current.snapStartRotation =
         trackingStateRef.current.currentRotation;
@@ -225,7 +225,7 @@ const useSnapLogic = ({
 
     trackingStateRef.current.isDragging = false;
     trackingStateRef.current.isSnapping = true;
-    trackingStateRef.current.snapAnimationStartTime = Date.now();
+    trackingStateRef.current.snapAnimationStartTime = performance.now();
     trackingStateRef.current.snapAnimationDuration = snapDuration;
     trackingStateRef.current.snapStartRotation =
       trackingStateRef.current.currentRotation;

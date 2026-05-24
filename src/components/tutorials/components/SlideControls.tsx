@@ -29,12 +29,14 @@ const SlideControls: React.FC<SlideControlsProps> = ({
   fixCompleted = false,
 }) => {
   const shouldShowReset =
-    lessonId === "notation" ||
-    (lessonId === "rubiks-cube-introduction" && currentSlide > 0) ||
-    activeSlideId === "yellow-edges-algorithm" ||
-    activeSlideId === "yellow-corners-one-correct" ||
-    activeSlideId === "orient-two-corners" ||
-    currentSlide >= 2;
+    activeSlideId !== "center-order-bogr" &&
+    activeSlideId !== "bogr-edges-focus" &&
+    (lessonId === "notation" ||
+      (lessonId === "rubiks-cube-introduction" && currentSlide > 0) ||
+      activeSlideId === "yellow-edges-algorithm" ||
+      activeSlideId === "yellow-corners-one-correct" ||
+      activeSlideId === "orient-two-corners" ||
+      currentSlide >= 2);
   const shouldShowReposition = !shouldShowReset;
 
   if (!shouldShowReset && !shouldShowReposition && !showHintButton) {
@@ -83,7 +85,11 @@ const SlideControls: React.FC<SlideControlsProps> = ({
             <Button
               onClick={onReposition}
               className="px-4 md:px-5 py-2.5 bg-white/90 backdrop-blur-xl text-gray-900 rounded-xl shadow-lg hover:shadow-xl border border-gray-200/50 hover:bg-white transition-all duration-200 text-sm font-medium flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-lg"
-              title="Reposition cube"
+              title={
+                activeSlideId === "center-order-bogr" || activeSlideId === "bogr-edges-focus"
+                  ? "Re-position cube"
+                  : "Reposition cube"
+              }
               disabled={isAnimating}
             >
               <svg
@@ -99,7 +105,11 @@ const SlideControls: React.FC<SlideControlsProps> = ({
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-              <span className="text-sm ml-2">Reposition</span>
+              <span className="text-sm ml-2">
+                {activeSlideId === "center-order-bogr" || activeSlideId === "bogr-edges-focus"
+                  ? "Re-position"
+                  : "Reposition"}
+              </span>
             </Button>
           )}
         </div>

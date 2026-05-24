@@ -65,11 +65,19 @@ export interface TrackingStateRef {
   _expectedBaseSign?: number;
   _dragSignParity?: number;
   _snapCompleted?: boolean;
+  /** Logo texture angle when this drag layer animation started. */
+  _logoAngleAtDragStart?: number;
+  /** True when this drag twists the face that shows the white-center logo. */
+  _dragSyncsLogoTexture?: boolean;
 }
 
 // Data structure for centralized animation in parent
+export type StickerMaterial =
+  | THREE.MeshPhongMaterial
+  | THREE.MeshPhysicalMaterial;
+
 export interface PieceMaterialData {
-  materials: Record<string, THREE.MeshPhongMaterial>;
+  materials: Record<string, StickerMaterial>;
   baseColors: Record<string, THREE.Color>;
   gridIndex: [number, number, number];
 }
@@ -99,6 +107,14 @@ export interface CubePieceProps {
   highlightIntensity?: number;
   isHighlighted?: boolean;
   dullOthersIntensity?: number;
+  stickerDoubleSide?: boolean;
+  doubleSidedStickerKeysForEdges?: Set<string>;
+  cubeOpacity?: number;
+  innerStickerOpacity?: number;
+  isColorFadeActive?: boolean;
+  designVariant?: "legacy" | "modern";
+  /** Scramble/solve: allow orbit on cubie press without starting slice drag */
+  orbitOnlyOnPointer?: boolean;
 }
 
 export interface RubiksCube3DProps {
@@ -108,7 +124,7 @@ export interface RubiksCube3DProps {
   stickerGreyMap?: Map<string, boolean>;
   colorFadeProgress?: number;
   pendingMove?: CubeMove | null;
-  onMoveAnimationDone?: (move: CubeMove) => void;
+  onMoveAnimationDone?: (move: CubeMove) => CubeState[][][] | void;
   onStartAnimation?: () => void;
   isAnimating?: boolean;
   onOrbitControlsChange?: (enabled: boolean) => void;
@@ -126,6 +142,10 @@ export interface RubiksCube3DProps {
   highlightPositions?: Array<[number, number, number]>;
   highlightIntensity?: number;
   dullOthersIntensity?: number;
+  doubleSidedStickerKeys?: Set<string>;
+  doubleSidedStickerKeysForEdges?: Set<string>;
+  cubeOpacity?: number;
+  innerStickerOpacity?: number;
   pieceChildren?: (
     x: number,
     y: number,
@@ -140,6 +160,8 @@ export interface RubiksCube3DProps {
   hideTopFace?: boolean;
   hideBottomFace?: boolean;
   errorFlash?: boolean;
+  designVariant?: "legacy" | "modern";
+  cubeScale?: number;
 }
 
 export type RubiksCube3DHandle = {
@@ -158,4 +180,5 @@ export type RubiksCube3DHandle = {
   handlePointerDown: (e: React.PointerEvent) => void;
   handlePointerUp: () => void;
   resetLogo: () => void;
+  resetCubieMeshTransforms: () => void;
 };

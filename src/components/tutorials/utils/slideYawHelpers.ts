@@ -23,7 +23,7 @@ export const applyYawChange = (
   cubeViewRef: RefObject<RubiksCube3DHandle | null>,
   cubeRef: RefObject<CubeJSWrapper>,
   config: YawChangeConfig,
-  callback?: () => void
+  callback?: () => void,
 ): void => {
   if (!orbitControlsRef.current || !cubeViewRef.current) return;
 
@@ -32,7 +32,7 @@ export const applyYawChange = (
   cubeViewRef.current.resetToInitialPosition(
     orbitControlsRef,
     cubeRef,
-    callback
+    callback,
   );
 };
 
@@ -44,7 +44,7 @@ export const shouldChangeYawForMidlayerGreenWhiteExtraction = (
   slideId: string | undefined,
   lessonId: string,
   nextIndex: number,
-  slide8WhiteCrossYawStateRef: MutableRefObject<number>
+  slide8WhiteCrossYawStateRef: MutableRefObject<number>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "midlayer-green-white-extraction" ||
@@ -80,7 +80,7 @@ export const shouldChangeYawForMidlayerGreenWhiteExtraction = (
 export const shouldChangeYawForMisalignedGreenWhite = (
   slideId: string | undefined,
   nextIndex: number,
-  slide6YawChangedRef: MutableRefObject<boolean>
+  slide6YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "misaligned-green-white" ||
@@ -103,7 +103,7 @@ export const shouldChangeYawForMisalignedGreenWhite = (
 export const shouldChangeYawForFlippedMisalignedGreenWhite = (
   slideId: string | undefined,
   nextIndex: number,
-  slide6YawChangedRef: MutableRefObject<boolean>
+  slide6YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "flipped-misoriented-misaligned-green-white" ||
@@ -126,7 +126,7 @@ export const shouldChangeYawForFlippedMisalignedGreenWhite = (
 export const shouldChangeYawForPracticeSetupSolution6 = (
   slideId: string | undefined,
   nextIndex: number,
-  slide8YawChangedRef: MutableRefObject<boolean>
+  slide8YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "corner-move-to-correct" ||
@@ -152,7 +152,7 @@ export const shouldChangeYawForPracticeSetupSolution6 = (
 export const shouldChangeYawForPracticeSetupSolution9 = (
   slideId: string | undefined,
   nextIndex: number,
-  yawStateRef: MutableRefObject<number>
+  yawStateRef: MutableRefObject<number>,
 ): YawChangeConfig | null => {
   if (slideId !== "corner-insert-two-pieces") {
     return null;
@@ -183,13 +183,127 @@ export const shouldChangeYawForPracticeSetupSolution9 = (
   return null;
 };
 
+export const shouldChangeYawForIntermediateWhiteCrossSlide8 = (
+  slideId: string | undefined,
+  nextIndex: number,
+  yawStateRef: MutableRefObject<number>,
+): YawChangeConfig | null => {
+  if (slideId !== "two-edges-reposition-blue-front") {
+    return null;
+  }
+
+  if (nextIndex === 1 && yawStateRef.current === 0) {
+    yawStateRef.current = 1;
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -180,
+      extraPitchDeg: 0,
+      slideId,
+    };
+  }
+
+  if (nextIndex === 2 && yawStateRef.current === 1) {
+    yawStateRef.current = 2;
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -145,
+      extraPitchDeg: -10,
+      slideId,
+    };
+  }
+
+  if (nextIndex === 3 && yawStateRef.current === 2) {
+    yawStateRef.current = 3;
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -215,
+      extraPitchDeg: -10,
+      slideId,
+    };
+  }
+
+  return null;
+};
+
+export const shouldChangeYawForIntermediateWhiteCrossSlide10 = (
+  slideId: string | undefined,
+  nextIndex: number,
+  yawStateRef: MutableRefObject<number>,
+): YawChangeConfig | null => {
+  if (slideId !== "solve-blue-and-red-together") {
+    return null;
+  }
+
+  if (nextIndex === 2 && yawStateRef.current === 0) {
+    yawStateRef.current = 1;
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -145,
+      extraPitchDeg: -10,
+      slideId,
+    };
+  }
+
+  return null;
+};
+
+export const shouldChangeYawForIntermediateWhiteCrossSlide11 = (
+  slideId: string | undefined,
+  nextIndex: number,
+  yawStateRef: MutableRefObject<number>,
+): YawChangeConfig | null => {
+  if (slideId !== "solve-red-and-blue-together") {
+    return null;
+  }
+
+  if (nextIndex === 1 && yawStateRef.current === 0) {
+    yawStateRef.current = 1;
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: -125,
+      extraPitchDeg: -10,
+      slideId,
+    };
+  }
+
+  return null;
+};
+
+export const shouldChangeYawForIntermediateWhiteCrossSlide13 = (
+  slideId: string | undefined,
+  nextIndex: number,
+  yawStateRef: MutableRefObject<number>,
+): YawChangeConfig | null => {
+  if (slideId !== "solve-green-and-orange-together") {
+    return null;
+  }
+
+  if (nextIndex === 1 && yawStateRef.current === 0) {
+    yawStateRef.current = 1;
+    return {
+      extraYawRad: 0,
+      flipUpsideDown: true,
+      extraERotationDeg: 30,
+      extraPitchDeg: -10,
+      slideId,
+    };
+  }
+
+  return null;
+};
+
 /**
  * Check if a yaw change should be applied for second-layer-setup-solution slide
  */
 export const shouldChangeYawForSecondLayerSetupSolution = (
   slideId: string | undefined,
   nextIndex: number,
-  secondLayerSetupYawChangedRef: MutableRefObject<boolean>
+  secondLayerSetupYawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "edge-insert-left" ||
@@ -215,7 +329,7 @@ export const shouldChangeYawForSecondLayerSetupSolution = (
 export const shouldChangeYawForSecondLayerSetupSolution2 = (
   slideId: string | undefined,
   nextIndex: number,
-  secondLayerSetup2YawChangedRef: MutableRefObject<boolean>
+  secondLayerSetup2YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "edge-insert-right" ||
@@ -241,7 +355,7 @@ export const shouldChangeYawForSecondLayerSetupSolution2 = (
 export const shouldChangeYawForSecondLayerSetupSolution3 = (
   slideId: string | undefined,
   nextIndex: number,
-  secondLayerSetup3YawChangedRef: MutableRefObject<number>
+  secondLayerSetup3YawChangedRef: MutableRefObject<number>,
 ): YawChangeConfig | null => {
   if (slideId !== "edge-remove-reinsert") {
     return null;
@@ -289,7 +403,7 @@ export const shouldChangeYawForSecondLayerSetupSolution3 = (
 export const shouldChangeYawForSecondLayerSetupSolution4 = (
   slideId: string | undefined,
   nextIndex: number,
-  secondLayerSetup4YawChangedRef: MutableRefObject<number>
+  secondLayerSetup4YawChangedRef: MutableRefObject<number>,
 ): YawChangeConfig | null => {
   if (slideId !== "edge-flipped-in-position") {
     return null;
@@ -337,7 +451,7 @@ export const shouldChangeYawForSecondLayerSetupSolution4 = (
 export const shouldChangeYawForYellowEdgesSolution2 = (
   slideId: string | undefined,
   nextIndex: number,
-  yellowEdges2YawChangedRef: MutableRefObject<boolean>
+  yellowEdges2YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "yellow-edges-one-correct" ||
@@ -362,7 +476,7 @@ export const shouldChangeYawForYellowEdgesSolution2 = (
 export const shouldChangeYawForYellowEdgesSolution3 = (
   slideId: string | undefined,
   nextIndex: number,
-  yellowEdges3YawChangedRef: MutableRefObject<boolean>
+  yellowEdges3YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "yellow-edges-zero-correct" ||
@@ -387,7 +501,7 @@ export const shouldChangeYawForYellowEdgesSolution3 = (
 export const shouldChangeYawForYellowEdgesSolution4 = (
   slideId: string | undefined,
   nextIndex: number,
-  yellowEdges4YawChangedRef: MutableRefObject<boolean>
+  yellowEdges4YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "yellow-edges-two-opposite" ||
@@ -412,7 +526,7 @@ export const shouldChangeYawForYellowEdgesSolution4 = (
 export const shouldChangeYawForYellowCornersSolution2 = (
   slideId: string | undefined,
   nextIndex: number,
-  yellowCorners2YawChangedRef: MutableRefObject<boolean>
+  yellowCorners2YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "yellow-corners-zero-correct" ||
@@ -437,7 +551,7 @@ export const shouldChangeYawForYellowCornersSolution2 = (
 export const shouldChangeYawForYellowCornersSolution3 = (
   slideId: string | undefined,
   nextIndex: number,
-  yellowCorners3YawChangedRef: MutableRefObject<boolean>
+  yellowCorners3YawChangedRef: MutableRefObject<boolean>,
 ): YawChangeConfig | null => {
   if (
     slideId !== "yellow-corners-zero-repeated" ||
@@ -462,7 +576,7 @@ export const shouldChangeYawForYellowCornersSolution3 = (
 export const shouldChangeYawForOrientTwoCorners = (
   slideId: string | undefined,
   nextIndex: number,
-  orientTwoCornersYawChangedRef: MutableRefObject<number>
+  orientTwoCornersYawChangedRef: MutableRefObject<number>,
 ): YawChangeConfig | null => {
   if (slideId !== "orient-two-corners") {
     return null;
@@ -521,7 +635,7 @@ export const shouldChangeYawForOrientTwoCorners = (
 export const shouldChangeYawForOrientThreeCorners = (
   slideId: string | undefined,
   nextIndex: number,
-  orientThreeCornersYawChangedRef: MutableRefObject<number>
+  orientThreeCornersYawChangedRef: MutableRefObject<number>,
 ): YawChangeConfig | null => {
   if (slideId !== "orient-three-corners") {
     return null;
@@ -602,7 +716,7 @@ export const shouldChangeYawForOrientThreeCorners = (
 export const shouldChangeYawForOrientFourCorners = (
   slideId: string | undefined,
   nextIndex: number,
-  orientFourCornersYawChangedRef: MutableRefObject<number>
+  orientFourCornersYawChangedRef: MutableRefObject<number>,
 ): YawChangeConfig | null => {
   if (slideId !== "orient-four-corners") {
     return null;
@@ -726,7 +840,10 @@ export const checkAndApplyYawChange = (
     orientThreeCornersYawChangedRef?: MutableRefObject<number>;
     orientFourCornersYawChangedRef?: MutableRefObject<number>;
     practiceSetupSolution9YawChangedRef?: MutableRefObject<number>;
-  }
+    intermediateWhiteCrossSlide8YawStateRef?: MutableRefObject<number>;
+    intermediateWhiteCrossSlide11YawStateRef?: MutableRefObject<number>;
+    intermediateWhiteCrossSlide13YawStateRef?: MutableRefObject<number>;
+  },
 ): boolean => {
   if (!slideId) return false;
 
@@ -737,87 +854,107 @@ export const checkAndApplyYawChange = (
       slideId,
       lessonId,
       nextIndex,
-      yawStateRefs.slide8WhiteCrossYawStateRef!
+      yawStateRefs.slide8WhiteCrossYawStateRef!,
     ) ||
     shouldChangeYawForMisalignedGreenWhite(
       slideId,
       nextIndex,
-      yawStateRefs.slide6YawChangedRef!
+      yawStateRefs.slide6YawChangedRef!,
     ) ||
     shouldChangeYawForFlippedMisalignedGreenWhite(
       slideId,
       nextIndex,
-      yawStateRefs.slide6YawChangedRef!
+      yawStateRefs.slide6YawChangedRef!,
     ) ||
     shouldChangeYawForPracticeSetupSolution6(
       slideId,
       nextIndex,
-      yawStateRefs.slide8YawChangedRef!
+      yawStateRefs.slide8YawChangedRef!,
     ) ||
     shouldChangeYawForSecondLayerSetupSolution(
       slideId,
       nextIndex,
-      yawStateRefs.secondLayerSetupYawChangedRef!
+      yawStateRefs.secondLayerSetupYawChangedRef!,
     ) ||
     shouldChangeYawForSecondLayerSetupSolution2(
       slideId,
       nextIndex,
-      yawStateRefs.secondLayerSetup2YawChangedRef!
+      yawStateRefs.secondLayerSetup2YawChangedRef!,
     ) ||
     shouldChangeYawForSecondLayerSetupSolution3(
       slideId,
       nextIndex,
-      yawStateRefs.secondLayerSetup3YawChangedRef!
+      yawStateRefs.secondLayerSetup3YawChangedRef!,
     ) ||
     shouldChangeYawForSecondLayerSetupSolution4(
       slideId,
       nextIndex,
-      yawStateRefs.secondLayerSetup4YawChangedRef!
+      yawStateRefs.secondLayerSetup4YawChangedRef!,
     ) ||
     shouldChangeYawForYellowEdgesSolution2(
       slideId,
       nextIndex,
-      yawStateRefs.yellowEdges2YawChangedRef!
+      yawStateRefs.yellowEdges2YawChangedRef!,
     ) ||
     shouldChangeYawForYellowEdgesSolution3(
       slideId,
       nextIndex,
-      yawStateRefs.yellowEdges3YawChangedRef!
+      yawStateRefs.yellowEdges3YawChangedRef!,
     ) ||
     shouldChangeYawForYellowEdgesSolution4(
       slideId,
       nextIndex,
-      yawStateRefs.yellowEdges4YawChangedRef!
+      yawStateRefs.yellowEdges4YawChangedRef!,
     ) ||
     shouldChangeYawForYellowCornersSolution2(
       slideId,
       nextIndex,
-      yawStateRefs.yellowCorners2YawChangedRef!
+      yawStateRefs.yellowCorners2YawChangedRef!,
     ) ||
     shouldChangeYawForYellowCornersSolution3(
       slideId,
       nextIndex,
-      yawStateRefs.yellowCorners3YawChangedRef!
+      yawStateRefs.yellowCorners3YawChangedRef!,
     ) ||
     shouldChangeYawForOrientTwoCorners(
       slideId,
       nextIndex,
-      yawStateRefs.orientTwoCornersYawChangedRef!
+      yawStateRefs.orientTwoCornersYawChangedRef!,
     ) ||
     shouldChangeYawForOrientThreeCorners(
       slideId,
       nextIndex,
-      yawStateRefs.orientThreeCornersYawChangedRef!
+      yawStateRefs.orientThreeCornersYawChangedRef!,
     ) ||
     shouldChangeYawForOrientFourCorners(
       slideId,
       nextIndex,
-      yawStateRefs.orientFourCornersYawChangedRef!
+      yawStateRefs.orientFourCornersYawChangedRef!,
     ) ||
     shouldChangeYawForPracticeSetupSolution9(
       slideId,
       nextIndex,
-      yawStateRefs.practiceSetupSolution9YawChangedRef!
+      yawStateRefs.practiceSetupSolution9YawChangedRef!,
+    ) ||
+    shouldChangeYawForIntermediateWhiteCrossSlide8(
+      slideId,
+      nextIndex,
+      yawStateRefs.intermediateWhiteCrossSlide8YawStateRef!,
+    ) ||
+    shouldChangeYawForIntermediateWhiteCrossSlide10(
+      slideId,
+      nextIndex,
+      yawStateRefs.intermediateWhiteCrossSlide8YawStateRef!,
+    ) ||
+    shouldChangeYawForIntermediateWhiteCrossSlide11(
+      slideId,
+      nextIndex,
+      yawStateRefs.intermediateWhiteCrossSlide11YawStateRef!,
+    ) ||
+    shouldChangeYawForIntermediateWhiteCrossSlide13(
+      slideId,
+      nextIndex,
+      yawStateRefs.intermediateWhiteCrossSlide13YawStateRef!,
     );
 
   if (config) {

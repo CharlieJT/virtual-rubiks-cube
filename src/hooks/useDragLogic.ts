@@ -6,17 +6,19 @@ import {
   POSITION_MOVE_MAPPING,
   type PositionMoveKey,
 } from "@/config/cube/positionMoveMapping";
-import { LOCK_PRIMARY_PX } from "../components/RubiksCube3D/geometry";
+import { LOCK_PRIMARY_PX, CUBIE_DISTANCE } from "../components/RubiksCube3D/geometry";
 import useFaceDetection from "./drag/useFaceDetection";
 import useDragState from "./drag/useDragState";
 import useSnapLogic from "./drag/useSnapLogic";
+import type { TrackingStateRef } from "@/components/RubiksCube3D/types";
 
 const useDragLogic = (
   groupRef: React.RefObject<THREE.Group | null>,
   cubiesRef: React.RefObject<AnimatedCubie[]>,
   _commitMoveOnce: (move: CubeMove) => void,
   isTimerMode: boolean = false,
-  preventSliceMoves: boolean = false
+  preventSliceMoves: boolean = false,
+  onDragLayerStart?: (baseMove: string, dragState: TrackingStateRef) => void,
 ) => {
   const { camera, gl } = useThree();
 
@@ -180,10 +182,12 @@ const useDragLogic = (
     groupRef.current.add(dragGroup);
     trackingStateRef.current.dragGroup = dragGroup;
 
+    onDragLayerStart?.(baseMove, trackingStateRef.current);
+
     AnimationHelper.lock();
   };
 
-  const pointerFrameBudgetMs = 12; // ~80 Hz max processing
+  const pointerFrameBudgetMs = 8; // ~125 Hz max for pre-drag axis lock
 
   const handlePointerMove = (e: PointerEvent) => {
     if (!trackingStateRef.current.isTracking) return;
@@ -377,9 +381,9 @@ const useDragLogic = (
     intersectionPointWorld: THREE.Vector3
   ) => {
     const [x, y, z] = position;
-    const gridX = Math.round(x / 1.05 + 1);
-    const gridY = Math.round(y / 1.05 + 1);
-    const gridZ = Math.round(z / 1.05 + 1);
+    const gridX = Math.round(x / CUBIE_DISTANCE + 1);
+    const gridY = Math.round(y / CUBIE_DISTANCE + 1);
+    const gridZ = Math.round(z / CUBIE_DISTANCE + 1);
 
     let pointInCubeLocal = intersectionPointWorld.clone();
     if (groupRef.current) {
@@ -414,9 +418,9 @@ const useDragLogic = (
     const { clickedFace } = detectFaceAndMove(pos, intersectionPoint);
 
     const [x, y, z] = pos;
-    const gridX = Math.round(x / 1.05 + 1);
-    const gridY = Math.round(y / 1.05 + 1);
-    const gridZ = Math.round(z / 1.05 + 1);
+    const gridX = Math.round(x / CUBIE_DISTANCE + 1);
+    const gridY = Math.round(y / CUBIE_DISTANCE + 1);
+    const gridZ = Math.round(z / CUBIE_DISTANCE + 1);
     const gridPos: [number, number, number] = [gridX - 1, gridY - 1, gridZ - 1];
 
     const uniquePieceId = generateUniquePieceId(gridPos, clickedFace);

@@ -2,9 +2,13 @@ import { useState, useEffect, useRef } from "react";
 
 export interface UseSlideSpecificStateReturn {
   showSecondSequenceYellowEdges2: boolean;
-  setShowSecondSequenceYellowEdges2: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowSecondSequenceYellowEdges2: React.Dispatch<
+    React.SetStateAction<boolean>
+  >;
   secondSequenceYellowEdges2Locked: boolean;
-  setSecondSequenceYellowEdges2Locked: React.Dispatch<React.SetStateAction<boolean>>;
+  setSecondSequenceYellowEdges2Locked: React.Dispatch<
+    React.SetStateAction<boolean>
+  >;
   slide8YawChangedRef: React.RefObject<boolean>;
   slide6YawChangedRef: React.RefObject<boolean>;
   slide8WhiteCrossYawStateRef: React.RefObject<number>;
@@ -21,10 +25,15 @@ export interface UseSlideSpecificStateReturn {
   orientThreeCornersYawChangedRef: React.RefObject<number>;
   orientFourCornersYawChangedRef: React.RefObject<number>;
   practiceSetupSolution9YawChangedRef: React.RefObject<number>;
+  intermediateWhiteCrossSlide8YawStateRef: React.RefObject<number>;
+  intermediateWhiteCrossSlide11YawStateRef: React.RefObject<number>;
+  intermediateWhiteCrossSlide13YawStateRef: React.RefObject<number>;
   resetSlideSpecificState: () => void;
 }
 
-const useSlideSpecificState = (activeSlideId: string | undefined): UseSlideSpecificStateReturn => {
+const useSlideSpecificState = (
+  activeSlideId: string | undefined,
+): UseSlideSpecificStateReturn => {
   const [showSecondSequenceYellowEdges2, setShowSecondSequenceYellowEdges2] =
     useState(false);
   const [
@@ -48,6 +57,9 @@ const useSlideSpecificState = (activeSlideId: string | undefined): UseSlideSpeci
   const orientThreeCornersYawChangedRef = useRef(0);
   const orientFourCornersYawChangedRef = useRef(0);
   const practiceSetupSolution9YawChangedRef = useRef(0);
+  const intermediateWhiteCrossSlide8YawStateRef = useRef(0);
+  const intermediateWhiteCrossSlide11YawStateRef = useRef(0);
+  const intermediateWhiteCrossSlide13YawStateRef = useRef(0);
 
   useEffect(() => {
     setShowSecondSequenceYellowEdges2(false);
@@ -68,6 +80,9 @@ const useSlideSpecificState = (activeSlideId: string | undefined): UseSlideSpeci
     orientThreeCornersYawChangedRef.current = 0;
     orientFourCornersYawChangedRef.current = 0;
     practiceSetupSolution9YawChangedRef.current = 0;
+    intermediateWhiteCrossSlide8YawStateRef.current = 0;
+    intermediateWhiteCrossSlide11YawStateRef.current = 0;
+    intermediateWhiteCrossSlide13YawStateRef.current = 0;
   }, [activeSlideId]);
 
   const resetSlideSpecificState = (): void => {
@@ -89,6 +104,9 @@ const useSlideSpecificState = (activeSlideId: string | undefined): UseSlideSpeci
     orientThreeCornersYawChangedRef.current = 0;
     orientFourCornersYawChangedRef.current = 0;
     practiceSetupSolution9YawChangedRef.current = 0;
+    intermediateWhiteCrossSlide8YawStateRef.current = 0;
+    intermediateWhiteCrossSlide11YawStateRef.current = 0;
+    intermediateWhiteCrossSlide13YawStateRef.current = 0;
   };
 
   return {
@@ -112,6 +130,9 @@ const useSlideSpecificState = (activeSlideId: string | undefined): UseSlideSpeci
     orientThreeCornersYawChangedRef,
     orientFourCornersYawChangedRef,
     practiceSetupSolution9YawChangedRef,
+    intermediateWhiteCrossSlide8YawStateRef,
+    intermediateWhiteCrossSlide11YawStateRef,
+    intermediateWhiteCrossSlide13YawStateRef,
     resetSlideSpecificState,
   };
 };

@@ -60,9 +60,34 @@ export const getFixSequence = (slideId: string | undefined): string[] => {
     case "practice-two-second-edges":
     case "practice-three-second-edges":
     case "practice-four-second-edges":
+    case "intermediate-white-cross-recap":
+    case "center-order-bogr":
+    case "bogr-edges-focus":
       return [];
     case "flip-green-white-f2":
       return ["F2"];
+    case "f2-blue-front":
+      return ["B2"];
+    case "insert-flipped-edge-right":
+      return ["D'", "R'", "B", "R"];
+    case "insert-flipped-edge-left":
+      return ["D", "L", "B'", "L'"];
+    case "two-edges-blue-front":
+      return ["B2", "L2"];
+    case "two-edges-reposition-blue-front":
+      return ["D'", "B2", "D2", "L2"];
+    case "solve-two-edges-together":
+      return ["B'", "D'", "B'", "L"];
+    case "solve-orange-and-blue-together":
+      return ["L", "D", "L", "B'"];
+    case "solve-blue-and-red-together":
+      return ["B", "D'", "B", "R'"];
+    case "solve-red-and-blue-together":
+      return ["D'", "R'", "D2", "R'", "B"];
+    case "solve-green-and-orange-together":
+      return ["D2", "F", "D2", "F", "L'"];
+    case "bogr-insert-align-red-green":
+      return ["B", "D", "B", "R'", "U"];
     case "misaligned-green-white":
       return ["D'", "F2"];
     case "flip-green-white":
@@ -388,6 +413,20 @@ export const getFixSequenceDisplay = (
       return ["R", "U", "R'", "U'"];
     case "corner-white-facing-left":
       return ["L'", "U'", "L", "U"];
+    case "two-edges-reposition-blue-front":
+      return ["U'", "F2", "U2", "L2"];
+    case "solve-two-edges-together":
+      return ["F'", "U'", "F'", "L"];
+    case "solve-orange-and-blue-together":
+      return ["F", "U", "F", "R'"];
+    case "solve-blue-and-red-together":
+      return ["F", "U'", "F", "R'"];
+    case "solve-red-and-blue-together":
+      return ["U'", "F'", "U2", "F'", "L"];
+    case "solve-green-and-orange-together":
+      return ["U2", "F", "U2", "F", "R'"];
+    case "bogr-insert-align-red-green":
+      return ["F", "U", "F", "R'", "D"];
     case "yellow-cross-line":
       return ["F", "R", "U", "R'", "U'", "F'"];
     case "yellow-edges-algorithm":

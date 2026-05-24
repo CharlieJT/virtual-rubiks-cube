@@ -1153,6 +1153,148 @@ export const getSequenceConfig = ({
         },
       ];
 
+    case "f2-blue-front":
+      return [
+        {
+          moves: ["F2"],
+          colorName: "Blue",
+          colorValue: CUBE_COLORS.BLUE,
+          startIndex: 0,
+          boundaryIndex: 1,
+        },
+      ];
+
+    case "insert-flipped-edge-right":
+      return [
+        {
+          moves: ["U'", "R'", "F", "R"],
+          colorName: "Blue",
+          colorValue: CUBE_COLORS.BLUE,
+          startIndex: 0,
+          boundaryIndex: 4,
+        },
+      ];
+
+    case "insert-flipped-edge-left":
+      return [
+        {
+          moves: ["U", "L", "F'", "L'"],
+          colorName: "Blue",
+          colorValue: CUBE_COLORS.BLUE,
+          startIndex: 0,
+          boundaryIndex: 4,
+        },
+      ];
+
+    case "two-edges-blue-front":
+      return [
+        {
+          moves: ["F2", "L2"],
+          colorName: "Blue",
+          colorValue: CUBE_COLORS.BLUE,
+          startIndex: 0,
+          boundaryIndex: 2,
+        },
+      ];
+
+    case "two-edges-reposition-blue-front":
+      return [
+        {
+          moves: fixSequenceDisplay,
+          colorName: "Blue",
+          colorValue: CUBE_COLORS.BLUE,
+          startIndex: 0,
+          boundaryIndex: 4,
+        },
+      ];
+
+    case "solve-two-edges-together":
+      return [
+        {
+          moves: fixSequenceDisplay,
+          colorName: "Blue",
+          colorValue: CUBE_COLORS.BLUE,
+          startIndex: 0,
+          boundaryIndex: 4,
+        },
+      ];
+
+    case "solve-orange-and-blue-together":
+      return [
+        {
+          moves: fixSequenceDisplay,
+          colorName: "Orange",
+          colorValue: CUBE_COLORS.ORANGE,
+          startIndex: 0,
+          boundaryIndex: 4,
+        },
+      ];
+
+    case "solve-blue-and-red-together":
+      return [
+        {
+          moves: fixSequenceDisplay,
+          colorName: "Blue",
+          colorValue: CUBE_COLORS.BLUE,
+          startIndex: 0,
+          boundaryIndex: 4,
+        },
+      ];
+
+    case "solve-red-and-blue-together":
+      return [
+        {
+          moves: ["U'"],
+          colorName: "N/A",
+          colorValue: CUBE_COLORS.GRAY,
+          startIndex: 0,
+          boundaryIndex: 1,
+        },
+        {
+          moves: ["F'", "U2", "F'", "L"],
+          colorName: "Red",
+          colorValue: CUBE_COLORS.RED,
+          startIndex: 1,
+          boundaryIndex: 5,
+        },
+      ];
+
+    case "solve-green-and-orange-together":
+      return [
+        {
+          moves: ["U2"],
+          colorName: "N/A",
+          colorValue: CUBE_COLORS.GRAY,
+          startIndex: 0,
+          boundaryIndex: 1,
+        },
+        {
+          moves: ["F", "U2", "F", "R'"],
+          colorName: "Green",
+          colorValue: CUBE_COLORS.GREEN,
+          startIndex: 1,
+          boundaryIndex: 5,
+        },
+      ];
+
+    case "bogr-insert-align-red-green":
+      return [
+        {
+          moves: ["F", "U", "F", "R'"],
+          colorName: "Red",
+          colorValue: CUBE_COLORS.RED,
+          startIndex: 0,
+          boundaryIndex: 4,
+        },
+        {
+          moves: ["D"],
+          colorName: "N/A",
+          colorValue: CUBE_COLORS.GRAY,
+          startIndex: 4,
+          boundaryIndex: 5,
+        },
+      ];
+
     default:
       if (lessonId === "notation") {
         return [

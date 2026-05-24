@@ -3,20 +3,28 @@ import type { CubeMove, Solution } from "@/types/cube";
 import { AnimationHelper } from "@utils/animationHelper";
 import type { CubeJSWrapper } from "@utils/cubejsWrapper";
 import type { OrbitControlsInstance } from "@/types/orbitControls";
+import type { RubiksCube3DHandle } from "@components/RubiksCube3D/types";
 
 interface UseScrambleLogicParams {
   isAnimating: boolean;
   inputDisabled: boolean;
   isScramblingState: boolean;
   cubeRef: React.MutableRefObject<CubeJSWrapper>;
-  currentRunRef: React.MutableRefObject<null | "scramble" | "solve" | "auto-orient">;
+  currentRunRef: React.MutableRefObject<
+    null | "scramble" | "solve" | "auto-orient"
+  >;
   lastScrambleStartedAtRef: React.MutableRefObject<number>;
   scrambleRequestPendingRef: React.MutableRefObject<boolean>;
   scrambleRemainingRef: React.MutableRefObject<number>;
   solutionOverlaySourceRef: React.MutableRefObject<"generate" | "solve" | null>;
   sessionPhaseRef: React.MutableRefObject<"idle" | "transition" | "scramble">;
   orbitControlsRef: React.RefObject<OrbitControlsInstance | null>;
-  enqueueMoves: (moves: string[], fast?: boolean, fastMs?: number | null) => void;
+  cubeViewRef: React.RefObject<RubiksCube3DHandle | null>;
+  enqueueMoves: (
+    moves: string[],
+    fast?: boolean,
+    fastMs?: number | null,
+  ) => void;
   clearMoveHistory: () => void;
   resetTimer: () => void;
   setPendingMove: React.Dispatch<React.SetStateAction<CubeMove | null>>;
@@ -48,6 +56,7 @@ const useScrambleLogic = ({
   solutionOverlaySourceRef,
   sessionPhaseRef,
   orbitControlsRef,
+  cubeViewRef,
   enqueueMoves,
   clearMoveHistory,
   resetTimer,
@@ -73,6 +82,7 @@ const useScrambleLogic = ({
     const now = Date.now();
     if (now - lastScrambleStartedAtRef.current < 400) return;
     setPendingMove(null);
+    cubeViewRef.current?.abortActiveDrag();
 
     const scramble = cubeRef.current.generateScramble(20);
     setScrambleIndex(-1);

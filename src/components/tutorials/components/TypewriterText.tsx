@@ -66,6 +66,11 @@ const TypewriterText = ({
   const [isAtBottom, setIsAtBottom] = useState(false);
   const [isScrollable, setIsScrollable] = useState(false);
   const scrollRef = useRef<HTMLSpanElement>(null);
+  const scrollMetricsRef = useRef({
+    isScrollable: false,
+    showBottomShadow: false,
+    isAtBottom: false,
+  });
   const isTouchDevice = useIsTouchDevice();
   const isRecap = activeSlideId ? isRecapSlide(activeSlideId) : false;
   // Increase minHeight for all slides (e.g. 10em for more comfort)
@@ -73,50 +78,78 @@ const TypewriterText = ({
 
   useEffect(() => {
     let charCount = 0;
+    let rafId = 0;
+    let lastFrameTime = 0;
+    const frameIntervalMs = 16;
+
     setDisplayed("");
 
     // Count text characters (excluding HTML tags)
     const textCharsOnly = text.replace(/<[^>]*>/g, "").length;
 
-    const interval = setInterval(() => {
+    const tick = (timestamp: number) => {
+      if (timestamp - lastFrameTime < frameIntervalMs) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+      lastFrameTime = timestamp;
+
       const revealed = revealTextWithHTML(text, charCount);
-      setDisplayed(revealed);
-      charCount++;
-      if (charCount > textCharsOnly) clearInterval(interval);
-    }, 5);
-    return () => clearInterval(interval);
+      setDisplayed((prev) => (prev === revealed ? prev : revealed));
+      charCount += 1;
+
+      if (charCount <= textCharsOnly) {
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }, [text, keyProp]);
 
   useEffect(() => {
-    const checkScroll = () => {
+    const updateScrollMetrics = () => {
       const element = scrollRef.current;
       if (!element) return;
 
       const scrollable = element.scrollHeight > element.clientHeight;
       const atBottom =
         element.scrollHeight - element.scrollTop <= element.clientHeight + 1;
+      const nextShowBottomShadow = scrollable && !atBottom;
+      const prev = scrollMetricsRef.current;
 
+      if (
+        prev.isScrollable === scrollable &&
+        prev.showBottomShadow === nextShowBottomShadow &&
+        prev.isAtBottom === atBottom
+      ) {
+        return;
+      }
+
+      scrollMetricsRef.current = {
+        isScrollable: scrollable,
+        showBottomShadow: nextShowBottomShadow,
+        isAtBottom: atBottom,
+      };
       setIsScrollable(scrollable);
-      setShowBottomShadow(scrollable && !atBottom);
+      setShowBottomShadow(nextShowBottomShadow);
       setIsAtBottom(atBottom);
     };
 
-    // Check initially and after content updates
-    checkScroll();
-    const timeout = setTimeout(checkScroll, 100);
+    updateScrollMetrics();
+    const timeout = window.setTimeout(updateScrollMetrics, 100);
 
     const element = scrollRef.current;
     if (element) {
-      element.addEventListener("scroll", checkScroll);
-      // Also check on resize
-      window.addEventListener("resize", checkScroll);
+      element.addEventListener("scroll", updateScrollMetrics);
+      window.addEventListener("resize", updateScrollMetrics);
     }
 
     return () => {
-      clearTimeout(timeout);
+      window.clearTimeout(timeout);
       if (element) {
-        element.removeEventListener("scroll", checkScroll);
-        window.removeEventListener("resize", checkScroll);
+        element.removeEventListener("scroll", updateScrollMetrics);
+        window.removeEventListener("resize", updateScrollMetrics);
       }
     };
   }, [displayed, text]);

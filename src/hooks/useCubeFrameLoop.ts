@@ -21,6 +21,7 @@ interface UseCubeFrameLoopParams {
   colorFadeProgress: number;
   stickerGreyMap: Map<string, boolean> | undefined;
   dullOthersIntensity: number | undefined;
+  stickerOpacity: number | undefined;
   highlightSet: Set<string>;
   pieceMaterialsRef: RefObject<Map<string, PieceMaterialData>>;
   wasAnimatingRef: RefObject<boolean>;
@@ -49,11 +50,21 @@ function useCubeFrameLoop({
   colorFadeProgress,
   stickerGreyMap,
   dullOthersIntensity,
+  stickerOpacity,
   highlightSet,
   pieceMaterialsRef,
   wasAnimatingRef,
   animColorRef,
 }: UseCubeFrameLoopParams) {
+  const applyStickerOpacity = (mat: THREE.Material) => {
+    if (stickerOpacity == null || stickerOpacity >= 1) return;
+    mat.transparent = true;
+    mat.opacity = stickerOpacity;
+    if ("depthWrite" in mat) {
+      (mat as THREE.MeshPhysicalMaterial).depthWrite = false;
+    }
+  };
+
   useFrame((_, delta) => {
     AnimationHelper.update();
 
@@ -114,7 +125,8 @@ function useCubeFrameLoop({
       for (const face in pieceData.materials) {
         const mat = pieceData.materials[face];
         const base = pieceData.baseColors[face];
-        if (!mat || !base) continue;
+        if (!mat) continue;
+        if (!needsFade && !base) continue;
 
         if (needsFade) {
           const faceKey = `${x},${y},${z},${face}`;
@@ -137,8 +149,16 @@ function useCubeFrameLoop({
                   .copy(temps.previous)
                   .lerp(temps.grey, phase1Progress);
                 mat.color.copy(temps.lerped);
+                applyStickerOpacity(mat);
+              } else if (needsDulling && !isHighlighted) {
+                temps.lerped
+                  .copy(temps.previous)
+                  .lerp(temps.grey, dullOthersIntensity ?? 0);
+                mat.color.copy(temps.lerped);
+                applyStickerOpacity(mat);
               } else {
                 mat.color.copy(temps.previous);
+                applyStickerOpacity(mat);
               }
             } else {
               const phase2Progress = Math.min(
@@ -152,16 +172,23 @@ function useCubeFrameLoop({
                   .copy(needsGreyFade ? temps.grey : temps.previous)
                   .lerp(temps.baseline, phase2Progress);
                 mat.color.copy(temps.lerped);
+                applyStickerOpacity(mat);
+              } else if (needsDulling && !isHighlighted) {
+                temps.lerped
+                  .copy(temps.baseline)
+                  .lerp(temps.grey, dullOthersIntensity ?? 0);
+                mat.color.copy(temps.lerped);
+                applyStickerOpacity(mat);
               } else {
                 mat.color.copy(temps.previous);
+                applyStickerOpacity(mat);
               }
             }
-            mat.needsUpdate = true;
           }
         } else if (needsDulling && !isHighlighted) {
           temps.lerped.copy(base).lerp(temps.grey, dullOthersIntensity ?? 0);
           mat.color.copy(temps.lerped);
-          mat.needsUpdate = true;
+          applyStickerOpacity(mat);
         }
       }
     }

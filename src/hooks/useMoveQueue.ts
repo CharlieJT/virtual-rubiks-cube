@@ -58,12 +58,12 @@ const useMoveQueue = ({
         isAnimatingRef.current ||
         pendingMoveRef.current
       ) {
-        setTimeout(attempt, 0);
+        queueMicrotask(attempt);
         return;
       }
       pumpQueue();
     };
-    setTimeout(attempt, 0);
+    queueMicrotask(attempt);
   }, [pumpQueue]);
 
   const enqueueMoves = useCallback(

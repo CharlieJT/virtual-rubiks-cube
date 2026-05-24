@@ -1,7 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
-import { TrackballControls, PerformanceMonitor } from "@react-three/drei";
+import { PerformanceMonitor, TrackballControls } from "@react-three/drei";
 import RubiksCube3D from "@components/RubiksCube3D";
+import { ViewerLockedLights } from "@components/RubiksCube3D/ViewerLockedLights";
 import ControlPanel from "@components/ControlPanel";
 import cubejsTo3D from "@utils/cubejsTo3D";
 import { AnimationHelper } from "@utils/animationHelper";
@@ -45,6 +46,7 @@ import type { OrbitControlsInstance } from "./types/orbitControls";
 import type { TrackballControls as TrackballControlsInstance } from "three-stdlib";
 import type { CustomWindowType } from "./types/window";
 import useAppState from "./App/AppState";
+import { ACESFilmicToneMapping } from "three";
 
 const App = () => {
   const appState = useAppState();
@@ -253,6 +255,7 @@ const App = () => {
     solutionOverlaySourceRef,
     sessionPhaseRef,
     orbitControlsRef,
+    cubeViewRef,
     enqueueMoves,
     clearMoveHistory,
     resetTimer,
@@ -405,6 +408,7 @@ const App = () => {
 
   const resetMainCube = useCallback(() => {
     AnimationHelper.forceUnlock();
+    cubeViewRef.current?.resetCubieMeshTransforms();
     cubeRef.current.reset();
     setCube3D(cubejsTo3D(cubeRef.current.getCube()));
     clearMoveHistory();
@@ -775,11 +779,18 @@ const App = () => {
               </>
             )}
             <Canvas
-              camera={{ position: [5, 5, 5], fov: 53 }}
+              camera={{
+                position: [4.45, 4.225, 4.525],
+                fov: 45,
+                near: 0.1,
+                far: 100,
+              }}
               className="w-full h-full pt-9"
               style={{
                 touchAction: "none",
                 pointerEvents: canvasReady ? "auto" : "none",
+                position: "relative",
+                zIndex: 1,
               }}
               dpr={canvasDpr}
               gl={{
@@ -792,6 +803,8 @@ const App = () => {
               }}
               onCreated={(state) => {
                 attachSetDpr(state.setDpr);
+                state.gl.toneMapping = ACESFilmicToneMapping;
+                state.gl.toneMappingExposure = 1;
                 const canvas = state.gl.domElement as HTMLCanvasElement;
                 const onLost = (ev: Event) => ev.preventDefault();
                 const onRestored = () => {
@@ -807,7 +820,7 @@ const App = () => {
                 );
                 setTimeout(() => {
                   setCanvasReady(true);
-                }, 800);
+                }, 150);
               }}
               onPointerDownCapture={(e) => {
                 setInteractiveDpr();
@@ -822,17 +835,12 @@ const App = () => {
               }}
             >
               <PerformanceMonitor onDecline={onDecline} onIncline={onIncline} />
-              <spotLight position={[-30, 20, 60]} intensity={0.35} />
-              <ambientLight intensity={1.25} color={"#fff"} />
-              <pointLight
-                position={[0, -8, 4]}
-                intensity={0.15}
-                color="#FF9100"
-                distance={20}
-              />
+              <ViewerLockedLights />
               <RubiksCube3D
                 ref={cubeViewRef}
                 cubeState={cube3D}
+                designVariant="modern"
+                cubeScale={0.75}
                 previousCube3D={previousCube3D}
                 baselineCube3D={baselineCube3D}
                 stickerGreyMap={stickerGreyMap}
@@ -849,13 +857,12 @@ const App = () => {
                 queueFast={queueFast}
                 queueFastMs={queueFastMs}
                 inputDisabled={inputDisabled}
+                disableSliceDrag={isScrambling || isSolving}
               />
               {canvasReady && (
                 <TrackballControls
                   ref={
-                    orbitControlsRef as unknown as React.RefObject<
-                      TrackballControlsInstance | null
-                    >
+                    orbitControlsRef as unknown as React.RefObject<TrackballControlsInstance | null>
                   }
                   enabled={orbitControlsEnabled && !modalCloseCooldown}
                   noRotate={false}
@@ -871,6 +878,15 @@ const App = () => {
                 />
               )}
             </Canvas>
+            <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center z-0">
+              <div
+                className="h-14 w-[min(70%,420px)] rounded-full blur-md"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at center, rgba(0,0,0,0.36) 0%, rgba(0,0,0,0.2) 45%, rgba(0,0,0,0.05) 70%, rgba(0,0,0,0) 100%)",
+                }}
+              />
+            </div>
             {!inputDisabled && (
               <SpinTrackpad
                 onPointerDown={handleTrackpadPointerDown}
